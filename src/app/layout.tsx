@@ -4,6 +4,7 @@ import './globals.css';
 import { Providers } from '@/components/providers';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
+import { AnalyticsProvider } from '@/lib/analytics/provider';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const jetbrainsMono = JetBrains_Mono({
@@ -121,6 +122,7 @@ export default function RootLayout({
             <Footer />
           </div>
         </Providers>
+        <AnalyticsProvider />
       </body>
     </html>
   );
