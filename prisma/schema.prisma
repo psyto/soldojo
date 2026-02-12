@@ -1,0 +1,266 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// NextAuth Models
+// ==========================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ==========================================
+// User & Identity
+// ==========================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  displayName   String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  bio           String?
+  locale        String    @default("en")
+  theme         String    @default("dark")
+  isPublic      Boolean   @default(true)
+  walletAddress String?   @unique
+
+  // Gamification
+  totalXP       Int       @default(0)
+  currentStreak Int       @default(0)
+  longestStreak Int       @default(0)
+  lastActiveAt  DateTime?
+  achievements  String    @default("0") // Bitmap as hex string (256 bits)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  accounts    Account[]
+  sessions    Session[]
+  enrollments Enrollment[]
+  xpEvents    XPEvent[]
+  streakDays  StreakDay[]
+
+  @@index([totalXP(sort: Desc)])
+  @@index([walletAddress])
+}
+
+// ==========================================
+// Course Content
+// ==========================================
+
+model Course {
+  id          String           @id @default(cuid())
+  slug        String           @unique
+  title       String
+  description String           @db.Text
+  thumbnail   String?
+  difficulty  CourseDifficulty @default(BEGINNER)
+  duration    Int              @default(0) // minutes
+  xpReward    Int              @default(500)
+  track       String?          // e.g., "solana-fundamentals", "defi-developer"
+  tags        String[]
+  isPublished Boolean          @default(false)
+  sortOrder   Int              @default(0)
+
+  // Instructor (could be CMS-driven)
+  instructorName  String?
+  instructorImage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  modules     Module[]
+  enrollments Enrollment[]
+
+  @@index([slug])
+  @@index([isPublished])
+  @@index([track])
+}
+
+model Module {
+  id        String @id @default(cuid())
+  courseId   String
+  title     String
+  sortOrder Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@index([courseId])
+}
+
+model Lesson {
+  id          String     @id @default(cuid())
+  moduleId    String
+  title       String
+  slug        String
+  type        LessonType @default(CONTENT)
+  content     String     @db.Text // Markdown
+  xpReward    Int        @default(25)
+  sortOrder   Int        @default(0)
+  duration    Int        @default(10) // minutes
+
+  // Challenge fields (when type = CHALLENGE)
+  starterCode    String? @db.Text
+  solutionCode   String? @db.Text
+  testCases      Json?   // Array of { input, expectedOutput, description }
+  hints          String[] // Array of hint strings
+  challengeLanguage String? @default("typescript") // "rust", "typescript", "json"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  module          Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  lessonProgress  LessonProgress[]
+
+  @@unique([moduleId, slug])
+  @@index([moduleId])
+}
+
+// ==========================================
+// Learning Progress
+// ==========================================
+
+model Enrollment {
+  id        String           @id @default(cuid())
+  userId    String
+  courseId   String
+  status    EnrollmentStatus @default(ACTIVE)
+  progress  Float            @default(0) // 0-100 percentage
+  startedAt DateTime         @default(now())
+  completedAt DateTime?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  lessonProgress LessonProgress[]
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+}
+
+model LessonProgress {
+  id           String   @id @default(cuid())
+  enrollmentId String
+  lessonId     String
+  isCompleted  Boolean  @default(false)
+  completedAt  DateTime?
+  score        Int?     // For challenges: 0-100
+  code         String?  @db.Text // User's submitted code
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lesson     Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, lessonId])
+  @@index([enrollmentId])
+  @@index([lessonId])
+}
+
+// ==========================================
+// Gamification
+// ==========================================
+
+model XPEvent {
+  id        String      @id @default(cuid())
+  userId    String
+  amount    Int
+  reason    XPReason
+  sourceId  String?     // courseId, lessonId, etc.
+  createdAt DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model StreakDay {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime @db.Date
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+// ==========================================
+// Enums
+// ==========================================
+
+enum CourseDifficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum LessonType {
+  CONTENT
+  CHALLENGE
+  VIDEO
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+}
+
+enum XPReason {
+  LESSON_COMPLETE
+  CHALLENGE_COMPLETE
+  COURSE_COMPLETE
+  DAILY_STREAK
+  FIRST_OF_DAY
+  ACHIEVEMENT
+}
