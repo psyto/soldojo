@@ -15,71 +15,12 @@ import {
   FileText,
   Play,
   ArrowRight,
+  Loader2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn, formatDuration } from '@/lib/utils';
-
-// Mock course detail — will come from CMS/API
-const MOCK_COURSE = {
-  id: '3',
-  slug: 'anchor-framework',
-  title: 'Building with Anchor Framework',
-  description:
-    'Build production-ready Solana programs using the Anchor framework. Learn macros, account validation, Cross-Program Invocations (CPIs), and comprehensive testing strategies.',
-  difficulty: 'INTERMEDIATE' as const,
-  duration: 480,
-  xpReward: 1500,
-  instructorName: 'Superteam Brazil',
-  instructorImage: null,
-  enrolledCount: 654,
-  prerequisites: ['Rust basics', 'Solana account model understanding'],
-  learningOutcomes: [
-    'Write Solana programs using Anchor macros',
-    'Validate accounts with constraints and custom checks',
-    'Implement Cross-Program Invocations (CPIs)',
-    'Write comprehensive tests with TypeScript',
-    'Deploy programs to Devnet and Mainnet',
-    'Handle errors and logging properly',
-  ],
-  modules: [
-    {
-      id: 'm1',
-      title: 'Getting Started with Anchor',
-      lessons: [
-        { id: 'l1', title: 'What is Anchor?', slug: 'what-is-anchor', type: 'CONTENT' as const, duration: 15, xpReward: 25, isCompleted: false },
-        { id: 'l2', title: 'Project Setup & Architecture', slug: 'project-setup', type: 'CONTENT' as const, duration: 20, xpReward: 25, isCompleted: false },
-        { id: 'l3', title: 'Your First Anchor Program', slug: 'first-program', type: 'CHALLENGE' as const, duration: 30, xpReward: 50, isCompleted: false },
-      ],
-    },
-    {
-      id: 'm2',
-      title: 'Account Validation & Constraints',
-      lessons: [
-        { id: 'l4', title: 'The Accounts Macro', slug: 'accounts-macro', type: 'CONTENT' as const, duration: 20, xpReward: 25, isCompleted: false },
-        { id: 'l5', title: 'Account Constraints Deep Dive', slug: 'constraints', type: 'CONTENT' as const, duration: 25, xpReward: 25, isCompleted: false },
-        { id: 'l6', title: 'Custom Account Validation', slug: 'custom-validation', type: 'CHALLENGE' as const, duration: 35, xpReward: 75, isCompleted: false },
-      ],
-    },
-    {
-      id: 'm3',
-      title: 'Cross-Program Invocations',
-      lessons: [
-        { id: 'l7', title: 'CPI Fundamentals', slug: 'cpi-fundamentals', type: 'CONTENT' as const, duration: 20, xpReward: 25, isCompleted: false },
-        { id: 'l8', title: 'CPI with PDAs', slug: 'cpi-pdas', type: 'CONTENT' as const, duration: 25, xpReward: 25, isCompleted: false },
-        { id: 'l9', title: 'Build a Token Vault', slug: 'token-vault', type: 'CHALLENGE' as const, duration: 45, xpReward: 100, isCompleted: false },
-      ],
-    },
-    {
-      id: 'm4',
-      title: 'Testing & Deployment',
-      lessons: [
-        { id: 'l10', title: 'Testing with Bankrun', slug: 'testing-bankrun', type: 'CONTENT' as const, duration: 25, xpReward: 25, isCompleted: false },
-        { id: 'l11', title: 'Integration Tests', slug: 'integration-tests', type: 'CHALLENGE' as const, duration: 40, xpReward: 75, isCompleted: false },
-        { id: 'l12', title: 'Deploy to Devnet', slug: 'deploy-devnet', type: 'CONTENT' as const, duration: 20, xpReward: 50, isCompleted: false },
-      ],
-    },
-  ],
-};
+import { useCourse, useEnroll } from '@/hooks';
+import { useSession } from 'next-auth/react';
 
 const LESSON_TYPE_ICONS = {
   CONTENT: FileText,
@@ -95,15 +36,13 @@ const DIFFICULTY_COLORS = {
 
 export default function CourseDetailPage() {
   const params = useParams();
+  const slug = params.slug as string;
   const { t } = useLocale();
-  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set(['m1']));
+  const { data: session } = useSession();
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
 
-  const course = MOCK_COURSE; // In production: fetch by params.slug
-  const totalLessons = course.modules.reduce((sum, m) => sum + m.lessons.length, 0);
-  const completedLessons = course.modules.reduce(
-    (sum, m) => sum + m.lessons.filter((l) => l.isCompleted).length,
-    0
-  );
+  const { data: course, isLoading, error } = useCourse(slug);
+  const enrollMutation = useEnroll(slug);
 
   const toggleModule = (moduleId: string) => {
     setExpandedModules((prev) => {
@@ -112,6 +51,39 @@ export default function CourseDetailPage() {
       else next.add(moduleId);
       return next;
     });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error || !course) {
+    return (
+      <div className="py-20 text-center">
+        <p className="text-destructive">Failed to load course. Please try again.</p>
+      </div>
+    );
+  }
+
+  const totalLessons = course.modules.reduce((sum, m) => sum + m.lessons.length, 0);
+  const completedLessons = course.modules.reduce(
+    (sum, m) => sum + m.lessons.filter((l) => l.isCompleted).length,
+    0
+  );
+  const isEnrolled = course.enrollment !== null;
+
+  // Expand first module by default
+  if (expandedModules.size === 0 && course.modules.length > 0) {
+    expandedModules.add(course.modules[0].id);
+  }
+
+  const handleEnroll = () => {
+    if (!session?.user) return;
+    enrollMutation.mutate();
   };
 
   return (
@@ -149,19 +121,6 @@ export default function CourseDetailPage() {
                 <Users className="h-4 w-4" />
                 {course.enrolledCount.toLocaleString()} {t('courses.detail.students').toLowerCase()}
               </span>
-            </div>
-          </div>
-
-          {/* What you'll learn */}
-          <div className="mt-10">
-            <h2 className="text-xl font-semibold">{t('courses.detail.whatYouLearn')}</h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {course.learningOutcomes.map((outcome, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                  <span className="text-sm text-muted-foreground">{outcome}</span>
-                </div>
-              ))}
             </div>
           </div>
 
@@ -240,7 +199,7 @@ export default function CourseDetailPage() {
         <div className="mt-8 lg:mt-0">
           <div className="sticky top-24 rounded-2xl border border-border bg-card p-6">
             {/* Progress (if enrolled) */}
-            {completedLessons > 0 && (
+            {isEnrolled && (
               <div className="mb-6">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">{t('courses.progress.inProgress')}</span>
@@ -261,9 +220,19 @@ export default function CourseDetailPage() {
             )}
 
             {/* Enroll CTA */}
-            <button className="flex w-full items-center justify-center gap-2 rounded-xl bg-solana-gradient px-6 py-3 text-base font-semibold text-white transition-all hover:opacity-90">
-              {completedLessons > 0 ? t('courses.detail.enrolled') : t('courses.detail.enroll')}
-              <ArrowRight className="h-4 w-4" />
+            <button
+              onClick={handleEnroll}
+              disabled={isEnrolled || enrollMutation.isPending}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-solana-gradient px-6 py-3 text-base font-semibold text-white transition-all hover:opacity-90 disabled:opacity-70"
+            >
+              {enrollMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isEnrolled ? (
+                t('courses.detail.enrolled')
+              ) : (
+                t('courses.detail.enroll')
+              )}
+              {!enrollMutation.isPending && <ArrowRight className="h-4 w-4" />}
             </button>
 
             {/* Course info */}
@@ -288,21 +257,6 @@ export default function CourseDetailPage() {
                 </span>
               </div>
             </div>
-
-            {/* Prerequisites */}
-            {course.prerequisites.length > 0 && (
-              <div className="mt-6 border-t border-border pt-4">
-                <h3 className="text-sm font-semibold">{t('courses.detail.prerequisites')}</h3>
-                <ul className="mt-2 space-y-1">
-                  {course.prerequisites.map((prereq, i) => (
-                    <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <div className="h-1 w-1 rounded-full bg-muted-foreground" />
-                      {prereq}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
         </div>
       </div>

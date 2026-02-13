@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
@@ -11,29 +11,71 @@ import {
   User,
   Globe,
   Palette,
-  Bell,
   Shield,
   Wallet,
   Github,
   Mail,
   Check,
   Download,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useProfile, useUpdateProfile } from '@/hooks';
 
 export default function SettingsPage() {
   const { data: session } = useSession();
   const { publicKey, connected } = useWallet();
   const { t, locale, setLocale } = useLocale();
+  const { data: profile, isLoading } = useProfile();
+  const updateProfile = useUpdateProfile();
+
+  const [name, setName] = useState('');
+  const [bio, setBio] = useState('');
   const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('dark');
   const [isPublic, setIsPublic] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
-  const sections = [
-    { id: 'profile', label: t('settings.profile.title'), icon: User },
-    { id: 'account', label: t('settings.account.title'), icon: Shield },
-    { id: 'preferences', label: t('settings.preferences.title'), icon: Palette },
-    { id: 'privacy', label: t('settings.privacy.title'), icon: Shield },
-  ];
+  // Initialize form values from profile data
+  useEffect(() => {
+    if (profile && !initialized) {
+      setName(profile.displayName || '');
+      setBio(profile.bio || '');
+      setTheme((profile.theme as 'dark' | 'light' | 'system') || 'dark');
+      setIsPublic(profile.isPublic);
+      setInitialized(true);
+    }
+  }, [profile, initialized]);
+
+  const handleSaveProfile = () => {
+    updateProfile.mutate({
+      displayName: name,
+      bio,
+    });
+  };
+
+  const handleThemeChange = (newTheme: 'dark' | 'light' | 'system') => {
+    setTheme(newTheme);
+    updateProfile.mutate({ theme: newTheme });
+  };
+
+  const handleLocaleChange = (newLocale: Locale) => {
+    setLocale(newLocale);
+    updateProfile.mutate({ locale: newLocale });
+  };
+
+  const handlePublicToggle = () => {
+    const newValue = !isPublic;
+    setIsPublic(newValue);
+    updateProfile.mutate({ isPublic: newValue });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
@@ -53,7 +95,8 @@ export default function SettingsPage() {
               </label>
               <input
                 type="text"
-                defaultValue={session?.user?.name || ''}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -63,12 +106,22 @@ export default function SettingsPage() {
               </label>
               <textarea
                 rows={3}
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 placeholder="Tell us about yourself..."
               />
             </div>
-            <button className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-              {t('common.save')}
+            <button
+              onClick={handleSaveProfile}
+              disabled={updateProfile.isPending}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+            >
+              {updateProfile.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                t('common.save')
+              )}
             </button>
           </div>
         </section>
@@ -142,10 +195,10 @@ export default function SettingsPage() {
                 {t('settings.preferences.language')}
               </label>
               <div className="flex gap-2">
-                {(Object.entries(localeNames) as [Locale, string][]).map(([key, name]) => (
+                {(Object.entries(localeNames) as [Locale, string][]).map(([key, langName]) => (
                   <button
                     key={key}
-                    onClick={() => setLocale(key)}
+                    onClick={() => handleLocaleChange(key)}
                     className={cn(
                       'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
                       locale === key
@@ -153,7 +206,7 @@ export default function SettingsPage() {
                         : 'bg-secondary text-muted-foreground hover:text-foreground'
                     )}
                   >
-                    {name}
+                    {langName}
                   </button>
                 ))}
               </div>
@@ -168,7 +221,7 @@ export default function SettingsPage() {
                 {(['dark', 'light', 'system'] as const).map((th) => (
                   <button
                     key={th}
-                    onClick={() => setTheme(th)}
+                    onClick={() => handleThemeChange(th)}
                     className={cn(
                       'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
                       theme === th
@@ -200,7 +253,7 @@ export default function SettingsPage() {
                 </p>
               </div>
               <button
-                onClick={() => setIsPublic(!isPublic)}
+                onClick={handlePublicToggle}
                 className={cn(
                   'h-6 w-11 rounded-full transition-colors',
                   isPublic ? 'bg-accent' : 'bg-secondary'

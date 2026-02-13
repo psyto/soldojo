@@ -13,36 +13,31 @@ import {
   Star,
   Calendar,
   TrendingUp,
+  Loader2,
 } from 'lucide-react';
-
-// Mock user data — will come from API/service
-const MOCK_USER_STATS = {
-  totalXP: 2450,
-  currentStreak: 7,
-  longestStreak: 14,
-  coursesCompleted: 2,
-  rank: 42,
-  recentActivity: [
-    { type: 'lesson', title: 'CPI Fundamentals', course: 'Anchor Framework', xp: 25, time: '2h ago' },
-    { type: 'challenge', title: 'Custom Account Validation', course: 'Anchor Framework', xp: 75, time: '3h ago' },
-    { type: 'streak', title: '7-day streak bonus', xp: 10, time: '3h ago' },
-    { type: 'lesson', title: 'Account Constraints Deep Dive', course: 'Anchor Framework', xp: 25, time: '1d ago' },
-  ],
-  currentCourses: [
-    { slug: 'anchor-framework', title: 'Building with Anchor Framework', progress: 42, nextLesson: 'CPI with PDAs' },
-    { slug: 'token-extensions', title: 'SPL Token & Token-2022', progress: 15, nextLesson: 'Mint Authority' },
-  ],
-  streakDays: [
-    '2026-02-06', '2026-02-07', '2026-02-08', '2026-02-09',
-    '2026-02-10', '2026-02-11', '2026-02-12',
-  ],
-};
+import { useDashboard } from '@/hooks';
 
 export default function DashboardPage() {
   const { data: session } = useSession();
   const { t, formatT } = useLocale();
+  const { data: stats, isLoading, error } = useDashboard();
 
-  const stats = MOCK_USER_STATS;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error || !stats) {
+    return (
+      <div className="py-20 text-center">
+        <p className="text-destructive">Failed to load dashboard. Please sign in and try again.</p>
+      </div>
+    );
+  }
+
   const level = calculateLevel(stats.totalXP);
   const progress = xpProgressInLevel(stats.totalXP);
 
@@ -142,6 +137,14 @@ export default function DashboardPage() {
         <div className="lg:col-span-2">
           <h2 className="mb-4 text-lg font-semibold">{t('dashboard.currentCourses')}</h2>
           <div className="space-y-4">
+            {stats.currentCourses.length === 0 && (
+              <Link
+                href="/courses"
+                className="flex items-center justify-center rounded-xl border border-dashed border-border p-8 text-muted-foreground hover:border-primary/50 transition-colors"
+              >
+                <span>No courses yet. Start learning!</span>
+              </Link>
+            )}
             {stats.currentCourses.map((course) => (
               <Link
                 key={course.slug}
@@ -211,6 +214,11 @@ export default function DashboardPage() {
         <div>
           <h2 className="mb-4 text-lg font-semibold">{t('dashboard.recentActivity')}</h2>
           <div className="rounded-xl border border-border bg-card">
+            {stats.recentActivity.length === 0 && (
+              <div className="p-4 text-center text-sm text-muted-foreground">
+                No recent activity yet.
+              </div>
+            )}
             {stats.recentActivity.map((activity, i) => (
               <div
                 key={i}
@@ -235,7 +243,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{activity.title}</p>
-                  {'course' in activity && activity.course && (
+                  {activity.course && (
                     <p className="text-xs text-muted-foreground">{activity.course}</p>
                   )}
                 </div>

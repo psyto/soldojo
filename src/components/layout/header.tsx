@@ -2,8 +2,12 @@
 
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import dynamic from 'next/dynamic';
+
+const WalletMultiButton = dynamic(
+  () => import('@solana/wallet-adapter-react-ui').then((mod) => mod.WalletMultiButton),
+  { ssr: false }
+);
 import { useLocale } from '@/contexts/locale-context';
 import { type Locale, localeNames } from '@/lib/i18n';
 import {
@@ -17,13 +21,17 @@ import {
   Globe,
   Flame,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export function Header() {
   const { data: session } = useSession();
-  const { connected } = useWallet();
   const { t, locale, setLocale } = useLocale();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
 
@@ -96,9 +104,11 @@ export function Header() {
           </div>
 
           {/* Wallet / Auth */}
-          <div className="hidden sm:block">
-            <WalletMultiButton className="!h-9 !rounded-lg !bg-primary !px-4 !text-sm !font-medium" />
-          </div>
+          {mounted && (
+            <div className="hidden sm:block">
+              <WalletMultiButton className="!h-9 !rounded-lg !bg-primary !px-4 !text-sm !font-medium" />
+            </div>
+          )}
 
           {session ? (
             <Link
@@ -149,9 +159,11 @@ export function Header() {
                 {item.label}
               </Link>
             ))}
-            <div className="pt-2">
-              <WalletMultiButton className="!w-full !rounded-lg !bg-primary !text-sm !font-medium" />
-            </div>
+            {mounted && (
+              <div className="pt-2">
+                <WalletMultiButton className="!w-full !rounded-lg !bg-primary !text-sm !font-medium" />
+              </div>
+            )}
           </nav>
         </div>
       )}
