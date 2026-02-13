@@ -76,6 +76,15 @@
   }
 }
 
+/* Preserve whitespace in code blocks */
+pre {
+  white-space: pre;
+}
+
+pre code {
+  white-space: pre;
+}
+
 /* Code editor overrides */
 .monaco-editor {
   border-radius: var(--radius);

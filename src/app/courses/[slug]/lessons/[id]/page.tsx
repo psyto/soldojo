@@ -163,16 +163,29 @@ export default function LessonPage() {
             <div
               className="text-sm leading-relaxed text-foreground [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-6 [&_h2]:mb-3 [&_p]:text-muted-foreground [&_p]:mb-3 [&_code]:bg-secondary [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_pre]:bg-card [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:my-4 [&_li]:text-muted-foreground [&_li]:mb-1 [&_ul]:mb-3 [&_ol]:mb-3 [&_strong]:text-foreground"
               dangerouslySetInnerHTML={{
-                __html: lesson.content
-                  .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-                  .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-                  .replace(/^- (.+)$/gm, '<li>$1</li>')
-                  .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                  .replace(/`([^`]+)`/g, '<code>$1</code>')
-                  .replace(/```(\w+)?\n([\s\S]+?)```/g, '<pre><code>$2</code></pre>')
-                  .replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>')
-                  .replace(/\n\n/g, '</p><p>')
-                  .replace(/^(?!<[hluop])/gm, '<p>')
+                __html: (() => {
+                  let content = lesson.content;
+                  // Extract fenced code blocks into placeholders before other regexes
+                  const codeBlocks: string[] = [];
+                  content = content.replace(/```(\w+)?\n([\s\S]+?)```/g, (_match, _lang, code) => {
+                    const index = codeBlocks.length;
+                    codeBlocks.push(`<pre><code>${code}</code></pre>`);
+                    return `\x00CODEBLOCK_${index}\x00`;
+                  });
+                  // Run heading/list/bold/inline-code/paragraph regexes on remaining content
+                  content = content
+                    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+                    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+                    .replace(/^- (.+)$/gm, '<li>$1</li>')
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/`([^`]+)`/g, '<code>$1</code>')
+                    .replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>')
+                    .replace(/\n\n/g, '</p><p>')
+                    .replace(/^(?!<[hluop\x00])/gm, '<p>');
+                  // Re-insert code blocks after all other replacements
+                  content = content.replace(/\x00CODEBLOCK_(\d+)\x00/g, (_match, index) => codeBlocks[Number(index)]);
+                  return content;
+                })()
               }}
             />
 
@@ -211,7 +224,7 @@ export default function LessonPage() {
                 </button>
                 {showSolution && (
                   <pre className="mt-3 overflow-x-auto rounded-lg bg-card p-4 text-xs">
-                    <code>{lesson.solutionCode}</code>
+                    <code className="font-mono">{lesson.solutionCode}</code>
                   </pre>
                 )}
               </div>
@@ -283,7 +296,7 @@ export default function LessonPage() {
                             {result.expected && (
                               <div>
                                 <span className="text-muted-foreground">Expected: </span>
-                                <code className="rounded bg-secondary px-1 py-0.5 font-mono text-accent">
+                                <code className="whitespace-pre-wrap rounded bg-secondary px-1 py-0.5 font-mono text-accent">
                                   {result.expected}
                                 </code>
                               </div>
@@ -291,7 +304,7 @@ export default function LessonPage() {
                             {result.actual && (
                               <div>
                                 <span className="text-muted-foreground">Actual: </span>
-                                <code className="rounded bg-secondary px-1 py-0.5 font-mono text-destructive">
+                                <code className="whitespace-pre-wrap rounded bg-secondary px-1 py-0.5 font-mono text-destructive">
                                   {result.actual}
                                 </code>
                               </div>
