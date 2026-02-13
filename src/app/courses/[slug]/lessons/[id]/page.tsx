@@ -17,6 +17,8 @@ import {
 import { cn } from '@/lib/utils';
 import dynamic from 'next/dynamic';
 import { useLesson, useCompleteLesson } from '@/hooks';
+import { runChallenge } from '@/lib/challenge-runner';
+import type { ChallengeResult } from '@/types';
 
 // Lazy load Monaco Editor for performance
 const CodeEditor = dynamic(() => import('@/components/editor/code-editor'), {
@@ -44,7 +46,7 @@ export default function LessonPage() {
   const [showSolution, setShowSolution] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [output, setOutput] = useState('');
-  const [testResults, setTestResults] = useState<{ description: string; passed: boolean }[]>([]);
+  const [testResults, setTestResults] = useState<ChallengeResult['testResults']>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [splitPosition] = useState(50);
 
@@ -76,42 +78,27 @@ export default function LessonPage() {
   const handleRun = async () => {
     setIsRunning(true);
     setOutput('');
+    setTestResults([]);
 
-    // Simulate code evaluation
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const result = await runChallenge({
+        code,
+        language: lesson.challengeLanguage || 'typescript',
+        testCases: (lesson.testCases || []) as import('@/types').TestCase[],
+        solutionCode: lesson.solutionCode || '',
+      });
 
-    // Simple pattern matching for challenges
-    const testCases = (lesson.testCases || []) as { description: string }[];
-    const results = testCases.map((tc) => {
-      // Basic check: compare code against solution patterns
-      const solutionCode = lesson.solutionCode || '';
-      // Extract key patterns from solution
-      const solutionLines = solutionCode.split('\n').filter((l) => l.trim() && !l.trim().startsWith('//'));
-      const codeLines = code.split('\n').filter((l) => l.trim() && !l.trim().startsWith('//'));
+      setTestResults(result.testResults);
+      setOutput(result.output);
 
-      // Check if substantial content from solution exists in user code
-      const matchCount = solutionLines.filter((sl) =>
-        codeLines.some((cl) => cl.trim() === sl.trim())
-      ).length;
-      const passed = matchCount > solutionLines.length * 0.5;
-
-      return { description: tc.description, passed };
-    });
-
-    setTestResults(results);
-    const allPassed = results.every((r) => r.passed);
-
-    if (allPassed) {
-      setOutput('All tests passed! Great job!');
-      completeMutation.mutate();
-    } else {
-      const failed = results.filter((r) => !r.passed);
-      setOutput(
-        `${results.filter((r) => r.passed).length}/${results.length} tests passed.\n\nFailing:\n${failed.map((f) => `- ${f.description}`).join('\n')}`
-      );
+      if (result.passed) {
+        completeMutation.mutate();
+      }
+    } catch {
+      setOutput('An error occurred while running your code.');
+    } finally {
+      setIsRunning(false);
     }
-
-    setIsRunning(false);
   };
 
   const handleMarkComplete = () => {
@@ -278,17 +265,39 @@ export default function LessonPage() {
             {(output || testResults.length > 0) && (
               <div className="max-h-48 overflow-y-auto border-t border-border bg-card p-4">
                 {testResults.length > 0 && (
-                  <div className="mb-3 space-y-1.5">
+                  <div className="mb-3 space-y-2">
                     {testResults.map((result, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs">
-                        {result.passed ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-accent" />
-                        ) : (
-                          <div className="h-3.5 w-3.5 rounded-full border-2 border-destructive" />
+                      <div key={i}>
+                        <div className="flex items-center gap-2 text-xs">
+                          {result.passed ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-accent" />
+                          ) : (
+                            <div className="h-3.5 w-3.5 rounded-full border-2 border-destructive" />
+                          )}
+                          <span className={result.passed ? 'text-accent' : 'text-destructive'}>
+                            {result.description}
+                          </span>
+                        </div>
+                        {!result.passed && (result.expected || result.actual) && (
+                          <div className="ml-5.5 mt-1 space-y-0.5 rounded bg-secondary/50 px-3 py-2 text-xs">
+                            {result.expected && (
+                              <div>
+                                <span className="text-muted-foreground">Expected: </span>
+                                <code className="rounded bg-secondary px-1 py-0.5 font-mono text-accent">
+                                  {result.expected}
+                                </code>
+                              </div>
+                            )}
+                            {result.actual && (
+                              <div>
+                                <span className="text-muted-foreground">Actual: </span>
+                                <code className="rounded bg-secondary px-1 py-0.5 font-mono text-destructive">
+                                  {result.actual}
+                                </code>
+                              </div>
+                            )}
+                          </div>
                         )}
-                        <span className={result.passed ? 'text-accent' : 'text-destructive'}>
-                          {result.description}
-                        </span>
                       </div>
                     ))}
                   </div>
