@@ -19,7 +19,6 @@ export const GET = withErrorHandler(async () => {
     where: { userId: user.id, status: 'ACTIVE' },
     include: {
       course: {
-        select: { slug: true, title: true },
         include: {
           modules: {
             orderBy: { sortOrder: 'asc' },
