@@ -169,7 +169,7 @@ export default function LessonPage() {
                   const codeBlocks: string[] = [];
                   content = content.replace(/```(\w+)?\n([\s\S]+?)```/g, (_match, _lang, code) => {
                     const index = codeBlocks.length;
-                    codeBlocks.push(`<pre><code>${code}</code></pre>`);
+                    codeBlocks.push(`<pre><code>${code.replace(/^\n+|\n+$/g, '')}</code></pre>`);
                     return `\x00CODEBLOCK_${index}\x00`;
                   });
                   // Run heading/list/bold/inline-code/paragraph regexes on remaining content
