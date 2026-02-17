@@ -11,12 +11,79 @@ import {
   Star,
   Calendar,
   Settings,
-  ExternalLink,
   Award,
   BookOpen,
   Loader2,
+  Lock,
+  Code,
+  Shield,
+  Layers,
+  Globe,
 } from 'lucide-react';
 import { useProfile } from '@/hooks';
+import type { Achievement } from '@/types';
+
+const SKILL_LABELS: Record<string, { label: string; icon: typeof Code }> = {
+  'solana-fundamentals': { label: 'Fundamentals', icon: Globe },
+  'rust-anchor': { label: 'Rust & Anchor', icon: Code },
+  'defi-developer': { label: 'DeFi', icon: Layers },
+  'security': { label: 'Security', icon: Shield },
+  'frontend-web3': { label: 'Frontend', icon: Globe },
+};
+
+function SkillRadar({ skills }: { skills: Record<string, number> }) {
+  const maxVal = Math.max(...Object.values(skills), 1);
+
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {Object.entries(SKILL_LABELS).map(([key, { label, icon: Icon }]) => {
+        const val = skills[key] ?? 0;
+        const pct = Math.min((val / Math.max(maxVal, 5)) * 100, 100);
+        return (
+          <div key={key} className="rounded-lg border border-border bg-card p-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </div>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className="xp-bar h-full rounded-full"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <p className="mt-1 text-right text-xs font-medium">{val} lessons</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AchievementBadge({ achievement }: { achievement: Achievement }) {
+  return (
+    <div
+      className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all ${
+        achievement.isUnlocked
+          ? 'border-primary/30 bg-primary/5'
+          : 'border-border bg-card opacity-50'
+      }`}
+      title={achievement.description}
+    >
+      <div
+        className={`flex h-10 w-10 items-center justify-center rounded-full ${
+          achievement.isUnlocked ? 'bg-solana-gradient text-white' : 'bg-secondary text-muted-foreground'
+        }`}
+      >
+        {achievement.isUnlocked ? (
+          <Award className="h-5 w-5" />
+        ) : (
+          <Lock className="h-4 w-4" />
+        )}
+      </div>
+      <p className="text-[11px] font-medium leading-tight">{achievement.name}</p>
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const { data: session } = useSession();
@@ -40,6 +107,9 @@ export default function ProfilePage() {
   }
 
   const level = calculateLevel(profile.totalXP);
+  const achievements: Achievement[] = profile.achievements ?? [];
+  const unlockedCount = achievements.filter((a) => a.isUnlocked).length;
+  const skills: Record<string, number> = profile.skills ?? {};
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
@@ -91,6 +161,33 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Skill Breakdown */}
+      {Object.values(skills).some((v) => v > 0) && (
+        <div className="mt-10">
+          <h2 className="mb-4 text-lg font-semibold">{t('profile.skills') || 'Skills'}</h2>
+          <SkillRadar skills={skills} />
+        </div>
+      )}
+
+      {/* Achievements */}
+      {achievements.length > 0 && (
+        <div className="mt-10">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">{t('profile.achievements') || 'Achievements'}</h2>
+            <span className="text-sm text-muted-foreground">
+              {unlockedCount}/{achievements.length} unlocked
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+            {achievements
+              .sort((a, b) => (a.isUnlocked === b.isUnlocked ? a.id - b.id : a.isUnlocked ? -1 : 1))
+              .map((achievement) => (
+                <AchievementBadge key={achievement.id} achievement={achievement} />
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* Completed courses */}
       <div className="mt-10">

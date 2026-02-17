@@ -2,7 +2,12 @@
 
 import { useParams } from 'next/navigation';
 import { useLocale } from '@/contexts/locale-context';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { getExplorerUrl } from '@/lib/solana/config';
+import { learningService } from '@/lib/services/learning-progress';
+import { PublicKey } from '@solana/web3.js';
+import { useEffect, useState } from 'react';
+import type { Credential } from '@/types';
 import {
   Award,
   ExternalLink,
@@ -10,11 +15,14 @@ import {
   Share2,
   CheckCircle2,
   Calendar,
-  User,
   BookOpen,
+  Loader2,
+  Twitter,
+  Copy,
+  Check,
 } from 'lucide-react';
 
-// Mock certificate — will come from cNFT read via DAS API
+// Fallback mock data when no credential is found on-chain
 const MOCK_CERTIFICATE = {
   id: 'cert-1',
   name: 'Anchor Framework Developer',
@@ -36,8 +44,72 @@ const MOCK_CERTIFICATE = {
 
 export default function CertificatePage() {
   const params = useParams();
+  const certId = params.id as string;
   const { t, formatT } = useLocale();
-  const cert = MOCK_CERTIFICATE;
+  const { publicKey } = useWallet();
+  const [credential, setCredential] = useState<Credential | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    async function fetchCredential() {
+      if (publicKey) {
+        try {
+          const creds = await learningService.getCredentials(publicKey);
+          const match = creds.find((c) => c.mintAddress === certId);
+          if (match) {
+            setCredential(match);
+          }
+        } catch {
+          // Fall through to mock
+        }
+      }
+      setLoading(false);
+    }
+    fetchCredential();
+  }, [publicKey, certId]);
+
+  // Use real credential or fallback to mock
+  const cert = credential
+    ? {
+        name: credential.name,
+        track: credential.track,
+        level: credential.level,
+        courseName: credential.name,
+        recipientName: publicKey?.toBase58().slice(0, 8) ?? 'Learner',
+        recipientWallet: publicKey?.toBase58() ?? '',
+        issuedAt: credential.issuedAt,
+        mintAddress: credential.mintAddress,
+        treeAddress: '',
+        attributes: credential.attributes,
+      }
+    : { ...MOCK_CERTIFICATE, id: certId };
+
+  const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const shareText = `I earned the "${cert.name}" credential on SolDojo! #Solana #Web3 @SuperteamBR`;
+
+  const handleShare = () => {
+    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
+    window.open(twitterUrl, '_blank', 'noopener,noreferrer,width=600,height=400');
+  };
+
+  const handleCopyLink = async () => {
+    await navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleVerify = () => {
+    window.open(getExplorerUrl('address', cert.mintAddress), '_blank', 'noopener,noreferrer');
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
@@ -102,35 +174,46 @@ export default function CertificatePage() {
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Merkle Tree</p>
-                <a
-                  href={getExplorerUrl('address', cert.treeAddress)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 font-mono text-xs text-primary hover:underline"
-                >
-                  {cert.treeAddress}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
+              {cert.treeAddress && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Merkle Tree</p>
+                  <a
+                    href={getExplorerUrl('address', cert.treeAddress)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 font-mono text-xs text-primary hover:underline"
+                  >
+                    {cert.treeAddress}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Actions */}
         <div className="flex items-center justify-center gap-3 border-t border-border p-6">
-          <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+          <button
+            onClick={handleVerify}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
             <ExternalLink className="h-4 w-4" />
             {t('certificates.verifyOnChain')}
           </button>
-          <button className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary/80">
-            <Download className="h-4 w-4" />
-            {t('certificates.download')}
+          <button
+            onClick={handleCopyLink}
+            className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary/80"
+          >
+            {copied ? <Check className="h-4 w-4 text-accent" /> : <Copy className="h-4 w-4" />}
+            {copied ? 'Copied!' : t('certificates.share')}
           </button>
-          <button className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary/80">
-            <Share2 className="h-4 w-4" />
-            {t('certificates.share')}
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary/80"
+          >
+            <Twitter className="h-4 w-4" />
+            Tweet
           </button>
         </div>
       </div>

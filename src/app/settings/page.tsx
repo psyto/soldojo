@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
@@ -18,15 +18,19 @@ import {
   Check,
   Download,
   Loader2,
+  Link2,
+  Unlink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useProfile, useUpdateProfile } from '@/hooks';
+import { apiFetch } from '@/lib/api/client';
+import { signIn } from 'next-auth/react';
 
 export default function SettingsPage() {
   const { data: session } = useSession();
   const { publicKey, connected } = useWallet();
   const { t, locale, setLocale } = useLocale();
-  const { data: profile, isLoading } = useProfile();
+  const { data: profile, isLoading, refetch } = useProfile();
   const updateProfile = useUpdateProfile();
 
   const [name, setName] = useState('');
@@ -34,6 +38,8 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('dark');
   const [isPublic, setIsPublic] = useState(true);
   const [initialized, setInitialized] = useState(false);
+  const [walletLinking, setWalletLinking] = useState(false);
+  const [walletError, setWalletError] = useState('');
 
   // Initialize form values from profile data
   useEffect(() => {
@@ -45,6 +51,38 @@ export default function SettingsPage() {
       setInitialized(true);
     }
   }, [profile, initialized]);
+
+  // Persist wallet address to DB when connected
+  const linkWallet = useCallback(async () => {
+    if (!publicKey || !connected) return;
+    setWalletLinking(true);
+    setWalletError('');
+    try {
+      await apiFetch('/api/user/wallet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: publicKey.toBase58() }),
+      });
+      refetch();
+    } catch (err) {
+      setWalletError(err instanceof Error ? err.message : 'Failed to link wallet');
+    } finally {
+      setWalletLinking(false);
+    }
+  }, [publicKey, connected, refetch]);
+
+  const unlinkWallet = useCallback(async () => {
+    setWalletLinking(true);
+    setWalletError('');
+    try {
+      await apiFetch('/api/user/wallet', { method: 'DELETE' });
+      refetch();
+    } catch (err) {
+      setWalletError(err instanceof Error ? err.message : 'Failed to unlink wallet');
+    } finally {
+      setWalletLinking(false);
+    }
+  }, [refetch]);
 
   const handleSaveProfile = () => {
     updateProfile.mutate({
@@ -153,15 +191,40 @@ export default function SettingsPage() {
                 <div>
                   <p className="text-sm font-medium">{t('settings.account.connectedWallets')}</p>
                   <p className="text-xs text-muted-foreground">
-                    {connected && publicKey ? shortenAddress(publicKey.toBase58(), 6) : 'Not connected'}
+                    {profile?.walletAddress
+                      ? shortenAddress(profile.walletAddress, 6)
+                      : connected && publicKey
+                        ? shortenAddress(publicKey.toBase58(), 6)
+                        : 'Not connected'}
                   </p>
+                  {walletError && (
+                    <p className="text-xs text-destructive">{walletError}</p>
+                  )}
                 </div>
               </div>
-              {connected ? (
-                <Check className="h-4 w-4 text-accent" />
-              ) : (
-                <WalletMultiButton className="!h-8 !rounded-lg !bg-primary !px-3 !text-xs !font-medium" />
-              )}
+              <div className="flex items-center gap-2">
+                {profile?.walletAddress ? (
+                  <button
+                    onClick={unlinkWallet}
+                    disabled={walletLinking}
+                    className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/80 disabled:opacity-50"
+                  >
+                    {walletLinking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Unlink className="h-3 w-3" />}
+                    Unlink
+                  </button>
+                ) : connected && publicKey ? (
+                  <button
+                    onClick={linkWallet}
+                    disabled={walletLinking}
+                    className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {walletLinking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
+                    Link Wallet
+                  </button>
+                ) : (
+                  <WalletMultiButton className="!h-8 !rounded-lg !bg-primary !px-3 !text-xs !font-medium" />
+                )}
+              </div>
             </div>
 
             {/* GitHub */}
@@ -170,10 +233,15 @@ export default function SettingsPage() {
                 <Github className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <p className="text-sm font-medium">GitHub</p>
-                  <p className="text-xs text-muted-foreground">Not connected</p>
+                  <p className="text-xs text-muted-foreground">
+                    {session?.user?.image?.includes('github') ? 'Connected' : 'Not connected'}
+                  </p>
                 </div>
               </div>
-              <button className="rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/80">
+              <button
+                onClick={() => signIn('github')}
+                className="rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/80"
+              >
                 Connect
               </button>
             </div>

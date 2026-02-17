@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { requireAuth, apiSuccess, apiError, withErrorHandler } from '@/lib/api/utils';
+import { getUserAchievements } from '@/lib/services/achievements';
 
 export const GET = withErrorHandler(async () => {
   const user = await requireAuth();
@@ -20,6 +21,7 @@ export const GET = withErrorHandler(async () => {
       isPublic: true,
       image: true,
       email: true,
+      achievements: true,
     },
   });
 
@@ -31,7 +33,7 @@ export const GET = withErrorHandler(async () => {
   const completedEnrollments = await prisma.enrollment.findMany({
     where: { userId: user.id, status: 'COMPLETED' },
     include: {
-      course: { select: { slug: true, title: true } },
+      course: { select: { slug: true, title: true, track: true } },
     },
     orderBy: { completedAt: 'desc' },
   });
@@ -41,6 +43,32 @@ export const GET = withErrorHandler(async () => {
     title: e.course.title,
     completedAt: e.completedAt?.toISOString() || e.startedAt.toISOString(),
   }));
+
+  // Skill breakdown for radar chart (count completed lessons by track)
+  const allEnrollments = await prisma.enrollment.findMany({
+    where: { userId: user.id },
+    include: {
+      course: { select: { track: true } },
+      lessonProgress: { where: { isCompleted: true } },
+    },
+  });
+
+  const skillMap: Record<string, number> = {
+    'solana-fundamentals': 0,
+    'rust-anchor': 0,
+    'defi-developer': 0,
+    'security': 0,
+    'frontend-web3': 0,
+  };
+  for (const enr of allEnrollments) {
+    const track = enr.course.track;
+    if (track && track in skillMap) {
+      skillMap[track] += enr.lessonProgress.length;
+    }
+  }
+
+  // Achievements
+  const achievements = getUserAchievements(dbUser.achievements);
 
   return apiSuccess({
     displayName: dbUser.displayName || dbUser.name || 'Anonymous',
@@ -56,6 +84,8 @@ export const GET = withErrorHandler(async () => {
     isPublic: dbUser.isPublic,
     image: dbUser.image,
     email: dbUser.email,
+    achievements,
+    skills: skillMap,
   });
 });
 

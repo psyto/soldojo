@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import dynamic from 'next/dynamic';
 
@@ -116,9 +117,11 @@ export function Header() {
               className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
               {session.user.image ? (
-                <img
+                <Image
                   src={session.user.image}
                   alt=""
+                  width={24}
+                  height={24}
                   className="h-6 w-6 rounded-full"
                 />
               ) : (

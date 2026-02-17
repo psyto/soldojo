@@ -1,11 +1,23 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from '@/contexts/locale-context';
-import { Flame, Github, Twitter } from 'lucide-react';
+import { Flame, Github, Twitter, Mail, Check } from 'lucide-react';
 
 export function Footer() {
   const { t } = useLocale();
+  const [email, setEmail] = useState('');
+  const [subscribed, setSubscribed] = useState(false);
+
+  const handleSubscribe = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+    // Store subscription locally for now — connect to mailing service later
+    setSubscribed(true);
+    setEmail('');
+    setTimeout(() => setSubscribed(false), 3000);
+  };
 
   return (
     <footer className="border-t border-border bg-card">
@@ -96,6 +108,44 @@ export function Footer() {
                 </a>
               </li>
             </ul>
+          </div>
+        </div>
+
+        {/* Newsletter */}
+        <div className="mt-8 rounded-xl border border-border bg-background p-6">
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <Mail className="h-4 w-4" />
+                Stay Updated
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Get notified about new courses and platform updates.
+              </p>
+            </div>
+            <form onSubmit={handleSubscribe} className="flex w-full gap-2 sm:w-auto">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:w-56"
+                required
+              />
+              <button
+                type="submit"
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                {subscribed ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" />
+                    Subscribed!
+                  </>
+                ) : (
+                  'Subscribe'
+                )}
+              </button>
+            </form>
           </div>
         </div>
 
