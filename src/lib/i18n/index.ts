@@ -10,12 +10,12 @@ export const translations: Record<Locale, TranslationKeys> = {
   es,
 };
 
-export const defaultLocale: Locale = 'en';
+export const defaultLocale: Locale = 'pt-br';
 
 export const localeNames: Record<Locale, string> = {
   en: 'English',
-  'pt-br': 'Portugues',
-  es: 'Espanol',
+  'pt-br': 'Português',
+  es: 'Español',
 };
 
 export const localeFlags: Record<Locale, string> = {

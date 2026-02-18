@@ -28,7 +28,7 @@ import { signIn } from 'next-auth/react';
 
 export default function SettingsPage() {
   const { data: session } = useSession();
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected, signMessage } = useWallet();
   const { t, locale, setLocale } = useLocale();
   const { data: profile, isLoading, refetch } = useProfile();
   const updateProfile = useUpdateProfile();
@@ -52,16 +52,21 @@ export default function SettingsPage() {
     }
   }, [profile, initialized]);
 
-  // Persist wallet address to DB when connected
+  // Persist wallet address to DB after proving ownership via signMessage
   const linkWallet = useCallback(async () => {
-    if (!publicKey || !connected) return;
+    if (!publicKey || !connected || !signMessage) return;
     setWalletLinking(true);
     setWalletError('');
     try {
+      const message = `SolDojo: verify wallet ownership\n${publicKey.toBase58()}\n${Date.now()}`;
+      const messageBytes = new TextEncoder().encode(message);
+      const signatureBytes = await signMessage(messageBytes);
+      const signature = Buffer.from(signatureBytes).toString('base64');
+
       await apiFetch('/api/user/wallet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress: publicKey.toBase58() }),
+        body: JSON.stringify({ walletAddress: publicKey.toBase58(), signature, message }),
       });
       refetch();
     } catch (err) {
@@ -69,7 +74,7 @@ export default function SettingsPage() {
     } finally {
       setWalletLinking(false);
     }
-  }, [publicKey, connected, refetch]);
+  }, [publicKey, connected, signMessage, refetch]);
 
   const unlinkWallet = useCallback(async () => {
     setWalletLinking(true);

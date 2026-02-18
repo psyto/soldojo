@@ -1,0 +1,253 @@
+{
+  "address": "CzTcLkeLZvk77ZJQpaL5fCYVgxqU63JV8rZBwC1kQ3rQ",
+  "metadata": {
+    "name": "soldojo",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "SolDojo on-chain course completion and credential program"
+  },
+  "instructions": [
+    {
+      "name": "init_profile",
+      "docs": [
+        "Initialize a learner profile PDA. Called once per user."
+      ],
+      "discriminator": [
+        210,
+        162,
+        212,
+        95,
+        95,
+        186,
+        89,
+        119
+      ],
+      "accounts": [
+        {
+          "name": "profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  102,
+                  105,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "record_completion",
+      "docs": [
+        "Record a course completion on-chain. Creates a completion PDA",
+        "and increments the learner profile counters."
+      ],
+      "discriminator": [
+        209,
+        113,
+        91,
+        75,
+        66,
+        137,
+        244,
+        157
+      ],
+      "accounts": [
+        {
+          "name": "completion",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  109,
+                  112,
+                  108,
+                  101,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              },
+              {
+                "kind": "arg",
+                "path": "course_slug"
+              }
+            ]
+          }
+        },
+        {
+          "name": "profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  102,
+                  105,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "profile"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "course_slug",
+          "type": "string"
+        },
+        {
+          "name": "xp_earned",
+          "type": "u32"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "CourseCompletion",
+      "discriminator": [
+        226,
+        39,
+        32,
+        218,
+        18,
+        235,
+        55,
+        111
+      ]
+    },
+    {
+      "name": "LearnerProfile",
+      "discriminator": [
+        198,
+        114,
+        44,
+        71,
+        161,
+        227,
+        116,
+        166
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "SlugTooLong",
+      "msg": "Course slug must be 32 characters or fewer"
+    },
+    {
+      "code": 6001,
+      "name": "XPTooHigh",
+      "msg": "XP reward exceeds maximum allowed"
+    }
+  ],
+  "types": [
+    {
+      "name": "CourseCompletion",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "course_slug",
+            "type": "string"
+          },
+          {
+            "name": "xp_earned",
+            "type": "u32"
+          },
+          {
+            "name": "completed_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LearnerProfile",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "courses_completed",
+            "type": "u32"
+          },
+          {
+            "name": "total_xp",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
