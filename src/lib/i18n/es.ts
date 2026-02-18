@@ -32,12 +32,24 @@ export const es: TranslationKeys = {
     settings: 'Configuración',
     certificates: 'Certificados',
   },
+  auth: {
+    signInTitle: 'Iniciar sesión en SolDojo',
+    signInSubtitle: 'Continúa con tu método preferido',
+    continueGoogle: 'Continuar con Google',
+    continueGithub: 'Continuar con GitHub',
+    devLogin: 'Login Dev',
+    email: 'Correo',
+  },
   landing: {
     hero: {
       title: 'Domina el Desarrollo en Solana',
       subtitle: 'Cursos interactivos, credenciales on-chain y una comunidad de builders. De cero a desplegar dApps listas para producción.',
       cta: 'Empezar a Aprender',
       ctaSecondary: 'Explorar Cursos',
+    },
+    cta: {
+      title: '¿Listo para Empezar a Construir?',
+      description: 'Únete a miles de desarrolladores aprendiendo Solana. Gana credenciales on-chain y avanza en tu carrera Web3.',
     },
     features: {
       title: 'Todo lo que Necesitas para Construir en Solana',
@@ -61,6 +73,23 @@ export const es: TranslationKeys = {
     paths: {
       title: 'Rutas de Aprendizaje',
       subtitle: 'Rutas estructuradas para llevarte de principiante a experto.',
+      fundamentals: {
+        title: 'Fundamentos de Solana',
+        description: 'Básicos de blockchain, cuentas, transacciones y el runtime de Solana.',
+      },
+      rustAnchor: {
+        title: 'Rust & Anchor',
+        description: 'Desarrollo de programas con Rust y el framework Anchor.',
+      },
+      defi: {
+        title: 'Desarrollador DeFi',
+        description: 'Construye AMMs, protocolos de préstamos y sistemas de tokens.',
+      },
+      security: {
+        title: 'Seguridad & Auditoría',
+        description: 'Patrones de seguridad de contratos inteligentes y detección de vulnerabilidades.',
+      },
+      courses: '{{count}} cursos',
     },
     stats: {
       learners: 'Aprendices Activos',
@@ -197,6 +226,16 @@ export const es: TranslationKeys = {
       exportData: 'Exportar Datos',
     },
   },
+  footer: {
+    stayUpdated: 'Mantente Actualizado',
+    newsletterDescription: 'Recibe notificaciones sobre nuevos cursos y actualizaciones de la plataforma.',
+    subscribe: 'Suscribirse',
+    subscribed: '¡Suscrito!',
+    builtBy: 'Construido por la comunidad para Superteam Brasil. Código abierto bajo Licencia MIT.',
+    learn: 'Aprender',
+    resources: 'Recursos',
+    community: 'Comunidad',
+  },
   certificates: {
     title: 'Certificado',
     verifyOnChain: 'Verificar On-Chain',
@@ -207,6 +246,12 @@ export const es: TranslationKeys = {
     track: 'Ruta',
     mintAddress: 'Dirección de Mint',
     verificationLink: 'Enlace de Verificación',
+    completingCourse: 'Por completar exitosamente',
+    onChainVerification: 'Verificación On-Chain',
+    copied: '¡Copiado!',
+    tweet: 'Tuitear',
+    noCredential: 'No se encontró credencial para esta dirección. Completa un curso y crea tu certificado desde la página de perfil.',
+    connectWallet: 'Conecta tu billetera para ver credenciales on-chain.',
   },
   gamification: {
     xp: 'XP',

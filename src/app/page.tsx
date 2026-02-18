@@ -28,7 +28,7 @@ const stagger = {
 };
 
 export default function LandingPage() {
-  const { t } = useLocale();
+  const { t, formatT } = useLocale();
 
   const features = [
     {
@@ -55,34 +55,34 @@ export default function LandingPage() {
 
   const learningPaths = [
     {
-      title: 'Solana Fundamentals',
-      description: 'Blockchain basics, accounts, transactions, and the Solana runtime.',
+      title: t('landing.paths.fundamentals.title'),
+      description: t('landing.paths.fundamentals.description'),
       icon: Layers,
-      difficulty: 'Beginner',
+      difficulty: t('courses.difficulty.beginner'),
       courses: 4,
       color: 'from-green-500/20 to-emerald-500/20',
     },
     {
-      title: 'Rust & Anchor',
-      description: 'Program development with Rust and the Anchor framework.',
+      title: t('landing.paths.rustAnchor.title'),
+      description: t('landing.paths.rustAnchor.description'),
       icon: Terminal,
-      difficulty: 'Intermediate',
+      difficulty: t('courses.difficulty.intermediate'),
       courses: 5,
       color: 'from-purple-500/20 to-violet-500/20',
     },
     {
-      title: 'DeFi Developer',
-      description: 'Build AMMs, lending protocols, and token systems.',
+      title: t('landing.paths.defi.title'),
+      description: t('landing.paths.defi.description'),
       icon: Zap,
-      difficulty: 'Advanced',
+      difficulty: t('courses.difficulty.advanced'),
       courses: 4,
       color: 'from-orange-500/20 to-amber-500/20',
     },
     {
-      title: 'Security & Auditing',
-      description: 'Smart contract security patterns and vulnerability detection.',
+      title: t('landing.paths.security.title'),
+      description: t('landing.paths.security.description'),
       icon: Shield,
-      difficulty: 'Advanced',
+      difficulty: t('courses.difficulty.advanced'),
       courses: 3,
       color: 'from-red-500/20 to-rose-500/20',
     },
@@ -232,7 +232,7 @@ export default function LandingPage() {
                 <h3 className="mt-4 text-lg font-semibold">{path.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{path.description}</p>
                 <div className="mt-4 text-xs text-muted-foreground">
-                  {path.courses} courses
+                  {formatT('landing.paths.courses', { count: String(path.courses) })}
                 </div>
               </motion.div>
             ))}
@@ -245,10 +245,10 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden rounded-3xl bg-solana-gradient p-12 text-center sm:p-16">
             <h2 className="text-3xl font-bold text-white sm:text-4xl">
-              Ready to Start Building?
+              {t('landing.cta.title')}
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-lg text-white/80">
-              Join thousands of developers learning Solana. Earn on-chain credentials and level up your Web3 career.
+              {t('landing.cta.description')}
             </p>
             <div className="mt-8">
               <Link

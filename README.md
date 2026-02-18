@@ -55,8 +55,8 @@ Deployed on **Solana Devnet**:
 
 ```bash
 # Clone
-git clone https://github.com/solanabr/superteam-academy.git
-cd superteam-academy/soldojo
+git clone https://github.com/psyto/soldojo.git
+cd soldojo
 
 # Install dependencies
 npm install --legacy-peer-deps

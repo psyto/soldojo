@@ -121,14 +121,11 @@ export default function ProfilePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ courseSlug }),
       });
-      const data = await res.json();
       if (res.ok) {
         setMintSuccess(courseSlug);
-      } else {
-        console.error('Mint failed:', data.error);
       }
     } catch {
-      console.error('Mint request failed');
+      // Mint request failed — button stays enabled for retry
     } finally {
       setMintingSlug(null);
     }

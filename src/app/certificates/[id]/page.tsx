@@ -50,6 +50,28 @@ export default function CertificatePage() {
     fetchCredential();
   }, [publicKey, certId]);
 
+  const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+
+  const handleShare = (name: string) => {
+    const shareText = `I earned the "${name}" credential on SolDojo! #Solana #Web3 @SuperteamBR`;
+    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
+    window.open(twitterUrl, '_blank', 'noopener,noreferrer,width=600,height=400');
+  };
+
+  const handleCopyLink = async () => {
+    await navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   if (!credential) {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
@@ -57,8 +79,8 @@ export default function CertificatePage() {
         <h1 className="mt-4 text-2xl font-bold">{t('certificates.title')}</h1>
         <p className="mt-2 text-muted-foreground">
           {publicKey
-            ? 'No credential found for this address. Complete a course and mint your certificate from the profile page.'
-            : 'Connect your wallet to view on-chain credentials.'}
+            ? t('certificates.noCredential')
+            : t('certificates.connectWallet')}
         </p>
       </div>
     );
@@ -77,32 +99,6 @@ export default function CertificatePage() {
     attributes: credential.attributes,
   };
 
-  const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
-  const shareText = `I earned the "${cert.name}" credential on SolDojo! #Solana #Web3 @SuperteamBR`;
-
-  const handleShare = () => {
-    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
-    window.open(twitterUrl, '_blank', 'noopener,noreferrer,width=600,height=400');
-  };
-
-  const handleCopyLink = async () => {
-    await navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleVerify = () => {
-    window.open(getExplorerUrl('address', cert.mintAddress), '_blank', 'noopener,noreferrer');
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
       {/* Certificate card */}
@@ -120,7 +116,7 @@ export default function CertificatePage() {
           <h2 className="mt-1 text-2xl font-bold">{cert.recipientName}</h2>
 
           <p className="mt-4 text-sm text-muted-foreground">
-            For successfully completing
+            {t('certificates.completingCourse')}
           </p>
           <h3 className="mt-1 text-lg font-semibold text-primary">{cert.courseName}</h3>
 
@@ -151,7 +147,7 @@ export default function CertificatePage() {
           <div className="mx-auto mt-8 max-w-md rounded-xl border border-border bg-background p-4">
             <h4 className="mb-3 flex items-center justify-center gap-2 text-sm font-semibold">
               <CheckCircle2 className="h-4 w-4 text-accent" />
-              On-Chain Verification
+              {t('certificates.onChainVerification')}
             </h4>
             <div className="space-y-2 text-left">
               <div>
@@ -187,7 +183,7 @@ export default function CertificatePage() {
         {/* Actions */}
         <div className="flex items-center justify-center gap-3 border-t border-border p-6">
           <button
-            onClick={handleVerify}
+            onClick={() => window.open(getExplorerUrl('address', cert.mintAddress), '_blank', 'noopener,noreferrer')}
             className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <ExternalLink className="h-4 w-4" />
@@ -198,14 +194,14 @@ export default function CertificatePage() {
             className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary/80"
           >
             {copied ? <Check className="h-4 w-4 text-accent" /> : <Copy className="h-4 w-4" />}
-            {copied ? 'Copied!' : t('certificates.share')}
+            {copied ? t('certificates.copied') : t('certificates.share')}
           </button>
           <button
-            onClick={handleShare}
+            onClick={() => handleShare(cert.name)}
             className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary/80"
           >
             <Twitter className="h-4 w-4" />
-            Tweet
+            {t('certificates.tweet')}
           </button>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { signIn } from 'next-auth/react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Flame, Loader2, Github } from 'lucide-react';
+import { useLocale } from '@/contexts/locale-context';
 
 const IS_DEV = process.env.NEXT_PUBLIC_ENABLE_DEV_AUTH === 'true';
 
@@ -13,6 +14,7 @@ export default function SignInPage() {
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
   const router = useRouter();
+  const { t } = useLocale();
 
   const handleCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,9 +47,9 @@ export default function SignInPage() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-solana-gradient">
             <Flame className="h-7 w-7 text-white" />
           </div>
-          <h1 className="mt-4 text-2xl font-bold">Sign in to SolDojo</h1>
+          <h1 className="mt-4 text-2xl font-bold">{t('auth.signInTitle')}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Continue with your preferred method
+            {t('auth.signInSubtitle')}
           </p>
         </div>
 
@@ -68,7 +70,7 @@ export default function SignInPage() {
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
               </svg>
             )}
-            Continue with Google
+            {t('auth.continueGoogle')}
           </button>
 
           <button
@@ -81,7 +83,7 @@ export default function SignInPage() {
             ) : (
               <Github className="h-4 w-4" />
             )}
-            Continue with GitHub
+            {t('auth.continueGithub')}
           </button>
         </div>
 
@@ -93,14 +95,14 @@ export default function SignInPage() {
                 <div className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-xs">
-                <span className="bg-background px-2 text-muted-foreground">Dev Login</span>
+                <span className="bg-background px-2 text-muted-foreground">{t('auth.devLogin')}</span>
               </div>
             </div>
 
             <form onSubmit={handleCredentials} className="space-y-4">
               <div>
                 <label htmlFor="email" className="block text-sm font-medium">
-                  Email
+                  {t('auth.email')}
                 </label>
                 <input
                   id="email"
@@ -124,7 +126,7 @@ export default function SignInPage() {
                 {loading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  'Sign In'
+                  t('common.signIn')
                 )}
               </button>
             </form>

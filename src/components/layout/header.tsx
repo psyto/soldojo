@@ -73,6 +73,7 @@ export function Header() {
           <div className="relative">
             <button
               onClick={() => setLangMenuOpen(!langMenuOpen)}
+              aria-label={t('settings.preferences.language')}
               className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
               <Globe className="h-4 w-4" />
@@ -119,7 +120,7 @@ export function Header() {
               {session.user.image ? (
                 <Image
                   src={session.user.image}
-                  alt=""
+                  alt={session.user.name || 'User avatar'}
                   width={24}
                   height={24}
                   className="h-6 w-6 rounded-full"
@@ -140,6 +141,7 @@ export function Header() {
           {/* Mobile menu toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
             className="rounded-lg p-2 text-muted-foreground hover:bg-secondary md:hidden"
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

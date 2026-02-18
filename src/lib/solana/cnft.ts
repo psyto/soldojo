@@ -78,9 +78,9 @@ export async function mintCourseCertificate(params: MintCNFTParams): Promise<Min
     const sig = Buffer.from(signature).toString('base64');
     const leaf = await parseLeafFromMintV1Transaction(umi, signature);
     assetId = leaf.id.toString();
-    console.log(`cNFT minted: asset=${assetId}, sig=${sig}, course=${courseSlug}, wallet=${recipientWallet}`);
+    void sig; // signature used for debugging if needed
   } catch {
-    console.log(`cNFT minted but could not parse leaf: course=${courseSlug}, wallet=${recipientWallet}`);
+    // Leaf parsing failed — assetId will be null but mint succeeded
   }
 
   return {

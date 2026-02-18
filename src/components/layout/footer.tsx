@@ -44,7 +44,7 @@ export function Footer() {
                 <Twitter className="h-4 w-4" />
               </a>
               <a
-                href="https://github.com/solanabr/superteam-academy"
+                href="https://github.com/psyto/soldojo"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
@@ -56,7 +56,7 @@ export function Footer() {
 
           {/* Learn */}
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Learn</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t('footer.learn')}</h3>
             <ul className="mt-3 space-y-2">
               <li>
                 <Link href="/courses" className="text-sm text-muted-foreground hover:text-foreground">
@@ -73,7 +73,7 @@ export function Footer() {
 
           {/* Resources */}
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Resources</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t('footer.resources')}</h3>
             <ul className="mt-3 space-y-2">
               <li>
                 <a href="https://solana.com/docs" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground">
@@ -95,7 +95,7 @@ export function Footer() {
 
           {/* Community */}
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Community</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t('footer.community')}</h3>
             <ul className="mt-3 space-y-2">
               <li>
                 <a href="https://discord.gg/superteambrasil" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground">
@@ -117,10 +117,10 @@ export function Footer() {
             <div>
               <h3 className="flex items-center gap-2 text-sm font-semibold">
                 <Mail className="h-4 w-4" />
-                Stay Updated
+                {t('footer.stayUpdated')}
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Get notified about new courses and platform updates.
+                {t('footer.newsletterDescription')}
               </p>
             </div>
             <form onSubmit={handleSubscribe} className="flex w-full gap-2 sm:w-auto">
@@ -139,10 +139,10 @@ export function Footer() {
                 {subscribed ? (
                   <>
                     <Check className="h-3.5 w-3.5" />
-                    Subscribed!
+                    {t('footer.subscribed')}
                   </>
                 ) : (
-                  'Subscribe'
+                  t('footer.subscribe')
                 )}
               </button>
             </form>
@@ -151,7 +151,7 @@ export function Footer() {
 
         <div className="mt-8 border-t border-border pt-8">
           <p className="text-center text-xs text-muted-foreground">
-            Built by the community for Superteam Brazil. Open source under MIT License.
+            {t('footer.builtBy')}
           </p>
         </div>
       </div>
