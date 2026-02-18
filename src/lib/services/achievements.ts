@@ -92,6 +92,10 @@ interface CheckContext {
   completedChallengesCount: number;
   completedTracks: string[];
   hasRustChallenge: boolean;
+  hasAnchorTrackComplete: boolean;
+  hasSpeedRun: boolean;
+  hasPerfectCourse: boolean;
+  isEarlyAdopter: boolean;
   currentBitmap: string;
 }
 
@@ -129,6 +133,48 @@ async function buildContext(userId: string): Promise<CheckContext> {
     },
   });
 
+  // Check Anchor track completion (all courses in rust-anchor track)
+  const anchorCourses = await prisma.course.count({ where: { track: 'rust-anchor' } });
+  const completedAnchorCourses = completedEnrollments.filter(
+    (e) => e.course.track === 'rust-anchor'
+  ).length;
+  const hasAnchorTrackComplete = anchorCourses > 0 && completedAnchorCourses >= anchorCourses;
+
+  // Check speed_runner: any course completed within 7 days of enrollment
+  const hasSpeedRun = completedEnrollments.some((e) => {
+    if (!e.completedAt || !e.startedAt) return false;
+    const days = (e.completedAt.getTime() - e.startedAt.getTime()) / (1000 * 60 * 60 * 24);
+    return days <= 7;
+  });
+
+  // Check perfect_score: all challenges in a completed course scored 100
+  let hasPerfectCourse = false;
+  for (const enrollment of completedEnrollments) {
+    const challengeProgresses = await prisma.lessonProgress.findMany({
+      where: {
+        enrollmentId: enrollment.id,
+        lesson: { type: 'CHALLENGE' },
+      },
+      select: { score: true, isCompleted: true },
+    });
+    if (
+      challengeProgresses.length > 0 &&
+      challengeProgresses.every((p) => p.isCompleted && (p.score === null || p.score === 100))
+    ) {
+      hasPerfectCourse = true;
+      break;
+    }
+  }
+
+  // Check early_adopter: joined within first 30 days (based on user creation)
+  const userFull = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { createdAt: true },
+  });
+  const launchDate = new Date('2025-01-01'); // platform launch date
+  const earlyWindow = new Date(launchDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const isEarlyAdopter = !!(userFull?.createdAt && userFull.createdAt <= earlyWindow);
+
   return {
     userId,
     totalXP: user?.totalXP ?? 0,
@@ -138,6 +184,10 @@ async function buildContext(userId: string): Promise<CheckContext> {
     completedChallengesCount,
     completedTracks,
     hasRustChallenge: !!rustChallenge,
+    hasAnchorTrackComplete,
+    hasSpeedRun,
+    hasPerfectCourse,
+    isEarlyAdopter,
     currentBitmap: user?.achievements ?? '0',
   };
 }
@@ -152,6 +202,7 @@ export async function checkAndUnlockAchievements(userId: string): Promise<number
     // Progress
     [0, ctx.completedLessonsCount >= 1],     // first_steps
     [1, ctx.completedCoursesCount >= 1],     // course_completer
+    [2, ctx.hasSpeedRun],                    // speed_runner
     [3, ctx.completedCoursesCount >= 5],     // five_courses
     [4, ctx.completedLessonsCount >= 10],    // ten_lessons
     [5, ctx.completedLessonsCount >= 50],    // fifty_lessons
@@ -162,16 +213,19 @@ export async function checkAndUnlockAchievements(userId: string): Promise<number
     [22, ctx.currentStreak >= 100],          // consistency_king
 
     // Skills
-    [40, ctx.hasRustChallenge],                       // rust_rookie
-    [42, ctx.completedTracks.length >= 3],            // full_stack_solana
+    [40, ctx.hasRustChallenge],              // rust_rookie
+    [41, ctx.hasAnchorTrackComplete],        // anchor_expert
+    [42, ctx.completedTracks.length >= 3],   // full_stack_solana
 
     // Community
-    [60, ctx.completedLessonsCount >= 1],    // first_enrollment (same as first lesson for now)
+    [60, ctx.completedLessonsCount >= 1],    // first_enrollment
 
-    // Special - XP milestones
-    [83, ctx.totalXP >= 1000],               // xp_1000
-    [84, ctx.totalXP >= 5000],               // xp_5000
-    [85, ctx.totalXP >= 10000],              // xp_10000
+    // Special
+    [80, ctx.isEarlyAdopter],               // early_adopter
+    [82, ctx.hasPerfectCourse],             // perfect_score
+    [83, ctx.totalXP >= 1000],              // xp_1000
+    [84, ctx.totalXP >= 5000],             // xp_5000
+    [85, ctx.totalXP >= 10000],            // xp_10000
   ];
 
   for (const [id, condition] of checks) {

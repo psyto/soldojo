@@ -198,16 +198,76 @@ function rulesFromSolution(solutionCode: string): ValidationRule[] {
   if (!solutionCode) return [];
   const rules: ValidationRule[] = [];
 
-  // Structs
-  const structs = solutionCode.match(/(?:pub\s+)?struct\s+(\w+)/g);
-  if (structs) {
-    for (const s of structs) {
-      const name = s.match(/struct\s+(\w+)/)?.[1];
+  // Anchor/Solana attributes
+  const attributes = ['#[program]', '#[account]', '#[error_code]', '#[derive(Accounts)]'];
+  for (const attr of attributes) {
+    if (solutionCode.includes(attr.replace('#[', '').replace(']', '').split('(')[0])) {
+      const escaped = attr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (new RegExp(escaped.replace(/\\\[/g, '\\[').replace(/\\\]/g, '\\]')).test(solutionCode)) {
+        rules.push({
+          check: (c) => c.includes(attr),
+          expected: `Use \`${attr}\` attribute`,
+          failMessage: `Missing \`${attr}\` attribute`,
+        });
+      }
+    }
+  }
+
+  // Structs with field validation
+  const structBlocks = solutionCode.match(/(?:pub\s+)?struct\s+(\w+)\s*\{[^}]*\}/gs);
+  if (structBlocks) {
+    for (const block of structBlocks) {
+      const name = block.match(/struct\s+(\w+)/)?.[1];
       if (name) {
         rules.push({
           check: (c) => new RegExp(`struct\\s+${name}`).test(c),
           expected: `Define struct \`${name}\``,
           failMessage: `Missing struct \`${name}\``,
+        });
+
+        // Check required fields
+        const fields = block.match(/pub\s+(\w+)\s*:/g);
+        if (fields) {
+          for (const field of fields) {
+            const fieldName = field.match(/pub\s+(\w+)/)?.[1];
+            if (fieldName) {
+              rules.push({
+                check: (c) => new RegExp(`${fieldName}\\s*:`).test(c),
+                expected: `Add field \`${fieldName}\` to \`${name}\``,
+                failMessage: `Missing field \`${fieldName}\` in struct \`${name}\``,
+              });
+            }
+          }
+        }
+      }
+    }
+  } else {
+    // Simpler struct detection without body
+    const structs = solutionCode.match(/(?:pub\s+)?struct\s+(\w+)/g);
+    if (structs) {
+      for (const s of structs) {
+        const name = s.match(/struct\s+(\w+)/)?.[1];
+        if (name) {
+          rules.push({
+            check: (c) => new RegExp(`struct\\s+${name}`).test(c),
+            expected: `Define struct \`${name}\``,
+            failMessage: `Missing struct \`${name}\``,
+          });
+        }
+      }
+    }
+  }
+
+  // Enums
+  const enums = solutionCode.match(/(?:pub\s+)?enum\s+(\w+)/g);
+  if (enums) {
+    for (const e of enums) {
+      const name = e.match(/enum\s+(\w+)/)?.[1];
+      if (name) {
+        rules.push({
+          check: (c) => new RegExp(`enum\\s+${name}`).test(c),
+          expected: `Define enum \`${name}\``,
+          failMessage: `Missing enum \`${name}\``,
         });
       }
     }
@@ -241,6 +301,31 @@ function rulesFromSolution(solutionCode: string): ValidationRule[] {
         });
       }
     }
+  }
+
+  // Anchor-specific patterns
+  if (/Context\s*</.test(solutionCode)) {
+    rules.push({
+      check: (c) => /Context\s*</.test(c),
+      expected: 'Use Anchor `Context<>` type',
+      failMessage: 'Missing Anchor `Context<>` parameter',
+    });
+  }
+
+  if (/Result\s*<\s*\(\s*\)\s*>/.test(solutionCode)) {
+    rules.push({
+      check: (c) => /Result\s*</.test(c) || /-> Result/.test(c),
+      expected: 'Return `Result<()>`',
+      failMessage: 'Function should return `Result<()>`',
+    });
+  }
+
+  if (/msg!\s*\(/.test(solutionCode)) {
+    rules.push({
+      check: (c) => /msg!\s*\(/.test(c),
+      expected: 'Include logging with `msg!()`',
+      failMessage: 'Add `msg!()` logging for on-chain debugging',
+    });
   }
 
   return rules;

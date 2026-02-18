@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { apiSuccess, withErrorHandler } from '@/lib/api/utils';
+import { getCourses as getCMSCourses, type CMSCourse } from '@/lib/cms/client';
 import type { CourseCard } from '@/types';
 
 export const GET = withErrorHandler(async (req) => {
@@ -22,6 +23,7 @@ export const GET = withErrorHandler(async (req) => {
     ];
   }
 
+  // Fetch from Prisma (primary source with user-specific data)
   const courses = await prisma.course.findMany({
     where,
     orderBy: { sortOrder: 'asc' },
@@ -32,6 +34,17 @@ export const GET = withErrorHandler(async (req) => {
       _count: { select: { enrollments: true } },
     },
   });
+
+  // Fetch CMS data for enrichment (thumbnails, instructor images)
+  let cmsIndex: Record<string, CMSCourse> = {};
+  try {
+    const cmsCourses = await getCMSCourses();
+    if (cmsCourses.length > 0) {
+      cmsIndex = Object.fromEntries(cmsCourses.map((c) => [c.slug, c]));
+    }
+  } catch {
+    // CMS unavailable — continue with DB data only
+  }
 
   // Optionally add user progress
   const user = await getCurrentUser().catch(() => null);
@@ -47,23 +60,26 @@ export const GET = withErrorHandler(async (req) => {
     );
   }
 
-  const result: CourseCard[] = courses.map((course) => ({
-    id: course.id,
-    slug: course.slug,
-    title: course.title,
-    description: course.description,
-    thumbnail: course.thumbnail,
-    difficulty: course.difficulty,
-    duration: course.duration,
-    xpReward: course.xpReward,
-    track: course.track,
-    tags: course.tags,
-    instructorName: course.instructorName,
-    instructorImage: course.instructorImage,
-    totalLessons: course.modules.reduce((sum, m) => sum + m.lessons.length, 0),
-    enrolledCount: course._count.enrollments,
-    userProgress: enrollments[course.id],
-  }));
+  const result: CourseCard[] = courses.map((course) => {
+    const cms = cmsIndex[course.slug];
+    return {
+      id: course.id,
+      slug: course.slug,
+      title: course.title,
+      description: course.description,
+      thumbnail: cms?.thumbnail || course.thumbnail,
+      difficulty: course.difficulty,
+      duration: course.duration,
+      xpReward: course.xpReward,
+      track: course.track,
+      tags: course.tags,
+      instructorName: cms?.instructorName || course.instructorName,
+      instructorImage: cms?.instructorImage || course.instructorImage,
+      totalLessons: course.modules.reduce((sum, m) => sum + m.lessons.length, 0),
+      enrolledCount: course._count.enrollments,
+      userProgress: enrollments[course.id],
+    };
+  });
 
   return apiSuccess(result);
 });
