@@ -152,7 +152,7 @@ export default function SettingsPage() {
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="Tell us about yourself..."
+                placeholder={t('settings.profile.bioPlaceholder')}
               />
             </div>
             <button
@@ -183,7 +183,7 @@ export default function SettingsPage() {
                 <Mail className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <p className="text-sm font-medium">{t('settings.account.email')}</p>
-                  <p className="text-xs text-muted-foreground">{session?.user?.email || 'Not connected'}</p>
+                  <p className="text-xs text-muted-foreground">{session?.user?.email || t('settings.account.notConnected')}</p>
                 </div>
               </div>
               {session?.user?.email && <Check className="h-4 w-4 text-accent" />}
@@ -200,7 +200,7 @@ export default function SettingsPage() {
                       ? shortenAddress(profile.walletAddress, 6)
                       : connected && publicKey
                         ? shortenAddress(publicKey.toBase58(), 6)
-                        : 'Not connected'}
+                        : t('settings.account.notConnected')}
                   </p>
                   {walletError && (
                     <p className="text-xs text-destructive">{walletError}</p>
@@ -215,7 +215,7 @@ export default function SettingsPage() {
                     className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/80 disabled:opacity-50"
                   >
                     {walletLinking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Unlink className="h-3 w-3" />}
-                    Unlink
+                    {t('settings.account.unlink')}
                   </button>
                 ) : connected && publicKey ? (
                   <button
@@ -224,7 +224,7 @@ export default function SettingsPage() {
                     className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                   >
                     {walletLinking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
-                    Link Wallet
+                    {t('common.linkWallet')}
                   </button>
                 ) : (
                   <WalletMultiButton className="!h-8 !rounded-lg !bg-primary !px-3 !text-xs !font-medium" />
@@ -237,9 +237,9 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3">
                 <Github className="h-4 w-4 text-muted-foreground" />
                 <div>
-                  <p className="text-sm font-medium">GitHub</p>
+                  <p className="text-sm font-medium">{t('settings.account.github')}</p>
                   <p className="text-xs text-muted-foreground">
-                    {session?.user?.image?.includes('github') ? 'Connected' : 'Not connected'}
+                    {session?.user?.image?.includes('github') ? t('settings.account.connected') : t('settings.account.notConnected')}
                   </p>
                 </div>
               </div>
@@ -247,7 +247,7 @@ export default function SettingsPage() {
                 onClick={() => signIn('github')}
                 className="rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/80"
               >
-                Connect
+                {t('settings.account.connect')}
               </button>
             </div>
           </div>

@@ -103,6 +103,7 @@ export const ptBR: TranslationKeys = {
       title: 'Catálogo de Cursos',
       subtitle: 'Navegue pela nossa biblioteca de cursos de desenvolvimento Solana.',
       searchPlaceholder: 'Buscar cursos...',
+      noResults: 'Nenhum curso encontrado com seus filtros.',
     },
     difficulty: {
       beginner: 'Iniciante',
@@ -156,6 +157,9 @@ export const ptBR: TranslationKeys = {
     currentCourses: 'Cursos Atuais',
     recentActivity: 'Atividade Recente',
     recommended: 'Recomendado Para Você',
+    noCourses: 'Nenhum curso ainda. Comece a aprender!',
+    noActivity: 'Nenhuma atividade recente.',
+    nextLesson: 'Próximo: {{name}}',
     stats: {
       totalXP: 'XP Total',
       level: 'Nível',
@@ -183,6 +187,7 @@ export const ptBR: TranslationKeys = {
     level: 'Nível',
     streak: 'Sequência',
     you: 'Você',
+    noRankings: 'Nenhum ranking ainda. Seja o primeiro!',
   },
   profile: {
     title: 'Perfil',
@@ -194,6 +199,10 @@ export const ptBR: TranslationKeys = {
     memberSince: 'Membro desde {{date}}',
     noAchievements: 'Nenhuma conquista ainda. Comece a aprender para ganhar insígnias!',
     noCredentials: 'Nenhuma credencial ainda. Complete uma trilha de curso para ganhar sua primeira credencial.',
+    noCourses: 'Nenhum curso concluído ainda. Continue aprendendo!',
+    minted: 'Cunhado',
+    mintCNFT: 'Cunhar cNFT',
+    streakDays: 'Sequência de {{count}}d',
   },
   settings: {
     title: 'Configurações',
@@ -202,12 +211,18 @@ export const ptBR: TranslationKeys = {
       name: 'Nome de Exibição',
       bio: 'Biografia',
       avatar: 'Avatar',
+      bioPlaceholder: 'Conte-nos sobre você...',
     },
     account: {
       title: 'Conta',
       email: 'Email',
       connectedWallets: 'Carteiras Conectadas',
       socialAccounts: 'Contas Sociais',
+      github: 'GitHub',
+      unlink: 'Desvincular',
+      connect: 'Conectar',
+      connected: 'Conectado',
+      notConnected: 'Não conectado',
     },
     preferences: {
       title: 'Preferências',
@@ -252,11 +267,13 @@ export const ptBR: TranslationKeys = {
     tweet: 'Tweetar',
     noCredential: 'Nenhuma credencial encontrada para este endereço. Complete um curso e crie seu certificado na página de perfil.',
     connectWallet: 'Conecte sua carteira para ver credenciais on-chain.',
+    merkleTree: 'Árvore Merkle',
   },
   gamification: {
     xp: 'XP',
     level: 'Nível {{level}}',
     nextLevel: '{{xp}} XP para Nível {{level}}',
+    lvl: 'Nvl {{level}}',
     streak: {
       title: 'Sequência',
       days: '{{count}} dias',
@@ -281,10 +298,18 @@ export const ptBR: TranslationKeys = {
   },
   errors: {
     notFound: 'Página não encontrada',
+    notFoundMessage: 'Esta página não existe em nenhuma chain.',
+    backHome: 'Voltar ao Início',
     unauthorized: 'Faça login para continuar',
     serverError: 'Algo deu errado',
     walletRequired: 'Conecte sua carteira para receber credenciais on-chain',
     networkError: 'Erro de rede. Tente novamente.',
+    loadCourses: 'Falha ao carregar cursos. Tente novamente.',
+    loadDashboard: 'Falha ao carregar o painel. Faça login e tente novamente.',
+    loadLeaderboard: 'Falha ao carregar o ranking. Tente novamente.',
+    loadProfile: 'Falha ao carregar o perfil. Faça login e tente novamente.',
+    runCode: 'Ocorreu um erro ao executar seu código.',
+    loadLesson: 'Falha ao carregar a aula. Tente novamente.',
   },
   time: {
     justNow: 'Agora mesmo',

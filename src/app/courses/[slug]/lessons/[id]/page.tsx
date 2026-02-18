@@ -68,7 +68,7 @@ export default function LessonPage() {
   if (error || !lesson) {
     return (
       <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
-        <p className="text-destructive">Failed to load lesson. Please try again.</p>
+        <p className="text-destructive">{t('errors.loadLesson')}</p>
       </div>
     );
   }
@@ -100,7 +100,7 @@ export default function LessonPage() {
         }
       }
     } catch {
-      setOutput('An error occurred while running your code.');
+      setOutput(t('errors.runCode'));
     } finally {
       setIsRunning(false);
     }

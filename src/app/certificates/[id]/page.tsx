@@ -5,14 +5,11 @@ import { useLocale } from '@/contexts/locale-context';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { getExplorerUrl } from '@/lib/solana/config';
 import { learningService } from '@/lib/services/learning-progress';
-import { PublicKey } from '@solana/web3.js';
 import { useEffect, useState } from 'react';
 import type { Credential } from '@/types';
 import {
   Award,
   ExternalLink,
-  Download,
-  Share2,
   CheckCircle2,
   Calendar,
   BookOpen,
@@ -164,7 +161,7 @@ export default function CertificatePage() {
               </div>
               {cert.treeAddress && (
                 <div>
-                  <p className="text-xs text-muted-foreground">Merkle Tree</p>
+                  <p className="text-xs text-muted-foreground">{t('certificates.merkleTree')}</p>
                   <a
                     href={getExplorerUrl('address', cert.treeAddress)}
                     target="_blank"

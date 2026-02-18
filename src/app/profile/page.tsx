@@ -107,7 +107,7 @@ export default function ProfilePage() {
   if (error || !profile) {
     return (
       <div className="py-20 text-center">
-        <p className="text-destructive">Failed to load profile. Please sign in and try again.</p>
+        <p className="text-destructive">{t('errors.loadProfile')}</p>
       </div>
     );
   }
@@ -177,11 +177,11 @@ export default function ProfilePage() {
             </span>
             <span className="flex items-center gap-1 text-sm text-muted-foreground">
               <Star className="h-3.5 w-3.5" />
-              Level {level}
+              {formatT('gamification.level', { level: level.toString() })}
             </span>
             <span className="flex items-center gap-1 text-sm text-orange-400">
               <Flame className="h-3.5 w-3.5" />
-              {profile.currentStreak}d streak
+              {formatT('profile.streakDays', { count: profile.currentStreak.toString() })}
             </span>
           </div>
         </div>
@@ -190,7 +190,7 @@ export default function ProfilePage() {
       {/* Skill Breakdown */}
       {Object.values(skills).some((v) => v > 0) && (
         <div className="mt-10">
-          <h2 className="mb-4 text-lg font-semibold">{t('profile.skills') || 'Skills'}</h2>
+          <h2 className="mb-4 text-lg font-semibold">{t('profile.skills')}</h2>
           <SkillRadar skills={skills} />
         </div>
       )}
@@ -199,7 +199,7 @@ export default function ProfilePage() {
       {achievements.length > 0 && (
         <div className="mt-10">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">{t('profile.achievements') || 'Achievements'}</h2>
+            <h2 className="text-lg font-semibold">{t('profile.achievements')}</h2>
             <span className="text-sm text-muted-foreground">
               {unlockedCount}/{achievements.length} unlocked
             </span>
@@ -251,7 +251,7 @@ export default function ProfilePage() {
                       ) : (
                         <Award className="h-3 w-3" />
                       )}
-                      {mintSuccess === course.slug ? 'Minted' : 'Mint cNFT'}
+                      {mintSuccess === course.slug ? t('profile.minted') : t('profile.mintCNFT')}
                     </button>
                   )}
                   <Trophy className="h-4 w-4 text-yellow-400" />
@@ -260,7 +260,7 @@ export default function ProfilePage() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">No courses completed yet. Keep learning!</p>
+          <p className="text-sm text-muted-foreground">{t('profile.noCourses')}</p>
         )}
       </div>
     </div>

@@ -70,7 +70,7 @@ export default function CourseCatalogPage() {
       {/* Error state */}
       {error && (
         <div className="py-20 text-center">
-          <p className="text-destructive">Failed to load courses. Please try again.</p>
+          <p className="text-destructive">{t('errors.loadCourses')}</p>
         </div>
       )}
 
@@ -152,7 +152,7 @@ export default function CourseCatalogPage() {
       {courses && courses.length === 0 && (
         <div className="py-20 text-center">
           <BookOpen className="mx-auto h-12 w-12 text-muted-foreground/30" />
-          <p className="mt-4 text-muted-foreground">No courses found matching your filters.</p>
+          <p className="mt-4 text-muted-foreground">{t('courses.catalog.noResults')}</p>
         </div>
       )}
     </div>

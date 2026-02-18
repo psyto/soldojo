@@ -12,7 +12,7 @@ const PODIUM_COLORS = ['text-yellow-400', 'text-gray-300', 'text-amber-600'];
 const PODIUM_BG = ['bg-yellow-400/10 border-yellow-400/30', 'bg-gray-300/10 border-gray-300/30', 'bg-amber-600/10 border-amber-600/30'];
 
 export default function LeaderboardPage() {
-  const { t } = useLocale();
+  const { t, formatT } = useLocale();
   const [timeframe, setTimeframe] = useState<'weekly' | 'monthly' | 'alltime'>('alltime');
 
   const { data, isLoading, error } = useLeaderboard(timeframe);
@@ -55,14 +55,14 @@ export default function LeaderboardPage() {
       {/* Error state */}
       {error && (
         <div className="py-20 text-center">
-          <p className="text-destructive">Failed to load leaderboard. Please try again.</p>
+          <p className="text-destructive">{t('errors.loadLeaderboard')}</p>
         </div>
       )}
 
       {data && data.length === 0 && (
         <div className="py-20 text-center">
           <Trophy className="mx-auto h-12 w-12 text-muted-foreground/30" />
-          <p className="mt-4 text-muted-foreground">No rankings yet. Be the first!</p>
+          <p className="mt-4 text-muted-foreground">{t('leaderboard.noRankings')}</p>
         </div>
       )}
 
@@ -92,7 +92,7 @@ export default function LeaderboardPage() {
                   <h3 className="mt-2 text-sm font-semibold truncate max-w-full">{entry.displayName}</h3>
                   <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                     <Star className="h-3 w-3" />
-                    Lvl {entry.level}
+                    {formatT('gamification.lvl', { level: entry.level.toString() })}
                   </div>
                   <div className="mt-2 flex items-center gap-1 text-lg font-bold text-solana-gradient">
                     <Zap className="h-4 w-4" />
@@ -148,7 +148,7 @@ export default function LeaderboardPage() {
                     </span>
                   </div>
                   <div className="col-span-2 text-right text-sm text-muted-foreground">
-                    Lvl {entry.level}
+                    {formatT('gamification.lvl', { level: entry.level.toString() })}
                   </div>
                   <div className="col-span-2 text-right">
                     {entry.currentStreak > 0 ? (

@@ -101,6 +101,7 @@ export const en = {
       title: 'Course Catalog',
       subtitle: 'Browse our library of Solana development courses.',
       searchPlaceholder: 'Search courses...',
+      noResults: 'No courses found matching your filters.',
     },
     difficulty: {
       beginner: 'Beginner',
@@ -154,6 +155,9 @@ export const en = {
     currentCourses: 'Current Courses',
     recentActivity: 'Recent Activity',
     recommended: 'Recommended For You',
+    noCourses: 'No courses yet. Start learning!',
+    noActivity: 'No recent activity yet.',
+    nextLesson: 'Next: {{name}}',
     stats: {
       totalXP: 'Total XP',
       level: 'Level',
@@ -181,6 +185,7 @@ export const en = {
     level: 'Level',
     streak: 'Streak',
     you: 'You',
+    noRankings: 'No rankings yet. Be the first!',
   },
   profile: {
     title: 'Profile',
@@ -192,6 +197,10 @@ export const en = {
     memberSince: 'Member since {{date}}',
     noAchievements: 'No achievements yet. Start learning to earn badges!',
     noCredentials: 'No credentials yet. Complete a course track to earn your first credential.',
+    noCourses: 'No courses completed yet. Keep learning!',
+    minted: 'Minted',
+    mintCNFT: 'Mint cNFT',
+    streakDays: '{{count}}d streak',
   },
   settings: {
     title: 'Settings',
@@ -200,12 +209,18 @@ export const en = {
       name: 'Display Name',
       bio: 'Bio',
       avatar: 'Avatar',
+      bioPlaceholder: 'Tell us about yourself...',
     },
     account: {
       title: 'Account',
       email: 'Email',
       connectedWallets: 'Connected Wallets',
       socialAccounts: 'Social Accounts',
+      github: 'GitHub',
+      unlink: 'Unlink',
+      connect: 'Connect',
+      connected: 'Connected',
+      notConnected: 'Not connected',
     },
     preferences: {
       title: 'Preferences',
@@ -250,11 +265,13 @@ export const en = {
     tweet: 'Tweet',
     noCredential: 'No credential found for this address. Complete a course and mint your certificate from the profile page.',
     connectWallet: 'Connect your wallet to view on-chain credentials.',
+    merkleTree: 'Merkle Tree',
   },
   gamification: {
     xp: 'XP',
     level: 'Level {{level}}',
     nextLevel: '{{xp}} XP to Level {{level}}',
+    lvl: 'Lvl {{level}}',
     streak: {
       title: 'Streak',
       days: '{{count}} days',
@@ -279,10 +296,18 @@ export const en = {
   },
   errors: {
     notFound: 'Page not found',
+    notFoundMessage: "This page doesn't exist on any chain.",
+    backHome: 'Back to Home',
     unauthorized: 'Please sign in to continue',
     serverError: 'Something went wrong',
     walletRequired: 'Connect your wallet to receive on-chain credentials',
     networkError: 'Network error. Please try again.',
+    loadCourses: 'Failed to load courses. Please try again.',
+    loadDashboard: 'Failed to load dashboard. Please sign in and try again.',
+    loadLeaderboard: 'Failed to load leaderboard. Please try again.',
+    loadProfile: 'Failed to load profile. Please sign in and try again.',
+    runCode: 'An error occurred while running your code.',
+    loadLesson: 'Failed to load lesson. Please try again.',
   },
   time: {
     justNow: 'Just now',

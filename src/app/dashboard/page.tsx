@@ -33,7 +33,7 @@ export default function DashboardPage() {
   if (error || !stats) {
     return (
       <div className="py-20 text-center">
-        <p className="text-destructive">Failed to load dashboard. Please sign in and try again.</p>
+        <p className="text-destructive">{t('errors.loadDashboard')}</p>
       </div>
     );
   }
@@ -126,9 +126,9 @@ export default function DashboardPage() {
           />
         </div>
         <div className="mt-1 flex justify-between text-xs text-muted-foreground">
-          <span>Lvl {level}</span>
+          <span>{formatT('gamification.lvl', { level: level.toString() })}</span>
           <span>{Math.round(progress.percentage)}%</span>
-          <span>Lvl {level + 1}</span>
+          <span>{formatT('gamification.lvl', { level: (level + 1).toString() })}</span>
         </div>
       </div>
 
@@ -142,7 +142,7 @@ export default function DashboardPage() {
                 href="/courses"
                 className="flex items-center justify-center rounded-xl border border-dashed border-border p-8 text-muted-foreground hover:border-primary/50 transition-colors"
               >
-                <span>No courses yet. Start learning!</span>
+                <span>{t('dashboard.noCourses')}</span>
               </Link>
             )}
             {stats.currentCourses.map((course) => (
@@ -154,7 +154,7 @@ export default function DashboardPage() {
                 <div className="flex-1">
                   <h3 className="font-semibold">{course.title}</h3>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Next: {course.nextLesson}
+                    {formatT('dashboard.nextLesson', { name: course.nextLesson })}
                   </p>
                   <div className="mt-3">
                     <div className="flex items-center justify-between text-xs">
@@ -216,7 +216,7 @@ export default function DashboardPage() {
           <div className="rounded-xl border border-border bg-card">
             {stats.recentActivity.length === 0 && (
               <div className="p-4 text-center text-sm text-muted-foreground">
-                No recent activity yet.
+                {t('dashboard.noActivity')}
               </div>
             )}
             {stats.recentActivity.map((activity, i) => (
