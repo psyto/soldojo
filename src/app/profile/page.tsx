@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useLocale } from '@/contexts/locale-context';
@@ -14,6 +15,7 @@ import {
   Award,
   BookOpen,
   Loader2,
+  CheckCircle2,
   Lock,
   Code,
   Shield,
@@ -21,6 +23,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { useProfile } from '@/hooks';
+import { useWallet } from '@solana/wallet-adapter-react';
 import type { Achievement } from '@/types';
 
 const SKILL_LABELS: Record<string, { label: string; icon: typeof Code }> = {
@@ -89,6 +92,9 @@ export default function ProfilePage() {
   const { data: session } = useSession();
   const { t, formatT } = useLocale();
   const { data: profile, isLoading, error } = useProfile();
+  const { publicKey } = useWallet();
+  const [mintingSlug, setMintingSlug] = useState<string | null>(null);
+  const [mintSuccess, setMintSuccess] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -105,6 +111,28 @@ export default function ProfilePage() {
       </div>
     );
   }
+
+  const handleMintCertificate = async (courseSlug: string) => {
+    setMintingSlug(courseSlug);
+    setMintSuccess(null);
+    try {
+      const res = await fetch('/api/certificates/mint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseSlug }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMintSuccess(courseSlug);
+      } else {
+        console.error('Mint failed:', data.error);
+      }
+    } catch {
+      console.error('Mint request failed');
+    } finally {
+      setMintingSlug(null);
+    }
+  };
 
   const level = calculateLevel(profile.totalXP);
   const achievements: Achievement[] = profile.achievements ?? [];
@@ -209,7 +237,28 @@ export default function ProfilePage() {
                     </p>
                   </div>
                 </div>
-                <Trophy className="h-4 w-4 text-yellow-400" />
+                <div className="flex items-center gap-2">
+                  {publicKey && profile.walletAddress && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleMintCertificate(course.slug);
+                      }}
+                      disabled={mintingSlug === course.slug || mintSuccess === course.slug}
+                      className="flex items-center gap-1 rounded-lg bg-solana-gradient px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                    >
+                      {mintingSlug === course.slug ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : mintSuccess === course.slug ? (
+                        <CheckCircle2 className="h-3 w-3" />
+                      ) : (
+                        <Award className="h-3 w-3" />
+                      )}
+                      {mintSuccess === course.slug ? 'Minted' : 'Mint cNFT'}
+                    </button>
+                  )}
+                  <Trophy className="h-4 w-4 text-yellow-400" />
+                </div>
               </Link>
             ))}
           </div>

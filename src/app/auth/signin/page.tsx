@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Flame, Loader2, Github } from 'lucide-react';
 
-const IS_DEV = process.env.NODE_ENV !== 'production';
+const IS_DEV = process.env.NEXT_PUBLIC_ENABLE_DEV_AUTH === 'true';
 
 export default function SignInPage() {
   const [email, setEmail] = useState('dev@soldojo.com');

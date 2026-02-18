@@ -11,3 +11,4 @@ export { useLeaderboard } from './use-leaderboard';
 export { useProfile } from './use-profile';
 export type { ProfileData } from './use-profile';
 export { useUpdateProfile } from './use-update-profile';
+export { useOnChain } from './use-onchain';

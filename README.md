@@ -4,6 +4,26 @@ Interactive learning platform for Solana development. Gamified progression, on-c
 
 Built for [Superteam Brazil](https://twitter.com/SuperteamBR).
 
+## Features
+
+- **Gamified Learning** — XP, levels, streaks, achievements, and leaderboards
+- **Hands-on Challenges** — Solve Rust/TypeScript coding exercises with real-time feedback
+- **On-Chain Credentials** — Anchor program records completions; cNFT certificates via Metaplex Bubblegum
+- **Wallet Integration** — Phantom/Solflare with signature verification
+- **Multi-language** — PT-BR (default), English, Spanish
+- **CI/CD** — GitHub Actions pipeline with lint, typecheck, test, and build
+
+## On-Chain Program
+
+Deployed on **Solana Devnet**:
+
+| | |
+|---|---|
+| Program ID | `CzTcLkeLZvk77ZJQpaL5fCYVgxqU63JV8rZBwC1kQ3rQ` |
+| Framework | Anchor v0.32.0 |
+| Instructions | `init_profile`, `record_completion` |
+| Accounts | `LearnerProfile` (PDA per wallet), `CourseCompletion` (PDA per wallet+course) |
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -17,7 +37,10 @@ Built for [Superteam Brazil](https://twitter.com/SuperteamBR).
 | Code Editor | Monaco Editor |
 | State | Zustand + TanStack React Query |
 | Analytics | GA4 + PostHog + Sentry |
-| Blockchain | Solana (Devnet) — wallet adapter, SPL Token, Metaplex DAS API |
+| On-chain | Anchor v0.32.0, Metaplex Bubblegum (cNFTs), Helius DAS API |
+| Blockchain | Solana Devnet |
+| Testing | Vitest (39 tests) |
+| CI/CD | GitHub Actions |
 | Deployment | Vercel |
 
 ## Getting Started
@@ -68,7 +91,8 @@ Open [http://localhost:3000](http://localhost:3000).
 | `NEXT_PUBLIC_SANITY_PROJECT_ID` | For CMS | Sanity project ID |
 | `NEXT_PUBLIC_GA4_ID` | For analytics | Google Analytics 4 measurement ID |
 | `NEXT_PUBLIC_POSTHOG_KEY` | For heatmaps | PostHog project API key |
-| `SENTRY_DSN` | For errors | Sentry DSN for error monitoring |
+| `NEXT_PUBLIC_SENTRY_DSN` | For errors | Sentry DSN for error monitoring |
+| `ENABLE_DEV_AUTH` | For dev | Set to `true` to enable dev credentials login |
 
 ## Project Structure
 
@@ -111,8 +135,26 @@ soldojo/
 | `npm run build` | Production build |
 | `npm run lint` | Run ESLint |
 | `npm run type-check` | TypeScript type checking |
+| `npm test` | Run test suite (Vitest) |
 | `npm run db:push` | Push Prisma schema to database |
 | `npm run db:studio` | Open Prisma Studio |
+
+## Deployment
+
+Deploy to Vercel with one click — the project is fully configured for Next.js on Vercel:
+
+1. Push your repo to GitHub
+2. Import into [Vercel](https://vercel.com)
+3. Set the required environment variables (see `.env.example`)
+4. Deploy
+
+For the Anchor program, install [Anchor CLI](https://www.anchor-lang.com/docs/installation) and run:
+
+```bash
+cd programs/soldojo
+anchor build
+anchor deploy --provider.cluster devnet
+```
 
 ## License
 

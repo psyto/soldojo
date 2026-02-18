@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import dynamic from 'next/dynamic';
-import { useLesson, useCompleteLesson } from '@/hooks';
+import { useLesson, useCompleteLesson, useOnChain } from '@/hooks';
 import { runChallenge } from '@/lib/challenge-runner';
 import type { ChallengeResult } from '@/types';
 
@@ -39,6 +39,7 @@ export default function LessonPage() {
 
   const { data: lesson, isLoading, error } = useLesson(slug, id);
   const completeMutation = useCompleteLesson(slug, id);
+  const { recordCompletion, isConnected } = useOnChain();
 
   const [code, setCode] = useState('');
   const [codeInitialized, setCodeInitialized] = useState(false);
@@ -93,6 +94,10 @@ export default function LessonPage() {
 
       if (result.passed) {
         completeMutation.mutate();
+        // Record on-chain completion (best-effort, non-blocking)
+        if (isConnected) {
+          recordCompletion(slug, lesson.xpReward).catch(() => {});
+        }
       }
     } catch {
       setOutput('An error occurred while running your code.');
@@ -103,6 +108,9 @@ export default function LessonPage() {
 
   const handleMarkComplete = () => {
     completeMutation.mutate();
+    if (isConnected) {
+      recordCompletion(slug, lesson.xpReward).catch(() => {});
+    }
   };
 
   return (

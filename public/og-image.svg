@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0a0a"/>
+      <stop offset="100%" style="stop-color:#1a1a2e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#9945FF"/>
+      <stop offset="100%" style="stop-color:#14F195"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="0" y="610" width="1200" height="20" fill="url(#accent)"/>
+  <rect x="80" y="200" width="80" height="80" rx="20" fill="url(#accent)"/>
+  <text x="100" y="262" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="48" fill="white">S</text>
+  <text x="190" y="260" font-family="Arial,sans-serif" font-weight="bold" font-size="56" fill="white">SolDojo</text>
+  <text x="80" y="320" font-family="Arial,sans-serif" font-size="28" fill="#a1a1aa">Where Solana Builders Train</text>
+  <text x="80" y="400" font-family="Arial,sans-serif" font-size="20" fill="#71717a">Interactive learning platform for Solana development.</text>
+  <text x="80" y="440" font-family="Arial,sans-serif" font-size="20" fill="#71717a">On-chain credentials, gamified progression, hands-on challenges.</text>
+  <text x="80" y="540" font-family="Arial,sans-serif" font-size="18" fill="#9945FF">Built for Superteam Brazil</text>
+</svg>

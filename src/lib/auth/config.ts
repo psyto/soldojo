@@ -27,7 +27,7 @@ declare module 'next-auth' {
 const providers = [];
 
 // Dev credentials provider — email-only login for local testing
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.ENABLE_DEV_AUTH === 'true') {
   providers.push(
     Credentials({
       name: 'Dev Login',

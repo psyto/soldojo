@@ -194,40 +194,13 @@ export default function CourseDetailPage() {
             </div>
           </div>
 
-          {/* Reviews (static for MVP) */}
+          {/* Reviews */}
           <div className="mt-10">
-            <h2 className="text-xl font-semibold">Reviews</h2>
-            <div className="mt-4 space-y-4">
-              {[
-                { name: 'Alex M.', rating: 5, text: 'Excellent course! The hands-on challenges really helped me understand Solana development.', date: '2 weeks ago' },
-                { name: 'Maria S.', rating: 5, text: 'Clear explanations and well-structured content. Perfect for getting started with Web3.', date: '1 month ago' },
-                { name: 'Carlos R.', rating: 4, text: 'Great material. Would love more advanced topics in future updates.', date: '1 month ago' },
-              ].map((review, i) => (
-                <div key={i} className="rounded-xl border border-border bg-card p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-medium">
-                        {review.name[0]}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{review.name}</p>
-                        <p className="text-xs text-muted-foreground">{review.date}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-0.5">
-                      {Array.from({ length: 5 }).map((_, j) => (
-                        <span
-                          key={j}
-                          className={`text-sm ${j < review.rating ? 'text-yellow-400' : 'text-secondary'}`}
-                        >
-                          ★
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">{review.text}</p>
-                </div>
-              ))}
+            <h2 className="text-xl font-semibold">{t('courses.detail.reviews') || 'Reviews'}</h2>
+            <div className="mt-4 rounded-xl border border-border bg-card p-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Community reviews coming soon. Complete the course and be the first to share your experience!
+              </p>
             </div>
           </div>
         </div>

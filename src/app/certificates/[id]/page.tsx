@@ -22,25 +22,6 @@ import {
   Check,
 } from 'lucide-react';
 
-// Fallback mock data when no credential is found on-chain
-const MOCK_CERTIFICATE = {
-  id: 'cert-1',
-  name: 'Anchor Framework Developer',
-  track: 'Rust & Anchor',
-  level: 2,
-  courseName: 'Building with Anchor Framework',
-  recipientName: 'CryptoNinja',
-  recipientWallet: 'Gh7mKxR3pQ2vN8tY6wJ4bF9eC1dA5hL7xK2nM8rT3qW',
-  issuedAt: '2026-02-10',
-  mintAddress: '7xW9y7R62vnxachrhTfL3KcpjbKzFaQ8JYN3hZj2JKmM',
-  treeAddress: 'DrgZ5sAtjqyobypa18b6tQ3owGxgTi9j3JW68k7JGf8m',
-  attributes: {
-    'Total XP': 1500,
-    'Lessons Completed': 12,
-    'Challenges Passed': 4,
-    'Completion Time': '3 weeks',
-  },
-};
 
 export default function CertificatePage() {
   const params = useParams();
@@ -69,21 +50,32 @@ export default function CertificatePage() {
     fetchCredential();
   }, [publicKey, certId]);
 
-  // Use real credential or fallback to mock
-  const cert = credential
-    ? {
-        name: credential.name,
-        track: credential.track,
-        level: credential.level,
-        courseName: credential.name,
-        recipientName: publicKey?.toBase58().slice(0, 8) ?? 'Learner',
-        recipientWallet: publicKey?.toBase58() ?? '',
-        issuedAt: credential.issuedAt,
-        mintAddress: credential.mintAddress,
-        treeAddress: '',
-        attributes: credential.attributes,
-      }
-    : { ...MOCK_CERTIFICATE, id: certId };
+  if (!credential) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-20 text-center">
+        <Award className="mx-auto h-16 w-16 text-muted-foreground" />
+        <h1 className="mt-4 text-2xl font-bold">{t('certificates.title')}</h1>
+        <p className="mt-2 text-muted-foreground">
+          {publicKey
+            ? 'No credential found for this address. Complete a course and mint your certificate from the profile page.'
+            : 'Connect your wallet to view on-chain credentials.'}
+        </p>
+      </div>
+    );
+  }
+
+  const cert = {
+    name: credential.name,
+    track: credential.track,
+    level: credential.level,
+    courseName: credential.name,
+    recipientName: publicKey?.toBase58().slice(0, 8) ?? 'Learner',
+    recipientWallet: publicKey?.toBase58() ?? '',
+    issuedAt: credential.issuedAt,
+    mintAddress: credential.mintAddress,
+    treeAddress: '',
+    attributes: credential.attributes,
+  };
 
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
   const shareText = `I earned the "${cert.name}" credential on SolDojo! #Solana #Web3 @SuperteamBR`;
