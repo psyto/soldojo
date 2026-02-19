@@ -126,7 +126,7 @@ export default function CertificatePage() {
             </span>
             <span className="flex items-center gap-1.5">
               <BookOpen className="h-4 w-4" />
-              {cert.track} - Level {cert.level}
+              {cert.track} - {t('leaderboard.level')} {cert.level}
             </span>
           </div>
 

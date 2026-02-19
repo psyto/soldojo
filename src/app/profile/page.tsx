@@ -26,27 +26,27 @@ import { useProfile } from '@/hooks';
 import { useWallet } from '@solana/wallet-adapter-react';
 import type { Achievement } from '@/types';
 
-const SKILL_LABELS: Record<string, { label: string; icon: typeof Code }> = {
-  'solana-fundamentals': { label: 'Fundamentals', icon: Globe },
-  'rust-anchor': { label: 'Rust & Anchor', icon: Code },
-  'defi-developer': { label: 'DeFi', icon: Layers },
-  'security': { label: 'Security', icon: Shield },
-  'frontend-web3': { label: 'Frontend', icon: Globe },
+const SKILL_KEYS: Record<string, { labelKey: string; icon: typeof Code }> = {
+  'solana-fundamentals': { labelKey: 'profile.skillFundamentals', icon: Globe },
+  'rust-anchor': { labelKey: 'profile.skillRustAnchor', icon: Code },
+  'defi-developer': { labelKey: 'profile.skillDefi', icon: Layers },
+  'security': { labelKey: 'profile.skillSecurity', icon: Shield },
+  'frontend-web3': { labelKey: 'profile.skillFrontend', icon: Globe },
 };
 
-function SkillRadar({ skills }: { skills: Record<string, number> }) {
+function SkillRadar({ skills, t, formatT }: { skills: Record<string, number>; t: (key: string) => string; formatT: (key: string, params: Record<string, string>) => string }) {
   const maxVal = Math.max(...Object.values(skills), 1);
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {Object.entries(SKILL_LABELS).map(([key, { label, icon: Icon }]) => {
+      {Object.entries(SKILL_KEYS).map(([key, { labelKey, icon: Icon }]) => {
         const val = skills[key] ?? 0;
         const pct = Math.min((val / Math.max(maxVal, 5)) * 100, 100);
         return (
           <div key={key} className="rounded-lg border border-border bg-card p-3">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Icon className="h-3.5 w-3.5" />
-              {label}
+              {t(labelKey)}
             </div>
             <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
               <div
@@ -54,7 +54,7 @@ function SkillRadar({ skills }: { skills: Record<string, number> }) {
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <p className="mt-1 text-right text-xs font-medium">{val} lessons</p>
+            <p className="mt-1 text-right text-xs font-medium">{formatT('profile.lessonsCount', { count: val.toString() })}</p>
           </div>
         );
       })}
@@ -191,7 +191,7 @@ export default function ProfilePage() {
       {Object.values(skills).some((v) => v > 0) && (
         <div className="mt-10">
           <h2 className="mb-4 text-lg font-semibold">{t('profile.skills')}</h2>
-          <SkillRadar skills={skills} />
+          <SkillRadar skills={skills} t={t} formatT={formatT} />
         </div>
       )}
 
@@ -201,7 +201,7 @@ export default function ProfilePage() {
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">{t('profile.achievements')}</h2>
             <span className="text-sm text-muted-foreground">
-              {unlockedCount}/{achievements.length} unlocked
+              {formatT('profile.achievementsUnlocked', { unlocked: unlockedCount.toString(), total: achievements.length.toString() })}
             </span>
           </div>
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
@@ -230,7 +230,7 @@ export default function ProfilePage() {
                   <div>
                     <h3 className="text-sm font-semibold">{course.title}</h3>
                     <p className="text-xs text-muted-foreground">
-                      Completed {new Date(course.completedAt).toLocaleDateString()}
+                      {formatT('profile.completedOn', { date: new Date(course.completedAt).toLocaleDateString() })}
                     </p>
                   </div>
                 </div>
