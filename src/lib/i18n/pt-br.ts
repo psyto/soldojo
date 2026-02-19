@@ -22,6 +22,8 @@ export const ptBR: TranslationKeys = {
     exploreCourses: 'Explorar Cursos',
     connectWallet: 'Conectar Carteira',
     linkWallet: 'Vincular Carteira',
+    openMenu: 'Abrir menu',
+    closeMenu: 'Fechar menu',
   },
   nav: {
     home: 'Início',
@@ -219,6 +221,7 @@ export const ptBR: TranslationKeys = {
   },
   settings: {
     title: 'Configurações',
+    verifyWalletMessage: 'SolDojo: verificar propriedade da carteira',
     profile: {
       title: 'Perfil',
       name: 'Nome de Exibição',
@@ -282,6 +285,7 @@ export const ptBR: TranslationKeys = {
     noCredential: 'Nenhuma credencial encontrada para este endereço. Complete um curso e crie seu certificado na página de perfil.',
     connectWallet: 'Conecte sua carteira para ver credenciais on-chain.',
     merkleTree: 'Árvore Merkle',
+    shareText: 'Eu ganhei a credencial "{{name}}" no SolDojo! #Solana #Web3 @SuperteamBR',
   },
   gamification: {
     xp: 'XP',

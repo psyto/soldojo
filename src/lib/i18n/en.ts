@@ -20,6 +20,8 @@ export const en = {
     exploreCourses: 'Explore Courses',
     connectWallet: 'Connect Wallet',
     linkWallet: 'Link Wallet',
+    openMenu: 'Open menu',
+    closeMenu: 'Close menu',
   },
   nav: {
     home: 'Home',
@@ -217,6 +219,7 @@ export const en = {
   },
   settings: {
     title: 'Settings',
+    verifyWalletMessage: 'SolDojo: verify wallet ownership',
     profile: {
       title: 'Profile',
       name: 'Display Name',
@@ -280,6 +283,7 @@ export const en = {
     noCredential: 'No credential found for this address. Complete a course and mint your certificate from the profile page.',
     connectWallet: 'Connect your wallet to view on-chain credentials.',
     merkleTree: 'Merkle Tree',
+    shareText: 'I earned the "{{name}}" credential on SolDojo! #Solana #Web3 @SuperteamBR',
   },
   gamification: {
     xp: 'XP',

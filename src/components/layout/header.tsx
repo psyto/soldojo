@@ -141,7 +141,7 @@ export function Header() {
           {/* Mobile menu toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-label={mobileMenuOpen ? t('common.closeMenu') : t('common.openMenu')}
             className="rounded-lg p-2 text-muted-foreground hover:bg-secondary md:hidden"
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

@@ -58,7 +58,7 @@ export default function SettingsPage() {
     setWalletLinking(true);
     setWalletError('');
     try {
-      const message = `SolDojo: verify wallet ownership\n${publicKey.toBase58()}\n${Date.now()}`;
+      const message = `${t('settings.verifyWalletMessage')}\n${publicKey.toBase58()}\n${Date.now()}`;
       const messageBytes = new TextEncoder().encode(message);
       const signatureBytes = await signMessage(messageBytes);
       const signature = Buffer.from(signatureBytes).toString('base64');

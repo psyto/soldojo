@@ -50,7 +50,7 @@ export default function CertificatePage() {
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
 
   const handleShare = (name: string) => {
-    const shareText = `I earned the "${name}" credential on SolDojo! #Solana #Web3 @SuperteamBR`;
+    const shareText = formatT('certificates.shareText', { name });
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
     window.open(twitterUrl, '_blank', 'noopener,noreferrer,width=600,height=400');
   };
