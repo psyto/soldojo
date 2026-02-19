@@ -50,7 +50,7 @@ export const metadata: Metadata = {
       'Interactive learning platform for Solana development. On-chain credentials, gamified learning, and a community of builders.',
     images: [
       {
-        url: '/og-image.svg',
+        url: '/og-image.png',
         width: 1200,
         height: 630,
         alt: 'SolDojo - Where Solana Builders Train',
@@ -64,7 +64,7 @@ export const metadata: Metadata = {
       'Interactive learning platform for Solana development. On-chain credentials, gamified learning, and a community of builders.',
     creator: '@SuperteamBR',
     site: '@SuperteamBR',
-    images: ['/og-image.svg'],
+    images: ['/og-image.png'],
   },
   robots: {
     index: true,

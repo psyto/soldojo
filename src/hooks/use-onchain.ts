@@ -114,8 +114,7 @@ export function useOnChain() {
       const [profilePDA] = getProfilePDA(wallet.publicKey);
       const account = await connection.getAccountInfo(profilePDA);
       if (!account) return null;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return await (program.account as any)['learnerProfile'].fetch(profilePDA);
+      return await (program.account as Record<string, { fetch: (key: unknown) => Promise<unknown> }>)['learnerProfile'].fetch(profilePDA);
     } catch {
       return null;
     }

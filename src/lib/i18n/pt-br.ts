@@ -39,6 +39,7 @@ export const ptBR: TranslationKeys = {
     continueGithub: 'Continuar com GitHub',
     devLogin: 'Login Dev',
     email: 'Email',
+    signInFailed: 'Falha ao entrar. Tente novamente.',
   },
   landing: {
     hero: {
@@ -123,6 +124,7 @@ export const ptBR: TranslationKeys = {
       whatYouLearn: 'O que Você Vai Aprender',
       syllabus: 'Programa',
       reviews: 'Avaliações',
+      reviewsPlaceholder: 'Avaliações da comunidade em breve. Complete o curso e seja o primeiro a compartilhar sua experiência!',
     },
     progress: {
       complete: 'Concluído',
@@ -149,6 +151,9 @@ export const ptBR: TranslationKeys = {
       allPassed: 'Todos os testes passaram!',
       outputLabel: 'Saída',
       expectedOutput: 'Saída Esperada',
+      expected: 'Esperado:',
+      actual: 'Obtido:',
+      passedCount: '{{passed}}/{{total}} passaram',
     },
   },
   dashboard: {
@@ -246,6 +251,7 @@ export const ptBR: TranslationKeys = {
     newsletterDescription: 'Receba notificações sobre novos cursos e atualizações da plataforma.',
     subscribe: 'Inscrever-se',
     subscribed: 'Inscrito!',
+    emailPlaceholder: 'seu@email.com',
     builtBy: 'Construído pela comunidade para Superteam Brasil. Código aberto sob Licença MIT.',
     learn: 'Aprender',
     resources: 'Recursos',
@@ -310,6 +316,7 @@ export const ptBR: TranslationKeys = {
     loadProfile: 'Falha ao carregar o perfil. Faça login e tente novamente.',
     runCode: 'Ocorreu um erro ao executar seu código.',
     loadLesson: 'Falha ao carregar a aula. Tente novamente.',
+    loadCourse: 'Falha ao carregar o curso. Tente novamente.',
   },
   time: {
     justNow: 'Agora mesmo',

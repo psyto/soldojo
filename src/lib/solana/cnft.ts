@@ -3,6 +3,8 @@ import { mplBubblegum, mintV1, parseLeafFromMintV1Transaction } from '@metaplex-
 import { publicKey, keypairIdentity, type Umi } from '@metaplex-foundation/umi';
 import { SOLANA_RPC_ENDPOINT } from './config';
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
 // Environment-configured addresses for the cNFT infrastructure
 // These must be created once (see scripts/setup-cnft-tree.ts)
 const MERKLE_TREE = process.env.CNFT_MERKLE_TREE;
@@ -59,7 +61,7 @@ export async function mintCourseCertificate(params: MintCNFTParams): Promise<Min
     metadata: {
       name: `SolDojo: ${courseName}`,
       symbol: 'SOLDOJO',
-      uri: `https://soldojo.dev/api/metadata/${courseSlug}`,
+      uri: `${SITE_URL}/api/metadata/${courseSlug}`,
       sellerFeeBasisPoints: 0,
       collection: { key: collectionMint, verified: false },
       creators: [
@@ -75,10 +77,8 @@ export async function mintCourseCertificate(params: MintCNFTParams): Promise<Min
   // Try to parse the asset ID from the transaction
   let assetId: string | null = null;
   try {
-    const sig = Buffer.from(signature).toString('base64');
     const leaf = await parseLeafFromMintV1Transaction(umi, signature);
     assetId = leaf.id.toString();
-    void sig; // signature used for debugging if needed
   } catch {
     // Leaf parsing failed — assetId will be null but mint succeeded
   }

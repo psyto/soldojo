@@ -37,6 +37,7 @@ export const en = {
     continueGithub: 'Continue with GitHub',
     devLogin: 'Dev Login',
     email: 'Email',
+    signInFailed: 'Sign in failed. Please try again.',
   },
   landing: {
     hero: {
@@ -121,6 +122,7 @@ export const en = {
       whatYouLearn: "What You'll Learn",
       syllabus: 'Syllabus',
       reviews: 'Reviews',
+      reviewsPlaceholder: 'Community reviews coming soon. Complete the course and be the first to share your experience!',
     },
     progress: {
       complete: 'Complete',
@@ -147,6 +149,9 @@ export const en = {
       allPassed: 'All tests passed!',
       outputLabel: 'Output',
       expectedOutput: 'Expected Output',
+      expected: 'Expected:',
+      actual: 'Actual:',
+      passedCount: '{{passed}}/{{total}} passed',
     },
   },
   dashboard: {
@@ -244,6 +249,7 @@ export const en = {
     newsletterDescription: 'Get notified about new courses and platform updates.',
     subscribe: 'Subscribe',
     subscribed: 'Subscribed!',
+    emailPlaceholder: 'your@email.com',
     builtBy: 'Built by the community for Superteam Brazil. Open source under MIT License.',
     learn: 'Learn',
     resources: 'Resources',
@@ -308,6 +314,7 @@ export const en = {
     loadProfile: 'Failed to load profile. Please sign in and try again.',
     runCode: 'An error occurred while running your code.',
     loadLesson: 'Failed to load lesson. Please try again.',
+    loadCourse: 'Failed to load course. Please try again.',
   },
   time: {
     justNow: 'Just now',

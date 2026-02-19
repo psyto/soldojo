@@ -27,7 +27,7 @@ export default function SignInPage() {
     });
 
     if (result?.error) {
-      setError('Sign in failed. Please try again.');
+      setError(t('auth.signInFailed'));
       setLoading(false);
     } else {
       router.push('/dashboard');

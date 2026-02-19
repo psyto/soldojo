@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
 /**
  * Serves Metaplex-compatible JSON metadata for cNFT certificates.
  * This is the URI stored in the cNFT's on-chain metadata.
@@ -25,8 +29,8 @@ export async function GET(
     name,
     symbol: 'SOLDOJO',
     description,
-    image: 'https://soldojo.dev/certificate-badge.png',
-    external_url: `https://soldojo.dev/courses/${slug}`,
+    image: `${SITE_URL}/certificate-badge.png`,
+    external_url: `${SITE_URL}/courses/${slug}`,
     attributes: [
       { trait_type: 'Platform', value: 'SolDojo' },
       { trait_type: 'Type', value: 'Course Completion' },

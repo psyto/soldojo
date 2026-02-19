@@ -64,7 +64,7 @@ export default function CourseDetailPage() {
   if (error || !course) {
     return (
       <div className="py-20 text-center">
-        <p className="text-destructive">Failed to load course. Please try again.</p>
+        <p className="text-destructive">{t('errors.loadCourse')}</p>
       </div>
     );
   }
@@ -196,10 +196,10 @@ export default function CourseDetailPage() {
 
           {/* Reviews */}
           <div className="mt-10">
-            <h2 className="text-xl font-semibold">{t('courses.detail.reviews') || 'Reviews'}</h2>
+            <h2 className="text-xl font-semibold">{t('courses.detail.reviews')}</h2>
             <div className="mt-4 rounded-xl border border-border bg-card p-6 text-center">
               <p className="text-sm text-muted-foreground">
-                Community reviews coming soon. Complete the course and be the first to share your experience!
+                {t('courses.detail.reviewsPlaceholder')}
               </p>
             </div>
           </div>

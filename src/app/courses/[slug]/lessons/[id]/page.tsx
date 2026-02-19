@@ -33,7 +33,7 @@ const CodeEditor = dynamic(() => import('@/components/editor/code-editor'), {
 export default function LessonPage() {
   const params = useParams();
   const router = useRouter();
-  const { t } = useLocale();
+  const { t, formatT } = useLocale();
   const slug = params.slug as string;
   const id = params.id as string;
 
@@ -303,7 +303,7 @@ export default function LessonPage() {
                           <div className="ml-5.5 mt-1 space-y-0.5 rounded bg-secondary/50 px-3 py-2 text-xs">
                             {result.expected && (
                               <div>
-                                <span className="text-muted-foreground">Expected: </span>
+                                <span className="text-muted-foreground">{t('lesson.challenge.expected')} </span>
                                 <code className="whitespace-pre-wrap rounded bg-secondary px-1 py-0.5 font-mono text-accent">
                                   {result.expected}
                                 </code>
@@ -311,7 +311,7 @@ export default function LessonPage() {
                             )}
                             {result.actual && (
                               <div>
-                                <span className="text-muted-foreground">Actual: </span>
+                                <span className="text-muted-foreground">{t('lesson.challenge.actual')} </span>
                                 <code className="whitespace-pre-wrap rounded bg-secondary px-1 py-0.5 font-mono text-destructive">
                                   {result.actual}
                                 </code>
@@ -342,7 +342,7 @@ export default function LessonPage() {
               <div className="flex items-center gap-2">
                 {testResults.length > 0 && (
                   <span className="text-xs text-muted-foreground">
-                    {testResults.filter((r) => r.passed).length}/{testResults.length} passed
+                    {formatT('lesson.challenge.passedCount', { passed: testResults.filter((r) => r.passed).length.toString(), total: testResults.length.toString() })}
                   </span>
                 )}
                 <button
