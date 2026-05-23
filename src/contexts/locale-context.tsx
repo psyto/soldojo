@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { type Locale, defaultLocale, t as translate, formatT as formatTranslate } from '@/lib/i18n';
 
 interface LocaleContextType {
@@ -13,13 +13,17 @@ interface LocaleContextType {
 const LocaleContext = createContext<LocaleContextType | undefined>(undefined);
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('soldojo-locale') as Locale;
-      if (saved && ['en', 'pt-br', 'es'].includes(saved)) return saved;
+  // Start with defaultLocale on both server and client so first-render HTML
+  // matches across the boundary — no hydration warning. The user's saved
+  // locale is restored from localStorage in the effect below, post-mount.
+  const [locale, setLocaleState] = useState<Locale>(defaultLocale);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('soldojo-locale') as Locale | null;
+    if (saved && ['en', 'pt-br', 'es'].includes(saved) && saved !== defaultLocale) {
+      setLocaleState(saved);
     }
-    return defaultLocale;
-  });
+  }, []);
 
   const setLocale = useCallback((newLocale: Locale) => {
     setLocaleState(newLocale);
