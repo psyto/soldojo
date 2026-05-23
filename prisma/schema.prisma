@@ -101,10 +101,11 @@ model Course {
   difficulty  CourseDifficulty @default(BEGINNER)
   duration    Int              @default(0) // minutes
   xpReward    Int              @default(500)
-  track       String?          // e.g., "solana-fundamentals", "defi-developer"
+  track       String? // e.g., "solana-fundamentals", "defi-developer"
   tags        String[]
   isPublished Boolean          @default(false)
   sortOrder   Int              @default(0)
+  locale      String           @default("en") // "en", "ja"
 
   // Instructor (could be CMS-driven)
   instructorName  String?
@@ -124,7 +125,7 @@ model Course {
 
 model Module {
   id        String @id @default(cuid())
-  courseId   String
+  courseId  String
   title     String
   sortOrder Int    @default(0)
 
@@ -138,28 +139,28 @@ model Module {
 }
 
 model Lesson {
-  id          String     @id @default(cuid())
-  moduleId    String
-  title       String
-  slug        String
-  type        LessonType @default(CONTENT)
-  content     String     @db.Text // Markdown
-  xpReward    Int        @default(25)
-  sortOrder   Int        @default(0)
-  duration    Int        @default(10) // minutes
+  id        String     @id @default(cuid())
+  moduleId  String
+  title     String
+  slug      String
+  type      LessonType @default(CONTENT)
+  content   String     @db.Text // Markdown
+  xpReward  Int        @default(25)
+  sortOrder Int        @default(0)
+  duration  Int        @default(10) // minutes
 
   // Challenge fields (when type = CHALLENGE)
-  starterCode    String? @db.Text
-  solutionCode   String? @db.Text
-  testCases      Json?   // Array of { input, expectedOutput, description }
-  hints          String[] // Array of hint strings
-  challengeLanguage String? @default("typescript") // "rust", "typescript", "json"
+  starterCode       String?  @db.Text
+  solutionCode      String?  @db.Text
+  testCases         Json? // Array of { input, expectedOutput, description }
+  hints             String[] // Array of hint strings
+  challengeLanguage String?  @default("typescript") // "rust", "typescript", "json"
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  module          Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  lessonProgress  LessonProgress[]
+  module         Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  lessonProgress LessonProgress[]
 
   @@unique([moduleId, slug])
   @@index([moduleId])
@@ -170,12 +171,12 @@ model Lesson {
 // ==========================================
 
 model Enrollment {
-  id        String           @id @default(cuid())
-  userId    String
-  courseId   String
-  status    EnrollmentStatus @default(ACTIVE)
-  progress  Float            @default(0) // 0-100 percentage
-  startedAt DateTime         @default(now())
+  id          String           @id @default(cuid())
+  userId      String
+  courseId    String
+  status      EnrollmentStatus @default(ACTIVE)
+  progress    Float            @default(0) // 0-100 percentage
+  startedAt   DateTime         @default(now())
   completedAt DateTime?
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -189,13 +190,13 @@ model Enrollment {
 }
 
 model LessonProgress {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   enrollmentId String
   lessonId     String
-  isCompleted  Boolean  @default(false)
+  isCompleted  Boolean   @default(false)
   completedAt  DateTime?
-  score        Int?     // For challenges: 0-100
-  code         String?  @db.Text // User's submitted code
+  score        Int? // For challenges: 0-100
+  code         String?   @db.Text // User's submitted code
 
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   lesson     Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
@@ -210,12 +211,12 @@ model LessonProgress {
 // ==========================================
 
 model XPEvent {
-  id        String      @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
   amount    Int
   reason    XPReason
-  sourceId  String?     // courseId, lessonId, etc.
-  createdAt DateTime    @default(now())
+  sourceId  String? // courseId, lessonId, etc.
+  createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -224,9 +225,9 @@ model XPEvent {
 }
 
 model StreakDay {
-  id        String   @id @default(cuid())
-  userId    String
-  date      DateTime @db.Date
+  id     String   @id @default(cuid())
+  userId String
+  date   DateTime @db.Date
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

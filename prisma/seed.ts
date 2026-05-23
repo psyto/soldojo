@@ -1,4 +1,8 @@
 import { PrismaClient } from '@prisma/client';
+import { seedSoldojoInternalsFoundationsEN } from './seed-soldojo-internals-foundations-en';
+import { seedSoldojoInternalsFoundationsJA } from './seed-soldojo-internals-foundations-ja';
+import { seedSoldojoInternalsHlPrimitivesEN } from './seed-soldojo-internals-hl-primitives-en';
+import { seedSoldojoInternalsHlPrimitivesJA } from './seed-soldojo-internals-hl-primitives-ja';
 
 const prisma = new PrismaClient();
 
@@ -2879,12 +2883,24 @@ You're now equipped to build, secure, deploy, and operate production Solana appl
     },
   });
 
+  // =============================================
+  // Solana Internals track — generated from
+  // drafts/solana_internals_ch*_{en,ja}.md via
+  // .github/scripts/build-soldojo-internals-seed.ts
+  // =============================================
+  await seedSoldojoInternalsFoundationsEN(prisma);
+  await seedSoldojoInternalsFoundationsJA(prisma);
+  await seedSoldojoInternalsHlPrimitivesEN(prisma);
+  await seedSoldojoInternalsHlPrimitivesJA(prisma);
+
   console.log(`Seeded courses:`);
   console.log(`  - ${course1.title} (${course1.slug})`);
   console.log(`  - ${course2.title} (${course2.slug})`);
   console.log(`  - ${course3.title} (${course3.slug})`);
   console.log(`  - ${course4.title} (${course4.slug})`);
   console.log(`  - ${course5.title} (${course5.slug})`);
+  console.log(`  - Solana Internals — Foundations (en + ja)`);
+  console.log(`  - Solana Internals — HL Primitives (en + ja)`);
 
   const lessonCount = await prisma.lesson.count();
   console.log(`Total lessons: ${lessonCount}`);
