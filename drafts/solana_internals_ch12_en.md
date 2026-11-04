@@ -19,7 +19,9 @@
 # Chapter 12 — Native Vault Program (Pooled Trading)
 
 > Status: draft (v0.1).
-> Companion code: `crates/state/src/lib.rs` (`TradingVault`, `VaultShare`), `programs/openhl-core/src/lib.rs` (`process_create_trading_vault` 2195–2280, `process_vault_deposit` 2282–2413, `process_vault_withdraw` 2415–2500, `process_vault_update_nav` 2502–2544), `scripts/vault/src/main.rs`.
+> Companion code: [`crates/state/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs) (`TradingVault`, `VaultShare`), [`programs/openhl-core/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (`process_create_trading_vault` 3346–3465, `process_vault_deposit` 3480–3639, `process_vault_withdraw` 3653–3804, `process_vault_update_nav` 3811–3851), [`scripts/vault/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/vault/src/main.rs), [`fuzz/vault/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/fuzz/vault/src/main.rs) (the solinv harness for §12.7).
+>
+> Since the parts split, the logic this chapter walks through lives in [`crates/vault/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/vault/src/lib.rs) (`openhl-vault`); the program calls it. The code quoted below is the pre-split version from `programs/openhl-core/src/lib.rs`, and its line numbers are not kept in sync.
 
 ---
 
@@ -34,9 +36,9 @@ Both are reasonable uses of the word "vault." We picked the type names to disamb
 
 The trading vault is the conceptual primitive that turns a perp DEX from a venue where users trade directly into a venue that also hosts *funds*. A user who doesn't want to manage positions themselves can deposit into a vault; the vault's manager runs the strategy; depositors share returns. This is the structure behind every yield vault on Solana — Drift's spot vaults, Kamino's leveraged vaults, Jupiter's perps vault, and so on.
 
-This chapter builds the vault's accounting half — shares, deposits, withdrawals, NAV updates — *with the real SPL Token escrow wired in*. Deposit moves actual quote tokens from the depositor's account into the per-(market, mint) vault PDA (the same vault Chapter 6 created and Chapter 11 uses for position collateral). Withdraw moves them back, signed by the vault-authority PDA via `invoke_signed`. The bookkeeping (`total_shares`, `total_assets`, `VaultShare.shares`) and the actual token balance stay in sync because each handler updates both atomically.
+This chapter builds the vault's accounting half — shares, deposits, withdrawals, NAV updates — *with the real SPL Token escrow wired in*. Deposit moves actual quote tokens from the depositor's account into the trading vault's own token account, a PDA at `[TRADING_VAULT_TOKEN_SEED, vault]` that `CreateTradingVault` creates next to the vault. Withdraw moves them back, signed by the trading vault PDA itself via `invoke_signed`. (The first version of this chapter used the per-(market, mint) account that Chapter 6 created and Chapter 11 uses for position collateral, shared by every vault in the market. §12.5 shows what that cost.) The bookkeeping (`total_shares`, `total_assets`, `VaultShare.shares`) and the actual token balance stay in sync because each handler updates both atomically.
 
-It does not build the manager's trading half (which would be a thin wrapper instruction calling into Chapter 11's `OpenPosition` with the vault's PDA as the position owner). Adding that is mechanical once the share accounting and the escrow are in place; the chapter explains the design and leaves implementation as a homework piece.
+It does not build the manager's trading half (which would be a thin wrapper instruction calling into Chapter 11's `OpenPosition` with the vault's PDA as the position owner, moving collateral from the vault's token account into the market's). Adding that is mechanical once the share accounting and the escrow are in place; the chapter explains the design and leaves implementation as a homework piece.
 
 What this chapter is actually about:
 
@@ -109,7 +111,7 @@ their_value = their_shares × total_assets / total_shares
 
 A deposit must preserve this invariant for *all existing depositors*: their pre-deposit value equals their post-deposit value. A withdrawal does the same: the remaining depositors' value is unchanged. NAV updates change everyone's value by the same proportion.
 
-**Deposit.** From `process_vault_deposit` at `programs/openhl-core/src/lib.rs:2327–2335`:
+**Deposit.** From `process_vault_deposit` at `programs/openhl-core/src/lib.rs:3564–3572`:
 
 ```rust
 let shares_to_mint: u64 = if vault.total_shares == 0 || vault.total_assets == 0 {
@@ -146,7 +148,7 @@ new_NAV_per_share = new_total_assets / new_total_shares
 
 The NAV per share is unchanged. The invariant holds.
 
-**Withdrawal.** From `process_vault_withdraw` at `lib.rs:2452–2459`:
+**Withdrawal.** From `process_vault_withdraw` at `lib.rs:3729–3736`:
 
 ```rust
 let assets_to_return: u64 = {
@@ -179,7 +181,7 @@ new_NAV_per_share = (total_assets - shares_burned × total_assets / total_shares
 
 Withdrawal also preserves the invariant.
 
-**NAV update.** From `process_vault_update_nav` at `lib.rs:2535–2536`:
+**NAV update.** From `process_vault_update_nav` at `lib.rs:3830–3831`:
 
 ```rust
 let prev = vault.total_assets;
@@ -202,11 +204,11 @@ This is generally acceptable for vaults because (1) the dust is rounding-error s
 
 `process_vault_deposit` is the most complex of the four handlers because it conditionally creates the VaultShare PDA on first deposit *and* runs an SPL Token Transfer CPI at the end. Five phases:
 
-**Validation**: payload size, non-zero deposit, depositor is signer, vault has correct owner + size, system program is correct, **token program is SPL Token, depositor's token account is SPL Token-owned, and the vault_token_account matches the derived PDA at `[VAULT_SEED, market, mint]`**. The mint and market accounts passed in must match what's stored in the vault — caught by a `vault.mint != mint_ai.key` / `vault.market != market_ai.key` check inside the borrow scope below. Share PDA derivation is unchanged from before.
+**Validation**: payload size, non-zero deposit, depositor is signer, vault has correct owner + size, system program is correct, **token program is SPL Token, depositor's token account is SPL Token-owned, and the vault_token account is this vault's own, the PDA at `[TRADING_VAULT_TOKEN_SEED, vault]`**. The mint and market accounts passed in must match what's stored in the vault — caught by a `vault.mint != mint_ai.key` / `vault.market != market_ai.key` check inside the borrow scope below. Share PDA derivation is unchanged from before.
 
 **Read vault state and compute shares to mint**: borrow vault data, cross-check the passed market/mint against vault.market/vault.mint, branch on first-deposit (1:1) vs subsequent (pro-rata).
 
-**Update vault aggregate** (lines 2344–2353):
+**Update vault aggregate** (lines 3580–3587):
 
 ```rust
 vault.total_shares = vault.total_shares.checked_add(shares_to_mint)?;
@@ -216,7 +218,7 @@ drop(vault_data);
 
 `checked_add` (not `saturating_add`): if the addition would overflow, refuse the deposit rather than silently capping. A vault that accepts deposits past `u64::MAX` shares has a different problem to solve. The explicit `drop(vault_data)` releases the mutable borrow before we touch the share account — necessary because share creation may CPI back through the vault account check path.
 
-**Conditional create-or-update of the share account** (lines 2355–2403):
+**Conditional create-or-update of the share account** (lines 3591–3636):
 
 ```rust
 let share_exists = share_ai.owner == program_id && share_ai.data_len() == VaultShare::LEN;
@@ -248,7 +250,7 @@ spl_token_transfer_user_signed(
 )?;
 ```
 
-Same helper from Chapter 11. The depositor signs the outer transaction; the signature flows through to SPL Token via the standard signer-privilege-extension pattern (Chapter 6 §6.2). `assets` units move from `depositor_token` into `vault_token` (the per-(market, mint) vault PDA — same vault account that holds position collateral from Chapter 11).
+Same helper from Chapter 11. The depositor signs the outer transaction; the signature flows through to SPL Token via the standard signer-privilege-extension pattern (Chapter 6 §6.2). `assets` units move from `depositor_token` into `vault_token`, the vault's own token account. Nothing else is in it: not other vaults' deposits, not position collateral.
 
 **Order matters.** The CPI is placed *after* the share+aggregate updates. If the transfer fails (`InsufficientFunds`, account frozen, etc.), Solana reverts the entire transaction — including the share creation, the share field updates, and the vault aggregate increment. So a failed escrow leaves the depositor with no shares minted and no vault state change. The atomicity guarantee is what makes the natural error handling correct without explicit rollback code.
 
@@ -258,11 +260,11 @@ Same helper from Chapter 11. The depositor signs the outer transaction; the sign
 
 ## §12.4  Walking `VaultWithdraw`
 
-Simpler than deposit because there's nothing to create — but it does pay out tokens from the vault, which means an `invoke_signed` CPI signed by the vault-authority PDA. `process_vault_withdraw`:
+Simpler than deposit because there's nothing to create — but it does pay out tokens from the vault, which means an `invoke_signed` CPI signed by the trading vault PDA. `process_vault_withdraw`:
 
-**Compute assets to return** at lines 2452–2459 — the inverse of the deposit formula, as covered in §12.2.
+**Compute assets to return** at lines 3729–3736 — the inverse of the deposit formula, as covered in §12.2.
 
-**Authorization** at lines 2470–2473:
+**Authorization** at lines 3751–3754:
 
 ```rust
 if share.owner != *owner_ai.key.as_ref() {
@@ -273,7 +275,18 @@ if share.owner != *owner_ai.key.as_ref() {
 
 Only the share's recorded owner may burn it. This is a *per-share* authorization, not vault-wide — different from the manager check in UpdateNAV. There is no "vault admin can liquidate any share" path in this design (which a real production vault might add for compliance reasons).
 
-**Sufficient-balance check** at lines 2474–2480:
+**Binding the share to this vault**, just before the owner check:
+
+```rust
+if share.vault != *vault_ai.key.as_ref() {
+    msg!("vault_withdraw: share belongs to another vault");
+    return Err(ProgramError::InvalidAccountData);
+}
+```
+
+Deposit never needed this line: it re-derives the share PDA from `[VAULT_SHARE_SEED, vault, depositor]`, so a share of another vault fails the seed check. Withdraw does not re-derive it, and the first version of this chapter left the comparison out. It looked harmless, but vaults' share prices differ. They differ honestly, too, with no one lying: if vault X's shares are worth 1 and vault Y's are worth 2 after a good month, a holder of X shares who burns them against Y gets twice what they put in, paid out of Y's token account, which is Y's depositors' money. A manager who lies makes it worse. The regression test opens its own vault with 100,000 tokens, reports NAV 1, deposits 2 more for 200,000 new shares, and burns them against another vault: without the check that took all 200,000 tokens of the other vault. solinv found the gap, not a reviewer; §12.7 has you find it the same way.
+
+**Sufficient-balance check** at lines 3755–3762:
 
 ```rust
 if share.shares < shares_to_burn {
@@ -283,7 +296,7 @@ if share.shares < shares_to_burn {
 
 You can't burn more shares than you hold.
 
-**Cost basis reduction** at lines 2484–2489:
+**Cost basis reduction** at lines 3767–3769:
 
 ```rust
 let basis_reduction = (((shares_to_burn as u128) * (share.cost_basis as u128))
@@ -297,41 +310,41 @@ The `as u128 + shares_to_burn as u128` in the denominator uses `share.shares` *b
 
 **Update aggregates** — `total_shares -= shares_to_burn`, `total_assets -= assets_to_return`. Both `saturating_sub` defensively, though both should never underflow given the prior checks.
 
-**Pay the assets out from the vault** as the final step — this is the new escrow CPI:
+**Pay the assets out from the vault** as the final step — this is the escrow CPI:
 
 ```rust
-spl_token_transfer_vault_signed(
-    vault_token_ai,
-    owner_token_ai,
-    vault_authority_ai,
-    market_ai.key,
-    vault_auth_bump,
-    token_ai,
-    assets_to_return,
+let ix = Instruction {
+    program_id: SPL_TOKEN_PROGRAM_ID,
+    accounts: vec![
+        AccountMeta::new(*vault_token_ai.key, false),
+        AccountMeta::new(*owner_token_ai.key, false),
+        AccountMeta::new_readonly(*vault_ai.key, true),
+    ],
+    data, // [TRANSFER][assets_to_return u64 LE]
+};
+// (inside `if assets_to_return > 0`: a zero payout skips the CPI)
+invoke_signed(
+    &ix,
+    &[vault_token_ai.clone(), owner_token_ai.clone(), vault_ai.clone(), token_ai.clone()],
+    &[&[TRADING_VAULT_SEED, vault_market.as_ref(), vault_manager.as_ref(), &[vault_bump]]],
 )?;
 ```
 
-The mechanics differ from the deposit side in one critical way: **the authority is a PDA, not the user.** The depositor's signature on the outer transaction is meaningless to SPL Token here, because the token account that's being debited (`vault_token`) is owned by `vault_authority` — a PDA the *program* controls. So the program signs the inner CPI on the vault_authority's behalf via `invoke_signed`:
+The mechanics differ from the deposit side in one critical way: **the authority is a PDA, not the user.** The depositor's signature on the outer transaction is meaningless to SPL Token here, because the token account being debited (`vault_token`) answers to the trading vault PDA. `CreateTradingVault` set that up: it created `vault_token` at `[TRADING_VAULT_TOKEN_SEED, vault]` and ran `InitializeAccount3` with the vault's address as the owner. So the program signs the inner CPI as the vault, with the vault's own seeds: `[TRADING_VAULT_SEED, market, manager, bump]`, all read from the `TradingVault` account, where `CreateTradingVault` stored them.
 
-```rust
-let market_key_bytes = market_key.to_bytes();
-let signer_seeds: &[&[u8]] = &[VAULT_AUTH_SEED, market_key_bytes.as_ref(), &[vault_auth_bump]];
-invoke_signed(&ix, &[source, dest, vault_authority, token_program], &[signer_seeds])?;
-```
+Two details. First, `vault_market`, `vault_manager` and `vault_bump` are copied out inside the borrow scope, and the borrow ends before the CPI: the vault account is passed to SPL Token as the signer, and the runtime refuses a CPI on an account whose data the caller still has borrowed. Second, a vault signs only for its own token account. If a caller passes another vault's token account as `vault_token`, the program refuses it first (the `[TRADING_VAULT_TOKEN_SEED, vault]` check), and SPL Token would refuse anyway, because this vault is not that account's authority.
 
-The seeds — `[VAULT_AUTH_SEED, market, bump]` — exactly match what `create_market` derived in Chapter 6 §6.2 and what `process_create_market` recorded as `vault_auth_bump` in the Market account. The bump is passed from the caller (loaded from the market by the handler) rather than recomputed, both for compute units and to make the signing seeds match the recorded derivation exactly.
-
-If the seeds don't form a valid PDA whose address equals `vault_authority_ai.key`, the runtime rejects the signed CPI with `ProgramError::InvalidSeeds`. So a malicious caller can't pass a fake vault_authority — only the one and only PDA that the program can sign for is accepted.
+And SPL Token checks the balance: if `assets_to_return` is more than `vault_token` holds, the transfer fails and the whole withdrawal reverts. The vault cannot pay out tokens it does not have, whatever its `total_assets` says.
 
 **Order matters here too.** The CPI is last. If the token transfer fails (vault_token frozen, dest closed, etc.), the share-burn and aggregate-decrement revert with it. So a failed payout leaves the depositor with their shares intact and the vault unchanged.
 
-> **Exercise §12.4.** With the vault from §12.2's exercise, have depositor A withdraw all their shares. Dump three things before and after: (1) depositor A's share account, (2) the vault aggregate state, and (3) the vault token account balance. Verify that the tokens A receives match what depositor B's claimable value implies for the remaining shares (i.e. that B's value is unchanged).
+> **Exercise §12.4.** With the vault from §12.2's exercise, have depositor A withdraw all their shares. Dump three things before and after: (1) depositor A's share account, (2) the vault aggregate state, and (3) the vault token account balance. Verify that the tokens A receives match what depositor B's claimable value implies for the remaining shares (i.e. that B's value is unchanged). Then look at (3) again: A took 200, the account held 200, and B is still owed 100 out of an empty account. The NAV went from 100 to 200 on the manager's word, not by tokens arriving. §12.5 is about that gap.
 
 ---
 
 ## §12.5  The manager-trust problem — `VaultUpdateNAV`
 
-`process_vault_update_nav` at lines 2502–2544 is short, but it is where the entire vault model's trust assumption lives:
+`process_vault_update_nav` at lines 3800–3840 is short, but it is where the entire vault model's trust assumption lives:
 
 ```rust
 if vault.manager != *manager_ai.key.as_ref() {
@@ -344,6 +357,10 @@ vault.total_assets = new_total_assets;
 ```
 
 The manager signs a transaction that updates `total_assets` to whatever number they choose. There is no on-chain verification that this number reflects the manager's actual trading PnL. **The depositors trust the manager.**
+
+The first version of this chapter was worse than that: *everyone in the market* trusted *every* manager, and `CreateTradingVault` lets anyone become one. Withdrawals paid out of the per-(market, mint) token account, which also held every other vault's deposits and every position's collateral, so nothing capped a vault's payout at what that vault held. A manager who deposited 100,000 into their own vault, reported NAV 300,000 and withdrew got 300,000 out, other people's 200,000 included. No check was missing; every account passed was the right one. The fix was the design: each vault now has its own token account (§12.0), and withdraw pays only from it. The test `manager_cannot_withdraw_more_than_its_vault_holds` in `fuzz/vault` runs the same steps now: the withdrawal of 300,000 fails in SPL Token, because the vault's account holds 100,000, and the other vault's 200,000 is untouched.
+
+So the trust is back to what the paragraph above says, and no wider: a vault's depositors trust that vault's manager. A manager can still report a false NAV, and it still moves money between that vault's own depositors (whoever withdraws first at an inflated NAV takes tokens the others were counting on, as Exercise §12.4 shows). The three patterns below are about that.
 
 Three patterns to harden this in production:
 
@@ -430,6 +447,51 @@ Singleton-write reassertion (Ch.5 redux):
 1. **NAV preservation across deposits.** Start with empty vault. Have A deposit 100. Have B deposit 100 immediately (no UpdateNAV between). The vault should have `total_shares = 200, total_assets = 200`, and A's and B's per-share NAV must both equal 1.0. Now have C deposit 100. Same per-share NAV: 1.0.
 2. **NAV update changes everyone's value uniformly.** From the above state, run `vault --update-nav --total-assets 600` (3× value). A's `claimable_assets = A.shares × total_assets / total_shares = 100 × 600 / 300 = 200`. B and C the same. All three depositors share the 3× gain proportionally.
 3. **Withdrawal at non-1:1 NAV.** From the above (each depositor has 100 shares worth 200 assets each), have A withdraw all 100 shares. They receive 200 assets. The vault now has `total_shares = 200, total_assets = 400`. B and C each still own 100 shares (50% of vault), worth 200 assets each — unchanged by A's exit.
+
+### Now let a tool look for the check you forgot
+
+Three exercises check the arithmetic. None of them checks the account checks: the `if ... { return Err(...) }` lines in §12.3 and §12.4 that decide *which* accounts a caller may pass. Forgetting one of those fails no test you would think to write, as §12.4's `share.vault` line shows. [solinv](https://github.com/psyto/solinv) fuzzes a native program for exactly this. You tell it which accounts an attacker could pass instead (another depositor's share, another vault, a token account the vault doesn't hold), and it sends each instruction with one of them swapped in, or, for a set you declare, several together. If a swapped call succeeds and changes state, that is a finding.
+
+`fuzz/vault/` is that harness for this chapter. It sets up one market with three vaults, each with its own token account: K's, where A and B hold shares, A's own, and C's in a junk mint. It installs solinv the way its README tells anyone to, by git rev. You need the Solana toolchain and the Crucible CLI (`cargo install --locked --git https://github.com/asymmetric-research/crucible --tag v0.1.0 crucible-fuzz-cli`):
+
+```bash
+cargo build-sbf --manifest-path programs/openhl-core/Cargo.toml
+cd fuzz/vault
+cargo build --release --features invariant_vault
+cargo test --release --features invariant_vault        # the attack from §12.4, refused
+timeout -s INT 90 crucible run openhl_vault_fuzz invariant_vault \
+    --binary-in target/release/invariant_test --timeout 90
+```
+
+On the program as it is, no `[FUZZ_FINDING]` line appears. (Crucible checks `--timeout` only every 1000 iterations, hence the outer `timeout`. On macOS it is `gtimeout` from coreutils.)
+
+> **Exercise §12.7.** Delete the `share.vault` check from `process_vault_withdraw`, rebuild the program (the first command), and run the fuzzer again. Within a few seconds you should see:
+>
+> ```
+> [FUZZ_FINDING] [account-swap:…] ix vault_withdraw succeeded with account 1 swapped from <K's vault> to <A's vault> (different context, same shape)
+> ```
+>
+> `cargo test` fails too, and its message tells you how much A took. Put the check back. Then delete the others one at a time and predict the result before you run it. Here is what we measured, 60 seconds each:
+>
+> | Check deleted | Caught? |
+> |---|---|
+> | withdraw: `owner.is_signer` | yes, signer-skip, slot 0 |
+> | withdraw: `share.vault == vault` | yes, account-swap, slot 1 |
+> | withdraw: `share.owner == owner` | yes, account-swap, slot 2 |
+> | deposit: the share PDA re-derivation | yes, account-swap, slot 1 |
+> | deposit: `verify_trading_vault_token` | yes, account-swap, slot 7 |
+> | deposit: `depositor.is_signer` | no |
+> | withdraw: `vault.owner == program_id` | no |
+> | withdraw: `share.owner == program_id` | no |
+> | withdraw: `verify_trading_vault_token` | no, not even with the two-slot set below |
+>
+> Before reading on, work out why the four "no" rows come back "no".
+>
+> All four are backed by something else. We did not try to exploit these, we only found no way through. The two owner checks are backed by the runtime itself (Chapter 1): withdraw writes both accounts, and a program cannot change an account it does not own, so a substituted account fails at the next CPI or at the end of the instruction. The deposit signer check is backed by SPL Token (Chapter 6): deposit moves tokens out of the depositor's account, which needs the depositor's signature. These three are still worth keeping, because they fail earlier and with a clearer error.
+>
+> The fourth is backed by SPL Token's authority check. A vault signs only as itself, and each vault's token account answers only to its own vault, so naming another vault's token account as the source fails with `OwnerMismatch`. It was not always so. In the first version of this chapter every token account in the market answered to one `vault_authority` PDA, `[VAULT_AUTH_SEED, market]`, and this row was a real hole: C opened a vault in a junk mint, deposited 300,000 junk, and withdrew it naming the real mint's token account as the source and C's own real-mint account as the destination, swapping 300,000 junk for 300,000 real. That takes *two* accounts changed together. solinv's plain account-swap changes one slot at a time, our first table listed the row as "no" and called it harmless, and a reviewer found the attack. The harness still declares that pair (`check_sets`: C's junk withdrawal with the destination and the source swapped together, now for K's token account), and the test `withdraw_refuses_the_token_account_of_another_vault` pins it. That test asks for 100,000, under K's balance, on purpose. Asking for 300,000, more than K's account holds, SPL Token refuses on the balance before it looks at the authority, so with the program's check deleted you would see "insufficient funds" and learn nothing about whether SPL Token backs the row. With 100,000 you see `OwnerMismatch`. When you reason from a refusal, check *which* refusal. And a "no" from a fuzzer means only that the swaps you described found no way through. It does not mean there is none.
+>
+> What the harness does not cover: §12.5's manager-reported NAV. A manager who reports a false NAV passes only accounts they are entitled to pass, so a fuzzer that swaps accounts has nothing to swap. The market-wide version of that hole survived all nine checks; closing it took a design change (one token account per vault), not a line. What is left, a manager misreporting to their own depositors, is just as invisible to the fuzzer. Finding these takes reading the design, not deleting lines.
 
 ---
 
