@@ -19,8 +19,10 @@
 # Chapter 9 — Oracle Ingestion: Pyth Internals
 
 > Status: draft (v0.1).
-> Companion code: `crates/state/src/lib.rs` (`Oracle`), `programs/openhl-core/src/lib.rs` (`process_create_oracle` 1302–1373, `process_set_oracle_price` 1375–1427, `process_place_order_checked` 1429–1535), `scripts/oracle/src/main.rs`.
+> Companion code: [`crates/state/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs) (`Oracle`, plus the Pyth v1 and v2 layout constants for §9.5), [`programs/openhl-core/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (`process_create_oracle`, `process_set_oracle_price`, `process_place_order_checked`, `process_place_order_checked_pyth`, `process_place_order_checked_pyth_v2`, and the `read_fresh_oracle` / `read_fresh_pyth_v1_oracle` / `read_fresh_pyth_v2_oracle` helpers), [`scripts/oracle/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/oracle/src/main.rs), [`programs/openhl-core/tests/pyth_binding.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/tests/pyth_binding.rs) (the feed-pinning tests for §9.5).
 > Reference targets: Pyth Network mainnet program (`FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH`), Switchboard On-Demand.
+>
+> Since the parts split, the logic this chapter walks through lives in [`crates/oracle/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/oracle/src/lib.rs) (`openhl-oracle`); the program calls it. The code quoted below is the pre-split version from `programs/openhl-core/src/lib.rs`, and its line numbers are not kept in sync.
 
 ---
 
@@ -93,7 +95,7 @@ Every column on the right has a direct counterpart in the column on the left. Ev
 
 ## §9.2  Writing the oracle — `SetOraclePrice`
 
-For the chapter to exercise staleness scenarios we need a way to write the oracle at a known moment. From `programs/openhl-core/src/lib.rs:1375–1427`:
+For the chapter to exercise staleness scenarios we need a way to write the oracle at a known moment. From `programs/openhl-core/src/lib.rs:1513–1571`:
 
 ```rust
 fn process_set_oracle_price(
@@ -135,11 +137,16 @@ The chapter codes (1) and (2) as exercises and walks (3) in prose. The deliberat
 
 ## §9.3  Reading the oracle — staleness as the foundational check
 
-The reader pattern is at `process_place_order_checked` (lines 1429–1535). The key block at lines 1473–1490:
+The reader pattern lives in a small helper `read_fresh_oracle` (lib.rs:1965–1987), called from `process_place_order_checked` and reused by the three position handlers Chapter 11 will add (so the gauntlet stays in one place rather than copied four times):
 
 ```rust
-let mark: u64;
-{
+fn read_fresh_oracle(
+    oracle_ai: &AccountInfo,
+    program_id: &Pubkey,
+) -> Result<u64, ProgramError> {
+    if oracle_ai.owner != program_id || oracle_ai.data_len() != Oracle::LEN {
+        return Err(ProgramError::InvalidAccountData);
+    }
     let oracle_data = oracle_ai.try_borrow_data()?;
     let oracle: &Oracle = bytemuck::from_bytes(&oracle_data[..Oracle::LEN]);
     if oracle.discriminator != ORACLE_DISCRIMINATOR {
@@ -148,32 +155,28 @@ let mark: u64;
     if oracle.price <= 0 {
         return Err(ProgramError::InvalidAccountData);
     }
-
     let clock = Clock::get()?;
     let age = clock.slot.saturating_sub(oracle.publish_slot);
     if age > MAX_ORACLE_STALENESS_SLOTS {
-        msg!(
-            "place_order_checked: oracle stale ({} slots, max {})",
-            age,
-            MAX_ORACLE_STALENESS_SLOTS
-        );
+        msg!("oracle stale ({} slots, max {})", age, MAX_ORACLE_STALENESS_SLOTS);
         return Err(ProgramError::InvalidAccountData);
     }
-
-    mark = oracle.price as u64;
+    Ok(oracle.price as u64)
 }
 ```
+
+`process_place_order_checked` calls it as `let mark = read_fresh_oracle(oracle_ai, program_id)?;` and then runs the sanity band against `mark`.
 
 Four checks before the price is trusted:
 
 1. **Discriminator check** (`oracle.discriminator != ORACLE_DISCRIMINATOR`): refuses an oracle account that isn't initialized. In real Pyth this is the magic constant + version match.
 2. **Price-positivity check** (`oracle.price <= 0`): refuses oracle states with non-positive prices. Real Pyth occasionally publishes `0` to signal "no good price right now" — your reader must handle that.
 3. **Staleness check** (`age > MAX_ORACLE_STALENESS_SLOTS`): refuses prices older than 25 slots (~10 sec). This is the heart of the chapter. A price you cannot freshness-check is a price you cannot trust — because an attacker who can pause the publisher (or just exploit a network outage) can use a stale price to game any program that trusts it blindly.
-4. **Owner check** (line 1463, `oracle_ai.owner != program_id`): refuses an account from a different program. In real Pyth this is `oracle_ai.owner == &pyth_program::ID`.
+4. **Owner check** (line 1969, `oracle_ai.owner != program_id`): refuses an account from a different program. In real Pyth this is `oracle_ai.owner == &pyth_program::ID`.
 
-`MAX_ORACLE_STALENESS_SLOTS = 25` from `lib.rs:153`. The choice is workload-driven: 25 slots is ~10 seconds at the current target slot time. High-volatility pairs (BTC, ETH on a fast-moving day) need tighter — perhaps 10–15 slots. Stablecoin pairs can tolerate wider. The constant should ideally live on the per-market `Market` struct so each market tunes it; we keep it global for simplicity.
+`MAX_ORACLE_STALENESS_SLOTS = 25` from `lib.rs:205`. The choice is workload-driven: 25 slots is ~10 seconds at the current target slot time. High-volatility pairs (BTC, ETH on a fast-moving day) need tighter — perhaps 10–15 slots. Stablecoin pairs can tolerate wider. The constant should ideally live on the per-market `Market` struct so each market tunes it; we keep it global for simplicity.
 
-The borrow is scoped to a sub-block (`{ ... }`) so it drops before we mutate the book. This matters because both the oracle and the book are passed as `AccountInfo`, and the runtime requires that no two mutable borrows of the same underlying account memory coexist. Even though our oracle and book are different accounts, the pattern of scoping borrows tightly is good hygiene — it prevents subtle aliasing bugs when handlers grow.
+The borrow inside `read_fresh_oracle` is naturally scoped to the helper's body — it drops when the function returns, before the caller mutates the book. This matters because both the oracle and the book are passed as `AccountInfo`, and the runtime requires that no two mutable borrows of the same underlying account memory coexist. Even though our oracle and book are different accounts, the pattern of scoping borrows tightly is good hygiene — it prevents subtle aliasing bugs when handlers grow.
 
 **What the SDK hides:** `pyth-sdk-solana::load_price_feed_from_account_info` does the discriminator check, the owner check, and a deserialization into a typed `PriceFeed`. It does *not* do the staleness check — that is always your job. Programs that use Pyth without an explicit staleness gate ship with one of the largest classes of oracle bugs in DeFi.
 
@@ -185,7 +188,7 @@ The borrow is scoped to a sub-block (`{ ... }`) so it drops before we mutate the
 
 A staleness-checked price is now safe to read. The first risk control we use it for: refuse `place_order` calls whose limit price drifts too far from the oracle mark.
 
-From `process_place_order_checked` lines 1493–1506:
+From `process_place_order_checked` lines 1658–1671:
 
 ```rust
 let band = mark.saturating_mul(SANITY_BAND_BPS) / 10_000;
@@ -203,7 +206,7 @@ if price < low || price > high {
 }
 ```
 
-`SANITY_BAND_BPS = 2000` (lib.rs:159) means ±20%. With `mark = 100`, an order at price 50 is rejected (below `low = 80`), an order at 95 is accepted, an order at 121 is rejected. A wide band on purpose: tighter bands cause legitimate users to fail more often during normal volatility, and ch.9 is about the *pattern*, not the calibration.
+`SANITY_BAND_BPS = 2000` (lib.rs:211) means ±20%. With `mark = 100`, an order at price 50 is rejected (below `low = 80`), an order at 95 is accepted, an order at 121 is rejected. A wide band on purpose: tighter bands cause legitimate users to fail more often during normal volatility, and ch.9 is about the *pattern*, not the calibration.
 
 Production bands are tuned per market:
 
@@ -219,51 +222,173 @@ The band is the first risk control in the program because it's the simplest one 
 
 ---
 
-## §9.5  Production Pyth — the real shape, in one page
+## §9.5  Production Pyth v1 — implemented bytes-up
 
-If you replace our `Oracle` with a real Pyth price account, the changes are localized and small:
+The mock `Oracle` is built so the chapter can pause publishes at known slots. Production reads from a Pyth account that publishers populate independently. The migration is localized — same staleness gauntlet, same sanity band, different parser — and the chapter ships it as a peer instruction `PlaceOrderCheckedPyth` (tag 32) so you can compare the two paths side by side. The Pyth v1 layout is well-defined enough that we parse it bytes-up, with no `pyth-sdk-solana` dependency — the bytes-up posture from Chapter 1 carries straight through.
 
-```rust
-// 1. Owner check changes
-// Was:  if oracle_ai.owner != program_id { ... }
-// Now:  if oracle_ai.owner != &pyth_program::ID { ... }
+### The Pyth v1 PriceAccount layout
 
-// 2. Layout changes
-// Was:  let oracle: &Oracle = bytemuck::from_bytes(&oracle_data[..Oracle::LEN]);
-// Now:  let price_feed = pyth_sdk_solana::load_price_feed_from_account_info(oracle_ai)?;
+Every Pyth v1 price account begins with a magic constant + version + account-type discriminator, then a header of EMA bookkeeping, then the aggregate `agg` block we actually trust. The six fields we read:
 
-// 3. Field access changes
-// Was:  oracle.price, oracle.conf, oracle.publish_slot
-// Now:  price_feed.get_price_no_older_than(&clock, MAX_ORACLE_STALENESS_SLOTS)?
-//         .price    (i64)
-//         .conf     (u64)
-//         .expo     (i32)
-// Note: pyth_sdk_solana::PriceFeed::get_price_no_older_than already does the
-// staleness check we did by hand. Use it if you import the SDK; understand
-// what it does either way.
-
-// 4. The fallback pattern — Switchboard or a secondary Pyth feed
-// You typically wire TWO oracle accounts and prefer the first that passes
-// staleness + conf bounds:
-//
-//   let primary = try_read(&primary_oracle_ai);
-//   let secondary = try_read(&secondary_oracle_ai);
-//   let mark = match (primary, secondary) {
-//       (Ok(p), _) => p,
-//       (Err(_), Ok(s)) => s,
-//       (Err(_), Err(_)) => return Err(NoFreshPrice),
-//   };
+```text
+offset | size | field                       | what we check
+-------+------+-----------------------------+---------------------------------
+   0   |  4   | magic (u32)                 | == 0xa1b2c3d4
+   4   |  4   | ver   (u32)                 | == 2 (Pyth v1)
+   8   |  4   | atype (u32)                 | == 3 (PriceAccount)
+  20   |  4   | expo  (i32)                 | logged; not applied (see below)
+ 208   |  8   | agg.price (i64)             | > 0
+ 216   |  8   | agg.conf  (u64)             | logged
+ 224   |  4   | agg.status (u32)            | == 1 (Trading)
+ 232   |  8   | agg.pub_slot (u64)          | clock.slot - pub_slot <= MAX_ORACLE_STALENESS_SLOTS
 ```
 
-The structural pattern is identical to ours. The bytes you parse are different. The auth model (who can write the oracle) flips entirely: in Pyth's case, you don't write anything — you only read.
+(`agg` is the publisher network's aggregated price for the slot. Pyth has up to 32 publishers; the on-chain aggregation runs every slot and `agg.status` reflects whether they agreed.)
 
-**The Switchboard fallback** is where the chapter's final risk-engineering point lands. A single oracle is a single point of failure. Pyth has been down. Switchboard has been down. Both at the same time has happened (rarely). Programs that protect downside trust *both* and refuse to operate when neither is fresh. The wiring is mechanical:
+Offsets are exported as `PYTH_V1_OFFSET_*` constants from `crates/state/src/lib.rs`. We deliberately don't mirror the full ~3 KiB `PriceAccount` as a Pod struct — the bulk of the bytes are per-publisher `comp[]` entries we don't read. Hardcoding the six offsets is fewer bytes of code, easier to audit, and matches the chapter's "the byte layout *is* the contract" stance.
+
+### `read_fresh_pyth_v1_oracle`
+
+The helper, in skeleton:
+
+```rust
+fn read_fresh_pyth_v1_oracle(oracle_ai: &AccountInfo) -> Result<u64, ProgramError> {
+    let data = oracle_ai.try_borrow_data()?;
+    if data.len() < PYTH_V1_MIN_LEN { return Err(InvalidAccountData); }
+
+    // (1) Header gauntlet.
+    if u32::from_le_bytes(data[0..4]) != PYTH_V1_MAGIC      { return Err(...); }
+    if u32::from_le_bytes(data[4..8]) != PYTH_V1_VERSION    { return Err(...); }
+    if u32::from_le_bytes(data[8..12]) != PYTH_V1_ACCOUNT_TYPE_PRICE { return Err(...); }
+
+    // (2) Aggregate status.
+    let status = u32::from_le_bytes(data[PYTH_V1_OFFSET_AGG_STATUS..]);
+    if status != PYTH_V1_STATUS_TRADING { return Err(InvalidAccountData); }
+
+    // (3) Staleness — agg.pub_slot vs Clock.slot.
+    let pub_slot = u64::from_le_bytes(data[PYTH_V1_OFFSET_AGG_PUB_SLOT..]);
+    let age = Clock::get()?.slot.saturating_sub(pub_slot);
+    if age > MAX_ORACLE_STALENESS_SLOTS { return Err(InvalidAccountData); }
+
+    // (4) Read price + log expo/conf for observability.
+    let price_i = i64::from_le_bytes(data[PYTH_V1_OFFSET_AGG_PRICE..]);
+    if price_i <= 0 { return Err(InvalidAccountData); }
+    Ok(price_i as u64)
+}
+```
+
+The check order mirrors the mock path: structural validation first (magic / version / atype), then the status check (the Pyth analog of our mock's discriminator+initialization check), then staleness, then the price sanity. Any failure returns `InvalidAccountData` so callers can handle a stale or non-Trading Pyth feed the same way they handle a stale mock.
+
+Four design decisions worth flagging:
+
+**1. The reader checks bytes; the handler checks which account.** The mock path requires `oracle_ai.owner == program_id`; the reader here has no owner check, and the first version of this chapter said it did not need one, because "the magic+version+atype gauntlet already structurally guarantees the account is a Pyth v1 PriceAccount." It does not. Anyone can create an account they own, write the magic, version, account type, a Trading status and any price they like into it, and pass it in; the test `pyth_v1_reads_only_the_pinned_price_account` in `programs/openhl-core/tests/pyth_binding.rs` did exactly that, and the order went through against a price the caller chose. Hardcoding the Pyth program ID would force a mainnet-vs-devnet choice up front (`FsJ3...epH` for mainnet, `gSbE...92s` for devnet), so the market stores both instead, set by the market authority with `SetPythFeeds` (tag 34): the expected Pyth account *pubkey* (`Market.pyth_v1_price_account`) and the program that must own it (`Market.pyth_v1_program`). `PlaceOrderCheckedPyth` checks both on every call, and refuses outright while nothing is pinned. The address alone is not enough: an account at that address could be closed and recreated by someone else, and the test's `recreated` case shows the owner check refusing it. Pinning the address also settles the wrong-asset question, since a genuine feed for another pair is a different address. What the program still trusts is the authority's configuration: pin the wrong account and owner, and it will read them.
+
+**2. `expo` is read and logged, not applied.** Pyth prices come as `(mantissa, expo)` pairs — the real price is `mantissa × 10^expo`. For USD pairs `expo` is typically `-8`. The mock side has no expo (our `Oracle.price` is a u64 in whatever scale the market uses), so to keep the two paths interoperable in our chapter we treat the mantissa as the price and log `expo` for observability. A production deployment would normalize: either pin a single supported `expo` and reject anything else, or translate the price into the program's fixed-point convention on the fly. This is the most likely place to write a real bug in the migration; the chapter calls it out so you can put a TODO there yourself.
+
+**3. We refuse `price <= 0` even when status == Trading.** Pyth occasionally publishes zero — a publisher-network corner case where the aggregate is non-negative but degenerate. The mock path refuses the same; the Pyth path matches.
+
+**4. `agg.status != Trading` is a hard refusal, not a fallback.** A real production reader with a Switchboard fallback would try the other oracle here rather than returning an error. We don't ship the fallback because the *worked example* is the v1 single-oracle migration; the fallback pattern (try-A-then-B with disagreement tolerance) is straightforward to add on top — the §9.5 closing notes lay it out.
+
+### `PlaceOrderCheckedPyth` (tag 32)
+
+The peer instruction. Same payload as `PlaceOrderChecked` (`[side u8][price u64 LE][size u64 LE]`), same eight prefix accounts modulo two changes:
+
+- Slot 2 is a Pyth v1 PriceAccount, not our mock `Oracle`. (The oracle-PDA-from-market cross-check is dropped; Pyth accounts aren't ours to PDA-derive.)
+- The oracle-side gauntlet calls `read_fresh_pyth_v1_oracle` instead of `read_fresh_oracle`, and before it the handler requires slot 2 to be the market's pinned `pyth_v1_price_account` (decision 1 above).
+
+Everything downstream — sanity-band, fee escrow, book write — is identical to the mock path. Both handlers share the same `SANITY_BAND_BPS`, `PROTOCOL_FEE_BPS`, and the same `spl_token_transfer_user_signed` Transfer at the end. The migration's surface is exactly what §9.5 promised: localized.
+
+### Pyth v2 — same chapter, different architecture
+
+The "v1" in `read_fresh_pyth_v1_oracle` matters. Pyth's v1 model — publishers writing a static PriceAccount each slot, readers parsing it — is being deprecated in favor of v2's *pull-oracle* architecture. The critical insight for a perp DEX is that the v2 architecture splits cleanly across two layers:
+
+1. **Pyth's `pyth-solana-receiver` program** does the cryptographic work. It accepts a Pyth update message wrapped in a Wormhole VAA (Verified Action Approval — a payload signed by 2/3+ of Wormhole's guardian set), verifies the guardian signatures using Solana's secp256k1 precompile, checks any Merkle proofs in the bundled update, and writes the verified price into a `PriceUpdateV2` account.
+2. **The consumer** (you, the perp DEX) reads that `PriceUpdateV2` account. No VAA verification. No guardian-set management. No cryptography on your hot path.
+
+If you confused those two layers (and an earlier draft of this section did), you'd conclude that v2 needs ~2000 lines of cryptographic code on your side. It doesn't. The Wormhole work lives in Pyth's program, which is shared infrastructure; what you ship on the perp DEX is structurally the same as the v1 reader, just against a different account layout.
+
+`PlaceOrderCheckedPythV2` (tag 33) ships the consumer side. Two checks come before the reader, in the handler, because the reader cannot make them: the account must be owned by the receiver program the market pinned (`Market.pyth_v2_receiver`; its ID differs between clusters, so it is data, not a constant), and its `feed_id` must equal `Market.pyth_v2_feed_id`. Without the first, anyone can write a `PriceUpdateV2`-shaped account, discriminator and all, from their own program; without the second, a genuine update for another asset passes. The handler also requires the update to be fully verified (`VerificationLevel::Full`): a Partial update was checked against fewer guardian signatures than Wormhole's quorum, and Pyth's own SDK refuses one for prices. `pyth_v2_reads_only_the_pinned_receiver_and_feed` tries all three, including Partial updates with 0 and 13 signatures. The reader:
+
+```rust
+fn read_fresh_pyth_v2_oracle(oracle_ai: &AccountInfo) -> Result<u64, ProgramError> {
+    let data = oracle_ai.try_borrow_data()?;
+    if data.len() < PYTH_V2_MIN_LEN { return Err(InvalidAccountData); }
+
+    // (1) Anchor account discriminator. PriceUpdateV2 uses Anchor's
+    // sha256("account:PriceUpdateV2")[..8] convention.
+    if data[0..8] != PYTH_V2_PRICE_UPDATE_DISCRIMINATOR { return Err(...); }
+
+    // (2) VerificationLevel — log only. Production may demand Full.
+    let level_tag = data[PYTH_V2_OFFSET_VERIFICATION_LEVEL];
+    // Partial { num_signatures }  | Full
+
+    // (3) Staleness — against posted_slot, the Solana slot in which
+    // the receiver wrote the update.
+    let posted_slot = u64::from_le_bytes(data[PYTH_V2_OFFSET_POSTED_SLOT..]);
+    if Clock::get()?.slot.saturating_sub(posted_slot) > MAX_ORACLE_STALENESS_SLOTS {
+        return Err(InvalidAccountData);
+    }
+
+    // (4) Price + log exponent / conf / publish_time.
+    let price_i = i64::from_le_bytes(data[PYTH_V2_OFFSET_PRICE..]);
+    if price_i <= 0 { return Err(InvalidAccountData); }
+    Ok(price_i as u64)
+}
+```
+
+PriceUpdateV2's on-chain layout, parsed by offset (Anchor borsh-serializes Pyth's struct):
+
+```text
+offset | size | field                            | what we do with it
+-------+------+----------------------------------+---------------------------------------
+   0   |  8   | anchor_discriminator             | == [34,241,35,99,157,126,244,205]
+   8   | 32   | write_authority (Pubkey)         | (not checked — whoever may update or close this account)
+  40   |  1   | verification_level tag           | log; 0=Partial, 1=Full
+  41   |  1   | verification_level.num_signatures| log (only when tag==Partial)
+  42   | 32   | price_message.feed_id            | == `Market.pyth_v2_feed_id` (checked by the handler)
+  74   |  8   | price_message.price (i64)        | > 0; returned as u64 mark
+  82   |  8   | price_message.conf  (u64)        | log
+  90   |  4   | price_message.exponent (i32)     | log; production normalizes by 10^expo
+  94   |  8   | price_message.publish_time (i64) | log; informational (Pyth's Unix timestamp)
+ 102   |  8   | price_message.prev_publish_time  | unused
+ 110   |  8   | price_message.ema_price          | unused (the chapter uses the spot price)
+ 118   |  8   | price_message.ema_conf           | unused
+ 126   |  8   | posted_slot (u64)                | staleness gauntlet
+ 134                                                — end
+```
+
+The offsets are exported as `PYTH_V2_OFFSET_*` from `crates/state/src/lib.rs`. They are the offsets of a **Partial** update: Borsh writes `VerificationLevel::Full` as 1 byte instead of 2, so in a Full update every field from `price_message` on sits one byte earlier. The pre-split reader quoted above used the fixed offsets and misread Full updates; `openhl_oracle::pyth_v2::parse` now handles both. As with v1, we don't mirror the full Pod struct — six field reads, no Anchor dep, the byte layout *is* the contract.
+
+### The two-instruction transaction pattern
+
+There's one piece of architecture the v2 reader assumes: the `PriceUpdateV2` account has to be *fresh* when the trade instruction runs. In practice the consumer transaction does this by including the receiver's `post_update_v2` instruction as the first instruction, and the trade instruction as the second:
+
+```text
+tx = [
+  pyth-solana-receiver::post_update_v2(vaa_data, update_data, …),  // verifies VAA, writes account
+  openhl::place_order_checked_pyth_v2(side, price, size),          // reads the just-written account
+]
+```
+
+`post_update_v2` writes a per-(feed_id, write_authority) `PriceUpdateV2` PDA that `place_order_checked_pyth_v2` then reads. The client fetches the latest VAA from Pyth's price-update service (an HTTP endpoint that aggregates publisher signatures into VAAs ready to submit), bundles it into the first instruction, and lets the staleness gauntlet enforce that everything stays in sync. There is no on-chain CPI from our handler into the receiver — they communicate through the account, not directly.
+
+This is also why our v2 handler doesn't take a "post" instruction or any Wormhole accounts: the consumer transaction is the wiring; the program just reads.
+
+### What's still genuinely deferred
+
+Now that the consumer side ships, what's left is **running your own Wormhole-style receiver**. That'd be useful if you wanted to read Pyth updates from a Wormhole chain that doesn't have an official Pyth receiver, or if you wanted to verify additional message types (governance updates, mapping changes) the receiver doesn't expose. It's its own chapter — secp256k1 signature recovery against a stored guardian set, replay protection, Merkle proof verification on bundled updates. The perp DEX consumer path here doesn't need any of it.
+
+### The Switchboard fallback
+
+A single oracle is a single point of failure. Pyth has been down. Switchboard has been down. Both at the same time has happened (rarely). Programs that protect downside trust *both* and refuse to operate when neither is fresh. The wiring is mechanical:
 
 1. The transaction's `AccountMeta` array includes both oracle accounts.
-2. The handler reads each, doing the full validation pattern (discriminator + owner + price-positive + staleness).
+2. The handler reads each, doing the full validation pattern (discriminator/magic + status + price-positive + staleness).
 3. If either passes, use it. If both fail, refuse the call.
 
 Programs that do this also typically *compare* the two when both are fresh — refuse the call if they disagree by more than some tolerance (e.g., 50 bps). A 50-bp disagreement between Pyth and Switchboard usually means one of them is wrong, and a program that just picks the cheaper price for the user has been gamed.
+
+> **Exercise §9.5.** Pick a real Pyth v1 mainnet PriceAccount (SOL/USD is `H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG` at the time of writing — verify via Pyth's price-feed-ids page). Use the local validator's `clone` feature to mirror that account into your test cluster, pin it on your market with `SetPythFeeds` (signed by the market authority), then invoke `PlaceOrderCheckedPyth` against it. Then try the attack decision 1 describes: copy the account's bytes into an account you own and pass that instead. It should fail with `oracle is not the market's pinned Pyth v1 feed`. Compare the logged `expo` to the SOL/USD product (should be `-8`). Confirm the staleness gauntlet by replaying a stale slot of the account from an archive.
 
 ---
 
@@ -308,7 +433,7 @@ Required checks before trusting a price:
 
 ### Three things to verify yourself
 
-1. **The discriminator check matters.** Create a market PDA, then construct a transaction that calls `place_order_checked` passing the market PDA in the oracle slot. The discriminator check at `lib.rs:1477` should fail with `UninitializedAccount`. Without this check, the code would `bytemuck::from_bytes` into garbage data and use a nonsensical `price`.
+1. **The discriminator check matters.** Create a market PDA, then construct a transaction that calls `place_order_checked` passing the market PDA in the oracle slot. The discriminator check in `read_fresh_oracle` at [`lib.rs:1974`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs#L1974) should fail with `UninitializedAccount`. Without this check, the code would `bytemuck::from_bytes` into garbage data and use a nonsensical `price`.
 2. **Staleness is the security gate.** Set the oracle, wait 30+ slots, try to place an order at any price inside the band. It should fail with `oracle stale`. This is the most commonly forgotten check; it is also the one that has caused the most oracle exploits in the wild.
 3. **The band's edge is exact.** With `SANITY_BAND_BPS = 2000` and `mark = 100`, an order at exactly 80 should be *accepted* (the check is `< low`, not `<= low`). An order at exactly 79 should be rejected. Confirm by running both. The edge case for a `<=` vs `<` slip is a single bp; for tighter bands at higher prices, the dollar value of the difference can be significant.
 
