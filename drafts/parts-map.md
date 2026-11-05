@@ -25,7 +25,7 @@ has no public URL yet, so the links point at the chapter files on GitHub until i
 | 12 | Native Vault Program (Pooled Trading) | `openhl-vault`; solinv `signer_skip` / `owner_skip` / `account_swap` (+ `check_sets`) via [`fuzz/vault`](https://github.com/psyto/openhl-solana/tree/main/fuzz/vault) | openhl-solana git; solinv git rev `8bcb011` | **linked**: §12.7 exercise, measured; imported here |
 | 13 | Builder Codes as a Protocol Primitive | `openhl-fees`; solinv relation + guard (`unchecked_math`, `precondition_skip`) via [`fuzz/fees`](https://github.com/psyto/openhl-solana/tree/main/fuzz/fees) | openhl-solana git; solinv git rev `1badc31` | **linked**: §13.6 exercise, measured |
 | 14 | Cranks, Keepers, and Off-Chain Glue | — | | |
-| 15 | (slab; in openhl-solana, not yet imported here) | `openhl-slab` | | import pending |
+| 15 | Slab Order Book (in openhl-solana, not yet imported here) | `openhl-slab`; solinv `cu_dos` via [`fuzz/slab`](https://github.com/psyto/openhl-solana/tree/main/fuzz/slab) | openhl-solana git; solinv git rev `1badc31` | §15.6 table and §15.7 exercise measured in openhl-solana; import here pending (needs course metadata) |
 
 ## Rules for adding a link
 
