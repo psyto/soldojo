@@ -19,7 +19,7 @@
 # Chapter 2 — Writing a Native Program Without Anchor
 
 > Status: draft (v0.1).
-> Companion code: `programs/openhl-core/src/lib.rs`, `scripts/init-market/src/main.rs`.
+> Companion code: [`programs/openhl-core/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs), [`scripts/init-market/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/init-market/src/main.rs).
 > Tested against: solana-program 2.3.0, solana-program-entrypoint 2.3.0, solana-account-info 2.3.0, solana-program-error 2.2.2, solana-system-interface 1.0.0.
 
 ---
@@ -200,15 +200,17 @@ Without this check, an attacker could:
 2. Write whatever bytes they want to `data[0..256]`.
 3. Pass that account to our `Initialize`.
 4. Pass through every other check (size is 256, discriminator is whatever they set it to, payload decodes fine).
-5. Our program would happily overwrite the bytes — but the *next* check of the discriminator would see whatever the attacker had set, not what we set. Worse, in later chapters when this same account is fed into `place_order`, we would trust its bytes implicitly.
+5. Our program would try to overwrite the bytes, and here the runtime stops it: a program may change only accounts it owns (Chapter 1), so the transaction fails with `instruction modified data of an account it does not own`. `Initialize` is safe without the check only because it *writes*. The danger is in every handler that *reads* the account and trusts its bytes: when an account like this is fed to `PlaceOrderChecked` (Chapter 9) or `OpenPosition` (Chapter 11), which read the market's `quote_mint` without writing the market, the runtime does not stop us from believing whatever the attacker wrote, because reading someone else's account is allowed; their own owner check is what does.
 
-Owner check is what turns "256 bytes the right shape" into "256 bytes I wrote." Skip it and you skip the security model.
+Owner check is what turns "256 bytes the right shape" into "256 bytes I wrote." Skip it in a handler that reads, and you skip the security model.
 
 The size check (`lib.rs:99–106`) comes second, but it's mechanical — `bytemuck::from_bytes_mut::<Market>(buf)` would panic if the buffer were too small, so we reject explicitly with a clean error code. The already-initialized check (`lib.rs:111–117`) comes third — if discriminator is non-zero, this account is already a live `Market` and we must not stomp it.
 
 **What Anchor hides:** Anchor's `#[account(mut)]` constraint and the typed `Account<'info, T>` wrapper perform the owner check for you. Specifically: when Anchor deserializes `Account<'info, MyType>`, it asserts `account.owner == program_id` before returning the typed view. If the check fails, your handler is never called. This is genuinely safer than asking you to remember — but it also means many Anchor developers never internalize *why* the check exists. Read your Anchor code and find the owner check. It's there. It's just invisible.
 
 > **Exercise §2.3.** Modify `process_initialize` to deliberately skip the owner check (comment out lines 87–94). Rebuild. Construct a transaction that passes a System-owned account (the one Chapter 1's allocator created, *without* the Assign step we'll add in §2.5) to `Initialize`. Run it. What happens? Why?
+>
+> You can also let a tool try it. [`fuzz/basics/`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics) has an `Initialize` spec, and its `invariant_ch2` runs [solinv](https://github.com/psyto/solinv)'s owner-skip check, which replaces the market account with a copy owned by another program. Build the program as in Chapter 3 §3.7, then in `fuzz/basics` run `cargo build --release --features invariant_ch2` and `crucible run openhl_basics_fuzz invariant_ch2 --binary-in target/release/invariant_test --timeout 45` (under `timeout`). We measured no finding with the check in place, and none with it deleted. The `ch2_probe` test (`cargo test --release --features invariant_ch2 -- --ignored --nocapture ch2_probe`) shows why: with the check, our own `market owner … != program` refuses the call; without it, the runtime does, for an account owned by System, by SPL Token, or by an arbitrary address alike. That is the answer to the exercise, and it is a lesson about fuzzers too: a "no" here means the runtime stood behind the check, not that the check is unneeded. Chapter 6 §6.6 shows an owner check that nothing else stands behind: `CreateVault` neither reads nor writes the market, only uses its address as a seed, so the runtime has nothing to refuse.
 
 ---
 
@@ -362,7 +364,7 @@ Transaction
 
 1. **Discriminator flipped.** After running `init-market`, the hex dump should start with `4d 41 52 4b 45 54 00 00` (= "MARKET\0\0"). Run `init-market` and confirm. Compare against Chapter 1's all-zero output — these eight bytes are the entire visible result of writing a Solana program.
 2. **Owner changed.** Run `solana account <market_pubkey>` after `init-market`. The `Owner` line should now show your deployed `openhl-core` program ID, not `11111111111111111111111111111111`. The `Assign` instruction did this; the `Initialize` instruction depended on it.
-3. **Re-run rejected.** Run `init-market` a second time against the same market. The transaction should fail. Trace the on-chain logs (`solana logs --include-failed`) and find the `initialize: market already initialized` message from `lib.rs:114`. The already-initialized check at `lib.rs:111–117` is what rejected you.
+3. **Re-run rejected.** Run `init-market` a second time against the same market. The transaction should fail. Trace the on-chain logs (`solana logs --include-failed`) and find the `initialize: market already initialized` message from [`lib.rs:114`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs#L114). The already-initialized check at [`lib.rs:111–117`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs#L111) is what rejected you.
 
 ---
 

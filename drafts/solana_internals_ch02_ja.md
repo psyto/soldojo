@@ -19,7 +19,7 @@
 # 第2章 — Anchor を使わずネイティブプログラムを書く
 
 > 状態: ドラフト (v0.1)。
-> 教材コード: `programs/openhl-core/src/lib.rs`、`scripts/init-market/src/main.rs`。
+> 教材コード: [`programs/openhl-core/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)、[`scripts/init-market/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/init-market/src/main.rs)。
 > 検証対象バージョン: solana-program 2.3.0、solana-program-entrypoint 2.3.0、solana-account-info 2.3.0、solana-program-error 2.2.2、solana-system-interface 1.0.0。
 
 ---
@@ -200,15 +200,17 @@ if market_ai.owner != program_id {
 2. `data[0..256]` に任意のバイトを書く。
 3. それを本書の `Initialize` に渡す。
 4. 他のチェックはすべて通る（サイズは 256、ディスクリミネータは攻撃者が設定したもの、ペイロードは正しく復号できる）。
-5. プログラムは喜んでバイトを上書きする — しかし、**次回**ディスクリミネータをチェックしたとき見えるのは、自分が書いた値ではなく攻撃者が設定した値だ。さらに悪いことに、後の章で同じアカウントが `place_order` に渡されたとき、そのバイトを暗黙に信頼してしまう。
+5. プログラムはバイトを上書きしようとし、ここではランタイムがそれを止める。プログラムが変えられるのは自分が所有するアカウントだけなので(第 1 章)、トランザクションは `instruction modified data of an account it does not own` で失敗する。`Initialize` がこの検査なしでも安全なのは、**書く**だけだからにすぎない。危ないのは、アカウントを**読んで**そのバイトを信じるすべてのハンドラだ。こういうアカウントが、market を書かずにその `quote_mint` を読む `PlaceOrderChecked`(第 9 章)や `OpenPosition`(第 11 章)に渡されると、攻撃者が書いた内容を信じるのをランタイムは止めない。他人のアカウントを読むことは許されているからだ。止めるのは、それらの命令自身の所有者検査である。
 
-所有者チェックこそが「正しい形の 256 バイト」を「自分が書いた 256 バイト」に変える。これを省くことは、セキュリティモデルを省くことに等しい。
+所有者チェックこそが「正しい形の 256 バイト」を「自分が書いた 256 バイト」に変える。読むハンドラでこれを省くことは、セキュリティモデルを省くことに等しい。
 
 サイズチェック（`lib.rs:99–106`）は次に来るが、機械的だ。`bytemuck::from_bytes_mut::<Market>(buf)` はバッファが小さすぎるとパニックするので、明示的に拒否して綺麗なエラーコードを返す。初期化済みチェック（`lib.rs:111–117`）は 3 番目。ディスクリミネータが非ゼロなら、そのアカウントはすでに生きた `Market` なので、踏み潰してはならない。
 
 **Anchor が隠していること:** Anchor の `#[account(mut)]` 制約と型付きラッパ `Account<'info, T>` が、所有者チェックを代行している。具体的には、Anchor が `Account<'info, MyType>` をデシリアライズする際、型付きビューを返す前に `account.owner == program_id` をアサートする。失敗すれば、自分のハンドラは呼ばれない。これは「覚えておけ」より確かに安全だ — しかし同時に、多くの Anchor 開発者が**なぜ**そのチェックが存在するかを身体化しないまま済んでしまう。自分の Anchor コードを開いて、所有者チェックを探してみよ。確かにそこにある。ただ、目に見えていないだけだ。
 
 > **演習 §2.3.** `process_initialize` を編集して、所有者チェックを意図的にスキップせよ（87–94 行をコメントアウト）。ビルドし直し、第 1 章のアロケータが作った System 所有アカウント（§2.5 で追加する Assign ステップを**経ずに**）を `Initialize` に渡すトランザクションを組み立てよ。実行すると何が起きるか。なぜか。
+>
+> 道具に試させることもできる。[`fuzz/basics/`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics) には `Initialize` の仕様があり、その `invariant_ch2` は [solinv](https://github.com/psyto/solinv) の owner-skip を走らせる。market のアカウントを、別のプログラムが所有する複製に差し替える検査だ。第 3 章 §3.7 のとおりプログラムを作り、`fuzz/basics` で `cargo build --release --features invariant_ch2` と `crucible run openhl_basics_fuzz invariant_ch2 --binary-in target/release/invariant_test --timeout 45`(`timeout` の下で)を実行する。測ると、検査があっても検出はなく、消しても検出はなかった。`ch2_probe` テスト(`cargo test --release --features invariant_ch2 -- --ignored --nocapture ch2_probe`)が理由を示す。検査があれば自前の `market owner … != program` が呼び出しを拒否し、なければランタイムが拒否する。System が所有するアカウントでも、SPL Token が所有するアカウントでも、適当なアドレスが所有するアカウントでも同じだ。これが演習の答えで、fuzzer についての教訓でもある。ここでの「いいえ」は、検査の後ろにランタイムが立っていたという意味で、検査が要らないという意味ではない。後ろに何も立っていない所有者検査は第 6 章 §6.6 が示す。`CreateVault` は market を読みも書きもせず、そのアドレスを seed に使うだけなので、ランタイムには拒否するものがない。
 
 ---
 
@@ -362,7 +364,7 @@ Anchor プログラムが期待外の挙動を示したとき — 誤ったア�
 
 1. **ディスクリミネータが切り替わった。** `init-market` を実行した後、16 進ダンプの先頭は `4d 41 52 4b 45 54 00 00`（= "MARKET\0\0"）になっているはずだ。`init-market` を実行して確認せよ。第 1 章の全ゼロ出力と比べてみよ — この 8 バイトが、初めて Solana プログラムを書いた可視成果のすべてである。
 2. **所有者が変わった。** `init-market` の後、`solana account <market_pubkey>` を実行せよ。`Owner` 行は、いまやデプロイ済みの `openhl-core` プログラム ID を示し、`11111111111111111111111111111111` ではないはずだ。`Assign` 命令がそれを行い、`Initialize` 命令はその結果に依存していた。
-3. **再実行が拒否された。** 同じ market に対して `init-market` を 2 回目に実行せよ。トランザクションは失敗するはずだ。オンチェーンログ（`solana logs --include-failed`）を辿り、`lib.rs:114` からの `initialize: market already initialized` メッセージを見つけよ。`lib.rs:111–117` の初期化済みチェックが拒否したのだ。
+3. **再実行が拒否された。** 同じ market に対して `init-market` を 2 回目に実行せよ。トランザクションは失敗するはずだ。オンチェーンログ（`solana logs --include-failed`）を辿り、[`lib.rs:114`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs#L114) からの `initialize: market already initialized` メッセージを見つけよ。[`lib.rs:111–117`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs#L111) の初期化済みチェックが拒否したのだ。
 
 ---
 

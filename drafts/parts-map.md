@@ -11,11 +11,11 @@ has no public URL yet, so the links point at the chapter files on GitHub until i
 
 | Ch | Chapter | Part | Install (public entry) | Status |
 |---|---|---|---|---|
-| 1 | The Account Model from the Bytes Up | `openhl-state` (account layouts) | git, openhl-solana | split not yet committed |
-| 2 | Writing a Native Program Without Anchor | — | | the point is to have none |
+| 1 | The Account Model from the Bytes Up | `openhl-state` (account layouts) | git, openhl-solana | no program logic to fuzz |
+| 2 | Writing a Native Program Without Anchor | solinv `owner_skip` via [`fuzz/basics`](https://github.com/psyto/openhl-solana/tree/main/fuzz/basics) | solinv git rev `1badc31` | **linked**: Exercise §2.3, measured (the runtime backs Initialize's owner check) |
 | 3 | PDAs from First Principles | solinv `signer_skip` / `account_swap` via [`fuzz/basics`](https://github.com/psyto/openhl-solana/tree/main/fuzz/basics) | solinv git rev `1badc31` | **linked**: §3.7 exercise, measured |
 | 4 | Compute Budget and Heap Discipline | solinv `cu_dos` via [`fuzz/basics`](https://github.com/psyto/openhl-solana/tree/main/fuzz/basics) | solinv git rev `1badc31` | **linked**: §4.7 exercise, measured |
-| 5 | Sealevel Parallelism and Account Locks | — | | |
+| 5 | Sealevel Parallelism and Account Locks | — | | nothing for a fuzzer to check; lock contention is the topic |
 | 6 | CPI Internals via Vault Deposits | solinv `signer_skip` / `owner_skip` / `account_swap` (+ `check_sets`) via [`fuzz/basics`](https://github.com/psyto/openhl-solana/tree/main/fuzz/basics) | solinv git rev `1badc31` | **linked**: §6.6 exercise, measured |
 | 7 | On-Chain CLOB Data Structures | `openhl-slab`; tests in [`fuzz/matching`](https://github.com/psyto/openhl-solana/tree/main/fuzz/matching) (place/cancel CU, the cancel owner rule) | openhl-solana git | §7.3–7.6 re-measured; the cancel rule is out of an account swap's reach, so a test pins it |
 | 8 | Matching Engine Under CU Pressure | `openhl-slab`; solinv `cu_dos` via [`fuzz/matching`](https://github.com/psyto/openhl-solana/tree/main/fuzz/matching) | openhl-solana git; solinv git rev `1badc31` | **linked**: §8.6 exercise; §8.2's CU table re-measured |
