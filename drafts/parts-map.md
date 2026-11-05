@@ -17,14 +17,14 @@ has no public URL yet, so the links point at the chapter files on GitHub until i
 | 4 | Compute Budget and Heap Discipline | solinv `cu_dos` via [`fuzz/basics`](https://github.com/psyto/openhl-solana/tree/main/fuzz/basics) | solinv git rev `1badc31` | **linked**: §4.7 exercise, measured |
 | 5 | Sealevel Parallelism and Account Locks | — | | |
 | 6 | CPI Internals via Vault Deposits | solinv `signer_skip` / `owner_skip` / `account_swap` (+ `check_sets`) via [`fuzz/basics`](https://github.com/psyto/openhl-solana/tree/main/fuzz/basics) | solinv git rev `1badc31` | **linked**: §6.6 exercise, measured |
-| 7 | On-Chain CLOB Data Structures | `openhl-slab` | git, openhl-solana | split not yet committed |
+| 7 | On-Chain CLOB Data Structures | `openhl-slab`; tests in [`fuzz/matching`](https://github.com/psyto/openhl-solana/tree/main/fuzz/matching) (place/cancel CU, the cancel owner rule) | openhl-solana git | §7.3–7.6 re-measured; the cancel rule is out of an account swap's reach, so a test pins it |
 | 8 | Matching Engine Under CU Pressure | `openhl-slab`; solinv `cu_dos` via [`fuzz/matching`](https://github.com/psyto/openhl-solana/tree/main/fuzz/matching) | openhl-solana git; solinv git rev `1badc31` | **linked**: §8.6 exercise; §8.2's CU table re-measured |
 | 9 | Oracle Ingestion: Pyth Internals | `openhl-oracle` | git, openhl-solana | split not yet committed |
 | 10 | Funding Rate Mechanics | `openhl-funding` | git, openhl-solana | split not yet committed |
 | 11 | Position Lifecycle and Liquidation Engine | `openhl-margin`; solinv `signer_skip` / `account_swap` (+ `check_sets`) via [`fuzz/positions`](https://github.com/psyto/openhl-solana/tree/main/fuzz/positions) | openhl-solana git; solinv git rev `1badc31` | **linked**: §11.7 exercise, measured; its first run found the unbound oracle |
 | 12 | Native Vault Program (Pooled Trading) | `openhl-vault`; solinv `signer_skip` / `owner_skip` / `account_swap` (+ `check_sets`) via [`fuzz/vault`](https://github.com/psyto/openhl-solana/tree/main/fuzz/vault) | openhl-solana git; solinv git rev `8bcb011` | **linked**: §12.7 exercise, measured; imported here |
 | 13 | Builder Codes as a Protocol Primitive | `openhl-fees`; solinv relation + guard (`unchecked_math`, `precondition_skip`) via [`fuzz/fees`](https://github.com/psyto/openhl-solana/tree/main/fuzz/fees) | openhl-solana git; solinv git rev `1badc31` | **linked**: §13.6 exercise, measured |
-| 14 | Cranks, Keepers, and Off-Chain Glue | — | | |
+| 14 | Cranks, Keepers, and Off-Chain Glue | — | | off-chain only; no on-chain part to fuzz |
 | 15 | Slab Order Book (in openhl-solana, not yet imported here) | `openhl-slab`; solinv `cu_dos` via [`fuzz/slab`](https://github.com/psyto/openhl-solana/tree/main/fuzz/slab) | openhl-solana git; solinv git rev `1badc31` | §15.6 table and §15.7 exercise measured in openhl-solana; import here pending (needs course metadata) |
 
 ## Rules for adding a link

@@ -19,7 +19,7 @@
 # Chapter 7 — On-Chain CLOB Data Structures
 
 > Status: draft (v0.1).
-> Companion code: `crates/state/src/lib.rs` (`Order` + `OrderBook`), `programs/openhl-core/src/lib.rs` (`process_create_order_book` at 833–891, `process_place_order` at 904–1000, `process_cancel_order` at 1002–1064), `scripts/book/src/main.rs`.
+> Companion code: [`crates/state/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs) (`Order` + `OrderBook`), [`programs/openhl-core/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (`process_create_order_book` at 1080–1144, `process_place_order` at 1151–1242, `process_cancel_order` at 1249–1316), [`scripts/book/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/book/src/main.rs).
 
 ---
 
@@ -72,7 +72,7 @@ This is the wrong choice for production for one specific reason: **best-bid / be
 
 So why pick it?
 
-- **It exposes the cost.** The CU log shows the linear scan happening. A student can run `book --place` and watch the CU drop as the book fills.
+- **It exposes the cost.** The CU log shows the linear scan happening. A student can run `book --place` and watch the CU rise as the book fills (by a few CU per order; §7.3).
 - **It is easy to verify.** Two `for` loops over an array. No invariants to break. No subtle off-by-one in tree rebalancing.
 - **It is enough for Chapter 7.** This chapter is about the data layout and the cost shape. Chapter 8 will introduce matching, and *that* is where the wrong choice becomes a real problem — at which point we have permission to refactor to a slab.
 
@@ -108,7 +108,7 @@ Why `size == 0` and not a separate `is_active: bool`?
 - A boolean field would cost a byte plus padding to maintain alignment. The `size` field already exists and a real order always has `size > 0`. Repurposing it as the active sentinel saves the extra field.
 - Zero-initialization on account creation makes the convention work for free: a newly allocated `OrderBook`'s slots are all "empty" without any explicit setup pass.
 
-The cost is a one-line invariant the program must respect: never write an `Order` with `size == 0`. Both handlers explicitly reject `size == 0` in the payload as the first guard. From `process_place_order` (lib.rs:929–932):
+The cost is a one-line invariant the program must respect: never write an `Order` with `size == 0`. `place_order` rejects `size == 0` in the payload as its first guard (`cancel_order` takes only an order id, and writes an all-zero `Order` on purpose to empty the slot). From `process_place_order` (lib.rs:1172–1175):
 
 ```rust
 if price == 0 || size == 0 {
@@ -125,11 +125,11 @@ That's the price of repurposing the field. Anchor's `#[derive(BorshSerialize)]` 
 
 ## §7.3  Walking `place_order`
 
-From `programs/openhl-core/src/lib.rs:904–1000`. The handler decomposes into three parts.
+From `programs/openhl-core/src/lib.rs:1151–1242`. The handler decomposes into three parts.
 
-**Validation** (lines 911–950): payload size, side byte (must be 0 or 1), price and size non-zero, user is a signer, book owner matches our program, book size matches `OrderBook::LEN`, book discriminator matches.
+**Validation** (lines 1156–1199): payload size, side byte (must be 0 or 1), price and size non-zero, user is a signer, book owner matches our program, book size matches `OrderBook::LEN`, book discriminator matches.
 
-**The linear scan** at lines 958–965:
+**The linear scan** at lines 1205–1211:
 
 ```rust
 let mut chosen_slot: Option<usize> = None;
@@ -143,28 +143,32 @@ for (i, slot) in book.slots.iter().enumerate() {
 
 Scan from index 0, take the first slot with `size == 0`, break. Worst case: book is full. Then the loop runs all 32 iterations and returns `None`, which triggers the "book full" branch and returns `AccountDataTooSmall`. Best case: slot 0 is empty (the book is fresh). One iteration.
 
-The CU cost shape:
+The CU cost shape, measured (whole instruction, LiteSVM, with `fuzz/matching`'s `ch7_grid` test; Chapter 4 §4.5 checked that LiteSVM counts like `solana-test-validator`):
 
-- **Empty book** (active_count = 0, slot 0 empty): 1 loop iteration. About 50 CU for the scan.
-- **Half-full book** (active_count = 16, slots 0–15 occupied): 16 iterations. About 800 CU.
-- **Full minus one** (active_count = 31, slot 31 is the only empty): 31 iterations. About 1550 CU.
-- **Full** (active_count = 32, all slots occupied): 32 iterations + error path. About 1700 CU + the error overhead.
+| Book before the place | Iterations | CU |
+|---|---|---|
+| empty | 1 | 2,357 |
+| 8 orders | 9 | 2,374 |
+| 16 orders | 17 | 2,417 |
+| 24 orders | 25 | 2,433 |
+| 31 orders | 32 | 2,446 |
+| 32 orders (full) | 32 + error | fails (we did not measure failed calls) |
 
-In absolute terms these numbers are tiny — even the worst case is under 1% of the default 200 KCU budget. But the *shape* is the lesson: O(N) means the cost grows with the data, and for an order book that growth can outrun the budget at scale. A slab keeps the placement at O(log N), so even with 1024 orders the placement still costs less than 16 iterations of our array does at N = 32.
+The scan is linear, and cheap: 89 CU from an empty book to 31 orders, about 3 CU per slot visited. (An earlier draft estimated about 50 CU per slot, 1,550 CU at 31 orders; it was more than ten times too high.) Almost all of the 2,357 is the fixed cost of an instruction: entry, validation, the two `sol_log_compute_units` calls and the `msg!` lines. So the *shape* is the lesson here more than the size: O(N) means the cost grows with the data, but at 32 slots and a few CU per slot it hardly shows. It shows in Chapter 8, where the scan runs once per fill, and with a bigger book. For comparison, Chapter 15's slab places an order into 1,023 others for 1,954 CU, less than this array charges at 16.
 
-**The write** (lines 970–987): increment `next_order_id`, increment `active_count`, copy the user pubkey into `owner`, construct an `Order` literal, drop it into the chosen slot. All O(1) once the slot is found.
+**The write** (lines 1217–1231): increment `next_order_id`, increment `active_count`, copy the user pubkey into `owner`, construct an `Order` literal, drop it into the chosen slot. All O(1) once the slot is found.
 
-The CU brackets at lines 952 (before scan) and 988 (after write) let you read the cost from the validator log. Two `sol_log_compute_units` calls, subtract, get the actual CU consumed for "scan + write" on this particular instruction.
+The CU brackets at lines 1192 (before scan) and 1239 (after write) let you read the cost from the validator log. Two `sol_log_compute_units` calls, subtract, get the CU consumed between them: the scan and the write, plus the data borrow, the discriminator check and the logging in that range.
 
-> **Exercise §7.3.** Pre-populate the book with N orders for various N (say 0, 8, 16, 24, 31) and then place a single new order. Record the CU consumed (between the two log calls) for each N. Plot it. It should be approximately linear in N.
+> **Exercise §7.3.** Pre-populate the book with N orders for various N (say 0, 8, 16, 24, 31) and then place a single new order. Record the CU consumed (between the two log calls) for each N. Plot it. It should be linear in N, with a slope of a few CU per order: compare your numbers with the table above.
 
 ---
 
 ## §7.4  Walking `cancel_order`
 
-`process_cancel_order` (lines 1002–1064) is structurally the same as `place_order` — linear scan, then mutation — but with a different match key and a different mutation.
+`process_cancel_order` (lines 1249–1316) is structurally the same as `place_order` — linear scan, then mutation — but with a different match key and a different mutation.
 
-**The scan** at lines 1037–1043:
+**The scan** at lines 1284–1290:
 
 ```rust
 let mut found: Option<usize> = None;
@@ -178,7 +182,7 @@ for (i, slot) in book.slots.iter().enumerate() {
 
 `slot.size != 0` skips empty slots; `slot.order_id == order_id` selects by ID. Worst case is "order is in the last slot" or "order not found" — both pay full O(N).
 
-**The authorization check** at lines 1050–1053:
+**The authorization check** at lines 1296–1300:
 
 ```rust
 if book.slots[slot_idx].owner != *user_ai.key.as_ref() {
@@ -189,7 +193,7 @@ if book.slots[slot_idx].owner != *user_ai.key.as_ref() {
 
 Only the order's original placer may cancel it. The `owner` field on the slot is the cancel-authorization mechanism. This is a per-slot check, not a per-book check — there is no single "operator can cancel anything" path, which is appropriate for an open CLOB but would be different for a vault-managed strategy.
 
-**The zero** at line 1057:
+**The zero** at line 1304:
 
 ```rust
 book.slots[slot_idx] = <Order as bytemuck::Zeroable>::zeroed();
@@ -197,7 +201,7 @@ book.slots[slot_idx] = <Order as bytemuck::Zeroable>::zeroed();
 
 `Order::zeroed()` returns the all-zeros `Order`. The `<Order as bytemuck::Zeroable>::zeroed()` qualified-syntax is needed because `Order::zeroed` is not in scope as an inherent method — it comes from the `bytemuck::Zeroable` trait. Once written, the slot's `size` is 0 and the next `place_order` scanning for an empty slot will see this position as available.
 
-The CU cost is symmetric to `place_order`: best case is "matched at slot 0" (1 iteration); worst case is "not found" (N iterations + error). The brackets at lines 1029 and 1059 let you measure.
+The CU cost is symmetric to `place_order`: best case is "matched at slot 0" (1 iteration); worst case is "not found" (N iterations + error). We measured 1,994 CU for the order in the first slot of a full book and 2,177 for the one in the last, about 6 CU per slot visited (the "not found" path fails, and we did not measure failed calls). The brackets at lines 1273 and 1313 let you measure.
 
 > **Exercise §7.4.** Place 10 orders, then cancel order_id 5. Then place another order. Which slot does the new order land in? Trace the slot allocation through the dump output of `book` (no flags) before and after each operation.
 
@@ -209,17 +213,17 @@ Chapter 8 implements matching. The core matching loop is "for each incoming take
 
 1. Linear-scan every taker → O(N) per taker
 2. For each match attempt, linear-scan every maker → O(N) per maker check
-3. With M takers crossing K makers, the total cost is O(M × N) just to find the right slots, before any token movement happens
+3. With M takers crossing K makers, the total cost is O(M × K × N) just to find the right slots, before any token movement happens
 
-At ORDER_CAPACITY = 32, M = 10, K = 5, this is ~1600 array-traversals per match instruction. About 80,000 CU of pure scanning. The default budget is 200,000.
+At ORDER_CAPACITY = 32, M = 10, K = 5, this is ~1600 array-traversals per match instruction. An earlier draft priced that at about 80,000 CU of pure scanning, using the 50 CU per slot above; with the measured few CU per slot it is a few thousand. Chapter 8's matcher, which scans the book once per fill, measured 12,662 CU for 5 fills against a full book and 22,250 for 10, everything included. The default budget is 200,000.
 
-When Chapter 8 needs to actually move tokens (CPI to SPL Token, which is itself ~3,000 CU per transfer), it will not fit in the default budget. We will need to either:
+So the flat book's problem at 32 slots is not this instruction's budget. It is what happens as the book grows: every fill scans every slot, so the cost is O(fills × N), and Chapter 8 §8.2 shows a 128-slot book running out of budget. Adding token movement to each fill (a CPI to SPL Token per transfer) makes that come sooner. We will need to either:
 
 - Refactor to a slab — the production answer
 - Raise the CU limit via `ComputeBudgetInstruction::set_compute_unit_limit` — the band-aid
 - Limit matching per-instruction to N crossings and require multiple matcher invocations — the workaround
 
-Chapter 8 explores all three and explains why slab is the only one that actually scales. For now, the flat array is correct, slow, and visibly so. That visibility is the prerequisite for understanding what the refactor buys us.
+Chapter 8 explores all three and explains why slab is the only one that actually scales; Chapter 15 ships the slab implementation. For now, the flat array is correct, slow, and visibly so. That visibility is the prerequisite for understanding what the refactor buys us.
 
 **What Anchor hides:** Anchor's `#[account(zero_copy)]` attribute makes `bytemuck`-cast accounts available with typed field access. It does nothing about choosing the right data structure — that decision is yours regardless of the framework. Anchor programs with naive `Vec<Order>` book layouts blow CU budgets just as fast as ours would in the matcher.
 
@@ -261,6 +265,13 @@ cancel_order(order_id):
 1. **Linear cost.** Run `book --init`, then place 30 orders, then place a 31st. Compare the `sol_log_compute_units` delta between the start-of-handler reading and the after-write reading. The 31st-order placement should cost roughly 30× more in the scan portion than the 1st-order placement did. Subtract a constant (the validation/CPI/log overhead) to isolate the scan cost itself.
 2. **Empty-slot convention.** Place 5 orders, cancel order 3, then place a 6th. The 6th order should land at slot index 2 (the slot vacated by cancel), not at slot index 5. The "first empty slot wins" rule fills holes left by cancellations.
 3. **Pod-layout invariants stay enforced.** `cargo test -p openhl-state` runs three Order/OrderBook layout tests. Change `ORDER_CAPACITY` to 33, recompile. The `order_book_size_matches_layout` test should now show `2112 → 2176`. That stable, predictable byte count is why bytemuck works at all on this struct.
+
+
+### What a fuzzer can and cannot check here
+
+The checks in `place_order` and `cancel_order` are about two accounts, the signer and the book, and one rule: only an order's owner may cancel it (§7.4). That rule is out of reach of a [solinv](https://github.com/psyto/solinv)-style account swap, because the order to cancel is named by its id in the instruction data, not by an account. So it is pinned by a test instead: `cancel_refuses_another_users_order` in [`fuzz/matching/`](https://github.com/psyto/openhl-solana/blob/main/fuzz/matching) has someone else cancel the maker's order and expects `caller is not the order owner`. Delete the owner check and rebuild: the test fails (we checked). Chapters 3, 6 and 12 show what the fuzzer does find, the bindings between accounts; Chapter 13 §13.6 shows how to state a rule like this one as a guard when the values live in account fields.
+
+The numbers in §7.3 and §7.4 come from the same harness: `cargo test --release --features invariant_ch8 -- --ignored --nocapture ch7_grid` in `fuzz/matching`, after building the program as in Chapter 3 §3.7.
 
 ---
 
