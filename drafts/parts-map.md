@@ -18,7 +18,7 @@ has no public URL yet, so the links point at the chapter files on GitHub until i
 | 5 | Sealevel Parallelism and Account Locks | — | | |
 | 6 | CPI Internals via Vault Deposits | solinv `signer_skip` / `owner_skip` / `account_swap` (+ `check_sets`) via [`fuzz/basics`](https://github.com/psyto/openhl-solana/tree/main/fuzz/basics) | solinv git rev `1badc31` | **linked**: §6.6 exercise, measured |
 | 7 | On-Chain CLOB Data Structures | `openhl-slab` | git, openhl-solana | split not yet committed |
-| 8 | Matching Engine Under CU Pressure | `openhl-slab` | git, openhl-solana | split not yet committed |
+| 8 | Matching Engine Under CU Pressure | `openhl-slab`; solinv `cu_dos` via [`fuzz/matching`](https://github.com/psyto/openhl-solana/tree/main/fuzz/matching) | openhl-solana git; solinv git rev `1badc31` | **linked**: §8.6 exercise; §8.2's CU table re-measured |
 | 9 | Oracle Ingestion: Pyth Internals | `openhl-oracle` | git, openhl-solana | split not yet committed |
 | 10 | Funding Rate Mechanics | `openhl-funding` | git, openhl-solana | split not yet committed |
 | 11 | Position Lifecycle and Liquidation Engine | `openhl-margin`; solinv `signer_skip` / `account_swap` (+ `check_sets`) via [`fuzz/positions`](https://github.com/psyto/openhl-solana/tree/main/fuzz/positions) | openhl-solana git; solinv git rev `1badc31` | **linked**: §11.7 exercise, measured; its first run found the unbound oracle |
