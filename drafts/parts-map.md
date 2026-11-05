@@ -21,7 +21,7 @@ has no public URL yet, so the links point at the chapter files on GitHub until i
 | 8 | Matching Engine Under CU Pressure | `openhl-slab` | git, openhl-solana | split not yet committed |
 | 9 | Oracle Ingestion: Pyth Internals | `openhl-oracle` | git, openhl-solana | split not yet committed |
 | 10 | Funding Rate Mechanics | `openhl-funding` | git, openhl-solana | split not yet committed |
-| 11 | Position Lifecycle and Liquidation Engine | `openhl-margin` | git, openhl-solana | split not yet committed |
+| 11 | Position Lifecycle and Liquidation Engine | `openhl-margin`; solinv `signer_skip` / `account_swap` (+ `check_sets`) via [`fuzz/positions`](https://github.com/psyto/openhl-solana/tree/main/fuzz/positions) | openhl-solana git; solinv git rev `1badc31` | **linked**: §11.7 exercise, measured; its first run found the unbound oracle |
 | 12 | Native Vault Program (Pooled Trading) | `openhl-vault`; solinv `signer_skip` / `owner_skip` / `account_swap` (+ `check_sets`) via [`fuzz/vault`](https://github.com/psyto/openhl-solana/tree/main/fuzz/vault) | openhl-solana git; solinv git rev `8bcb011` | **linked**: §12.7 exercise, measured; imported here |
 | 13 | Builder Codes as a Protocol Primitive | `openhl-fees`; solinv relation + guard (`unchecked_math`, `precondition_skip`) via [`fuzz/fees`](https://github.com/psyto/openhl-solana/tree/main/fuzz/fees) | openhl-solana git; solinv git rev `1badc31` | **linked**: §13.6 exercise, measured |
 | 14 | Cranks, Keepers, and Off-Chain Glue | — | | |

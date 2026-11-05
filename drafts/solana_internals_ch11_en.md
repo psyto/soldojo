@@ -19,7 +19,9 @@
 # Chapter 11 — Position Lifecycle and Liquidation Engine
 
 > Status: draft (v0.1).
-> Companion code: `crates/state/src/lib.rs` (`Position`), `programs/openhl-core/src/lib.rs` (helpers + `process_open_position` 1881–1993, `process_close_position` 1995–2061, `process_liquidate` 2063–2152), `scripts/position/src/main.rs`.
+> Companion code: [`crates/state/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs) (`Position`, `InsuranceFund`), [`programs/openhl-core/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (helpers + `process_open_position`, `process_close_position`, `process_liquidate`, `process_create_insurance_fund`, `process_insurance_fund_deposit`), [`scripts/position/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/position/src/main.rs), [`fuzz/positions/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/fuzz/positions/src/main.rs) (the solinv harness for §11.7).
+>
+> Since the parts split, the logic this chapter walks through lives in [`crates/margin/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/margin/src/lib.rs) (`openhl-margin`); the program calls it. The code quoted below is the pre-split version from `programs/openhl-core/src/lib.rs`, and its line numbers are not kept in sync.
 
 ---
 
@@ -35,7 +37,7 @@ The chapter ships three instructions, each of which integrates the SPL Token esc
 
 The collateral now lives where a real perp DEX puts it — the program's vault token account, owned by SPL Token, controlled by an `invoke_signed`-only PDA. The position record holds the *bookkeeping* (size, entry price, snapshot index); the vault holds the *money*. The two stay in sync because every state transition that touches the bookkeeping also runs the matching CPI.
 
-One scope-honesty note remains for this chapter: **insurance fund**. When a position closes underwater (`equity < 0`), the deposited collateral is already sitting in the vault — and the program currently lets that residue absorb the loss. In production you'd route a fraction of every liquidation penalty into an `InsuranceFund` account, draw from it when underwater closes leave a shortfall, and only socialize to the LP pool once the fund is empty. We discuss this in §11.6 but don't implement it; that's a follow-up chapter on its own.
+The chapter also ships the §11.6 **insurance fund**: a per-market `InsuranceFund` PDA + dedicated token account that receives a configurable slice (`INSURANCE_FUND_PENALTY_SHARE_BPS = 5000`, i.e. half) of every liquidation penalty and drains to cover underwater-close shortfalls. The fund's token account is authority-shared with the position vault (`[b"vault_auth", market]`), so no new signer PDA is introduced. Bootstrap via `CreateInsuranceFund` once per market; permissionless top-up via `InsuranceFundDeposit`.
 
 ---
 
@@ -66,7 +68,7 @@ Six load-bearing fields, plus discriminator + bump + padding.
 
 **`entry_price: u64`** is the mark price stamped from the oracle at `OpenPosition` time. It's the reference point for price PnL: `(mark - entry) × size`. We do not maintain a running entry-price for partial closes; the chapter's `ClosePosition` is all-or-nothing. Partial closes would require resetting `entry_price` to a size-weighted blend on each partial — a useful extension but not in scope.
 
-**`collateral: u64`** is the quote-currency margin amount. Strictly positive while the position is open; can be reduced to zero by underwater close or liquidation. Cannot go negative — losses beyond collateral are socialized to the insurance fund (or, in our scope-deferred version, just lost).
+**`collateral: u64`** is the quote-currency margin amount. Strictly positive while the position is open; can be reduced to zero by underwater close or liquidation. Cannot go negative — losses beyond collateral are absorbed by the per-market insurance fund up to its balance (§11.6); the residual once the fund is empty falls on whoever holds the other side of the trade (no autodeleverage logic in this chapter — that branch is its own architectural problem and is the only insurance-fund piece §11.6 still defers).
 
 **`funding_snapshot_index: i64`** is the cumulative funding index at the last touch (open, close, liquidate). The per-position settle pattern from Chapter 10 makes this the only field needed for funding accounting — the delta between `funding_now` and `funding_snapshot_index` times `size` is the funding PnL accrued since the snapshot.
 
@@ -78,7 +80,7 @@ The PDA derivation uses both `user` and `market` as seeds: `[b"position", user.k
 
 ## §11.2  Equity, notional, and the margin formulas
 
-Before walking the handlers, fix the formulas. From `programs/openhl-core/src/lib.rs:1814–1834`:
+Before walking the handlers, fix the formulas. From `programs/openhl-core/src/lib.rs:2329–2342`:
 
 ```rust
 fn compute_equity(position: &Position, mark: u64, funding_index_now: i64) -> i128 {
@@ -125,7 +127,7 @@ The gap between IM (10%) and MM (5%) is the **maintenance buffer** — how far t
 
 `process_open_position` at `programs/openhl-core/src/lib.rs`. The handler decomposes into six parts: validation, oracle/funding read, initial margin check, position PDA allocation, **collateral escrow CPI**, and the position state write.
 
-**Validation**: payload size, non-zero size and collateral, user is signer, market is owned by us, system program is the System program, **token program is SPL Token, user_token_account is owned by SPL Token, and the vault_token_account matches the derived PDA at `[VAULT_SEED, market, mint]`** (the new escrow-side checks). PDA derivation for the position itself:
+**Validation**: payload size, non-zero size and collateral, user is signer, market is a Market account owned by us **whose `quote_mint` is the passed mint** (a position records no mint and ClosePosition/Liquidate pay out of the quote-mint vault, so without this a worthless mint could be escrowed and closed out for real quote tokens), system program is the System program, **token program is SPL Token, user_token_account is owned by SPL Token, and the vault_token_account matches the derived PDA at `[VAULT_SEED, market, mint]`** (the new escrow-side checks). PDA derivation for the position itself:
 
 ```rust
 let (expected, bump) = Pubkey::find_program_address(
@@ -137,16 +139,19 @@ if position_ai.key != &expected {
 }
 ```
 
-**Read external inputs** (lines 1922–1923):
+**Read external inputs** (lines 2911–2912):
 
 ```rust
+verify_market_oracle_and_funding(oracle_ai, funding_ai, market_ai.key, program_id)?;
 let mark = read_fresh_oracle(oracle_ai, program_id)?;
 let funding_snapshot = read_funding_index(funding_ai, program_id)?;
 ```
 
-`read_fresh_oracle` (lines 1838–1858) factors the Chapter 9 staleness gauntlet into a helper — same checks (owner + discriminator + price>0 + age vs Clock), reused across all three position handlers. `read_funding_index` (lines 1860–1869) is the simpler read used to snapshot the funding index.
+`read_fresh_oracle` (lines 2353–2372) factors the Chapter 9 staleness gauntlet into a helper — same checks (owner + discriminator + price>0 + age vs Clock), reused across all three position handlers. `read_funding_index` (lines 2597–2607) is the simpler read used to snapshot the funding index.
 
-**Initial margin check** (lines 1932–1942):
+Neither helper asks *whose* oracle or funding state it was handed: every market's oracle is owned by this program and carries the same discriminator. So all three position handlers first call `verify_market_oracle_and_funding`, which requires the two accounts to be this market's PDAs, `[ORACLE_SEED, market]` and `[FUNDING_SEED, market]`, the same derivation `PlaceOrderChecked` already used for its oracle (Chapter 9). The first version of this chapter left it out of all three handlers. With two markets in one quote mint, one at 100 and one at 200, a user opened a long on the first and closed it naming the second market's oracle: 200 in, 1,200 out of the first market's token account, which holds everyone's collateral. A liquidator could liquidate a healthy short the same way. Chapter 9's publisher check (Exercise §9.2) does not help, because both prices are honest; they are just the wrong market's. §11.7 shows how a fuzzer found it. (Chapter 9's two Pyth order variants still take any Pyth feed; the comment above `process_place_order_checked_pyth` says so, and the fix there is to pin the feed on `Market`. They only check an order's price band; no position settles against them.)
+
+**Initial margin check** (lines 2915–2926):
 
 ```rust
 let notional_val = notional(size, mark);
@@ -197,9 +202,9 @@ Four data writes. `entry_price = mark` stamps the oracle's price as the position
 
 ## §11.4  Walking `ClosePosition`
 
-`process_close_position`. Simpler than open in one dimension (no PDA creation) but more involved in another: it adds an outbound SPL Token CPI signed by the vault authority PDA via `invoke_signed`.
+`process_close_position`. Simpler than open in one dimension (no PDA creation) but more involved in another: it runs two outbound SPL Token CPIs signed by the vault authority PDA via `invoke_signed` — the user payout, and (on underwater close) the insurance fund's shortfall drain. The handler takes 12 accounts; the last two are the insurance fund state and its token account (§11.6).
 
-**Validation + owner check** (lines 2007–2024):
+**Validation + owner check** (lines 3052–3062):
 
 ```rust
 if position.user != *user_ai.key.as_ref() {
@@ -210,7 +215,7 @@ if position.user != *user_ai.key.as_ref() {
 
 Only the position's owner may close it voluntarily. Liquidate (§11.5) is the route for anyone else. The user check uses the `user` field stored in the position rather than the PDA derivation — same information, easier to read.
 
-**Read external inputs + compute equity** (lines 2026–2040):
+**Read external inputs + compute equity** (lines 3040–3072):
 
 ```rust
 let mark = read_fresh_oracle(oracle_ai, program_id)?;
@@ -257,7 +262,7 @@ spl_token_transfer_vault_signed(
 
 The vault authority is a PDA at `[VAULT_AUTH_SEED, market]`, so the program signs for it: `invoke_signed` with `[VAULT_AUTH_SEED, market_key, &[bump]]`. The vault token account drops `payout` units; the user's token account receives them. If `payout == 0` (underwater close), the helper skips the CPI — no point burning CU on a zero-amount transfer.
 
-**Underwater closes lose collateral, don't pass losses on.** A position that closes with equity = -50 (loss exceeds collateral) sends `payout = 0` to the user, but the 100 units they originally deposited are still sitting in the vault — now decoupled from any position record. That residue is the implicit subsidy to whoever was on the other side of the trade. In production an InsuranceFund draws on these residues + a fraction of liquidation penalties to cover the shortfalls properly; see §11.6.
+**Underwater closes drain the insurance fund.** A position that closes with equity = -50 sends `payout = 0` to the user, and the handler additionally drains `min(50, fund.balance)` from the insurance fund's token account into the vault. The drain is the bookkeeping side of "the protocol covered the shortfall instead of the residue silently subsidizing the counterparty" — see §11.6 for the full design including the cap behavior when the fund runs dry.
 
 > **Exercise §11.4.** Open a position at entry = 100, size = 5, collateral = 100. Move the oracle to mark = 80. Close. The expected equity is `100 + 5 × (80 - 100) = 0`. Verify the user's quote token balance after the close is unchanged from before the open (because payout = 0 — the 100 they deposited went into the vault and stayed there).
 
@@ -265,7 +270,7 @@ The vault authority is a PDA at `[VAULT_AUTH_SEED, market]`, so the program sign
 
 ## §11.5  Walking `Liquidate`
 
-`process_liquidate`. The crucial difference from close: **anyone can call it**. The handler runs *two* outbound SPL Token CPIs — vault → liquidator for the penalty bounty, vault → position-owner for the remainder — both signed by the vault authority PDA.
+`process_liquidate`. The crucial difference from close: **anyone can call it**. The handler runs *four* outbound SPL Token CPIs — vault → liquidator (the liquidator's slice of the penalty), vault → insurance fund (the fund's slice of the penalty), vault → position-owner (the remainder), and fund → vault (the shortfall drain when equity < 0) — all signed by the same vault authority PDA. The handler takes 13 accounts; the last two are the InsuranceFund state and its token account (§11.6).
 
 **Validation**: the *liquidator* must be a signer, but the program does *not* check that the liquidator matches the position's user. Anyone can call liquidate on anyone's position. Additional escrow-side checks: token_program is SPL Token, both `owner_token` and `liquidator_token` are SPL Token-owned, vault_token matches the derived PDA, vault_authority matches the derived PDA (and the bump is captured for the two invoke_signed calls below).
 
@@ -277,7 +282,7 @@ if !liquidator_ai.is_signer { return Err(...); }
 
 This permissionless property is the heart of the liquidation engine. The system pays a small bounty (the liquidation penalty) to whoever first notices an underwater position and submits the liquidation tx. Without this, liquidations would depend on the protocol team running a centralized liquidator bot — which works but introduces uptime risk.
 
-**Health check** (lines 2098–2111):
+**Health check** (lines 3233–3253):
 
 ```rust
 let equity = compute_equity(position, mark, funding_now);
@@ -295,7 +300,7 @@ if equity >= maint_required {
 
 If `equity >= maintenance_margin`, the position is fine and the call is rejected. The liquidator just paid tx fees for nothing — a small disincentive to spam-call liquidate against healthy positions. (Production protocols sometimes refund tx fees when this happens, or simply expect liquidators to do their own off-chain health check before submitting.)
 
-**Apply penalty + force-close + run two CPIs**:
+**Apply penalty (split between liquidator and fund) + force-close + run four CPIs**:
 
 ```rust
 // Inside a borrow scope (so position data ref drops before CPIs):
@@ -305,22 +310,31 @@ let equity_positive = if equity < 0 { 0 } else { equity };
 let penalty = raw_penalty.min(equity_positive);             // cap at available equity
 let owner_remainder = (equity_positive - penalty).max(0);
 
-penalty_amount = penalty as u64;
-owner_amount = owner_remainder as u64;
+// Split the penalty per INSURANCE_FUND_PENALTY_SHARE_BPS (= 5000 → 50/50).
+let fund_slice = penalty * INSURANCE_FUND_PENALTY_SHARE_BPS / 10_000;
+let liquidator_slice = penalty - fund_slice;
 
 position.collateral = 0;
 position.size = 0;
 position.entry_price = 0;
 position.funding_snapshot_index = funding_now;
+// ─── borrow ends ───
 
-// ─── outside the borrow scope ───
-// CPI 1: vault → liquidator
-spl_token_transfer_vault_signed(vault_token_ai, liquidator_token_ai, ..., penalty_amount)?;
-// CPI 2: vault → position owner
-spl_token_transfer_vault_signed(vault_token_ai, owner_token_ai, ..., owner_amount)?;
+// Fund state updates (own borrow scope):
+//   fund.balance         += fund_slice;
+//   fund.total_deposits  += fund_slice;
+//   shortfall_drain      = if equity < 0 { min(-equity, fund.balance) } else { 0 };
+//   fund.balance         -= shortfall_drain;
+//   fund.total_drawdowns += shortfall_drain;
+
+// Then four Token Transfers, all invoke_signed with vault_authority seeds:
+spl_token_transfer_vault_signed(vault_token_ai, liquidator_token_ai, ..., liquidator_slice)?;
+spl_token_transfer_vault_signed(vault_token_ai, fund_token_ai,       ..., fund_slice)?;
+spl_token_transfer_vault_signed(vault_token_ai, owner_token_ai,      ..., owner_remainder)?;
+spl_token_transfer_vault_signed(fund_token_ai,  vault_token_ai,      ..., shortfall_drain)?;
 ```
 
-The penalty is capped at the equity that survives (you can't pay a 50-unit bounty out of a position with 10 units of equity remaining). The two CPIs are sequential, both `invoke_signed` with the same vault-authority seeds. Either both succeed and the position is fully wound down, or the whole transaction reverts — atomicity is what keeps the books consistent.
+The penalty is capped at the equity that survives (you can't pay a 50-unit bounty out of a position with 10 units of equity remaining). The four CPIs are sequential, all `invoke_signed` with the same vault-authority seeds. Either every Transfer succeeds and the position + fund state are fully wound, or the whole transaction reverts. The shortfall drain only fires (non-zero) on the equity < 0 path; on a healthy liquidation it's a 0-amount Transfer that the helper short-circuits.
 
 The penalty serves two purposes:
 
@@ -337,25 +351,90 @@ The Liquidate handler does NOT verify *why* the position is underwater. It could
 
 ---
 
-## §11.6  The missing piece — insurance fund
+## §11.6  Insurance fund — penalty split, shortfall drain
 
-One thing this chapter still does not implement, with its production role called out.
+The vanilla escrow path leaves one honesty problem: when a position closes underwater (`equity < 0`), the user's deposited collateral is already in the vault, the user gets 0, and the residue implicitly subsidizes the counterparty. There's no accounting of "the protocol absorbed this loss" — the vault is just quieter than it should be. The insurance fund is the bookkeeping piece that fixes this.
 
-**Insurance fund.** A separate `InsuranceFund` account per market holds a pool of quote-currency that covers underwater-close shortfalls. The pattern:
+### The state
 
-```text
-when ClosePosition / Liquidate computes equity < 0:
-    shortfall = -equity
-    if insurance_fund.balance >= shortfall:
-        insurance_fund.balance -= shortfall
-        # counterparty made whole, life continues
-    else:
-        # auto-deleverage or socialized loss — bigger architectural question
+Two PDAs per market:
+
+```rust
+// crates/state/src/lib.rs
+pub struct InsuranceFund {
+    pub discriminator: [u8; 8],   // INSFUND\0
+    pub bump: u8,
+    pub _pad0: [u8; 7],
+    pub market: [u8; 32],
+    pub mint: [u8; 32],           // quote_mint (matches market.quote_mint)
+    pub balance: u64,             // mirrors the token-account balance
+    pub total_deposits: u64,      // observability
+    pub total_drawdowns: u64,     // observability
+    pub _reserved: [u8; 32],
+}
 ```
 
-The insurance fund is funded by a fraction of liquidation penalties (e.g., 50% to liquidator, 50% to insurance fund), exchange fees, and sometimes by exchange equity at launch. Without an insurance fund, every losing position with insufficient collateral imposes a hidden loss on whoever was on the other side — usually the LP pool or the rest of the book.
+```text
+fund state PDA  : [b"insurance_fund",       market]      — program-owned
+fund token PDA  : [b"insurance_fund_token", market, mint] — SPL Token-owned,
+                                                             authority = vault_authority
+                                                             (the same PDA Liquidate
+                                                              already signs as)
+```
 
-In our current escrowed handlers, the residue of an underwater close stays in the vault — physically, the user's original deposit is still there, just not associated with any active position. That residue is implicitly subsidizing the counterparty. An insurance fund would route those leftovers properly: a fraction of each liquidation penalty into the fund at withdrawal time, a draw from the fund whenever an underwater close would otherwise leave a vault residue. The accounting is a small chapter on its own (15th in the track if added) — the math is simple, the wiring touches `Liquidate` and `ClosePosition`, and the new `InsuranceFund` PDA is the only state addition.
+Reusing `vault_authority` is the choice that keeps the implementation small. The position vault and the fund vault are different token accounts but share one signer PDA — so `Liquidate` already knows how to sign `vault → fund` or `fund → vault` Transfers without introducing a new authority surface. The on-chain `balance` counter is redundant with the SPL Token account's lamport-side balance, but it gives scripts and indexers cheap access to the running total without parsing SPL Token bytes, and it lets the chapter's "verify yourself" tests assert on it directly.
+
+### Penalty split
+
+`Liquidate` now splits the penalty between the liquidator and the fund:
+
+```rust
+let fund_slice = penalty * INSURANCE_FUND_PENALTY_SHARE_BPS / 10_000;  // = penalty / 2
+let liquidator_slice = penalty - fund_slice;
+```
+
+With `INSURANCE_FUND_PENALTY_SHARE_BPS = 5000`, half the penalty goes to the fund as a deposit, the rest to the liquidator as their bounty. Three Token Transfers fire per liquidate now instead of two — vault → liquidator (liquidator slice), vault → fund (fund slice), vault → owner (remainder).
+
+In a healthy liquidation (equity > 0, position only underwater on margin), the liquidator still gets paid enough to make liquidation worth their CU + tx-fee cost. With `LIQUIDATION_PENALTY_BPS = 100` and the 50/50 split, the liquidator's effective bounty drops from 1% of notional to 0.5%. For our chapter values that's fine; production tuning is a function of typical position size, liquidator infrastructure costs, and how aggressively the protocol wants to grow the fund.
+
+### Shortfall drain
+
+`ClosePosition` and `Liquidate` both run the same drain logic at the end of their handler:
+
+```rust
+let shortfall_drain = if equity < 0 {
+    let shortfall = (-equity).min(u64::MAX as i128) as u64;
+    shortfall.min(fund.balance)        // never drain more than the fund holds
+} else {
+    0
+};
+fund.balance -= shortfall_drain;
+fund.total_drawdowns += shortfall_drain;
+// ... then: SPL Token Transfer fund_token → vault_token (shortfall_drain)
+```
+
+The Transfer goes *into* the vault, not to the user. The user still receives `payout = if equity < 0 { 0 } else { equity }`. The drain is bookkeeping for the protocol — it represents the fund covering the loss the vault would otherwise have absorbed silently. The Transfer is signed by `vault_authority`, the same PDA that signs the vault → user payout, so the same `invoke_signed` call path is reused for both.
+
+When `fund.balance < shortfall` the drain caps at `fund.balance`. The uncovered remainder is a *socialized loss*: it stays in the vault as residue and falls implicitly on whoever holds the other side of the trade. Production exchanges resolve this with **autodeleverage** (force-close the most profitable counterparty positions until the loss is fully absorbed) or **explicit socialization** (mark all open positions in the same direction down). Our chapter ships the simpler path of "let it stay residue, document the cap" — autodeleverage is its own architectural problem.
+
+### CreateInsuranceFund + InsuranceFundDeposit
+
+`CreateInsuranceFund` is the one-shot bootstrap, run once per market. It mirrors `CreateVault` from Chapter 6 — System `create_account` with PDA signing for both the state account and the token account, plus an `InitializeAccount3` CPI to set the fund-token's owner to `vault_authority`.
+
+`InsuranceFundDeposit` is permissionless. Anyone with quote tokens can credit the fund — most commonly the protocol team for initial seed, but in practice donations or admin top-ups are valid uses too. The handler runs in the standard "update counters in borrow scope, drop borrow, Transfer at the end" pattern, with `total_deposits` advancing alongside `balance`.
+
+### Two account additions to ClosePosition / Liquidate
+
+Both handlers grew two accounts at the end of their list:
+
+```
+N-2.  [WRITE]  insurance_fund        — InsuranceFund state PDA
+N-1.  [WRITE]  insurance_fund_token  — fund's SPL token account
+```
+
+`ClosePosition` is now 12 accounts; `Liquidate` is 13. The fund-state writability is for the counter updates; the fund-token writability is for the penalty-credit Transfer and (on underwater close) the shortfall drain.
+
+> **Exercise §11.6.** Open a position, push the oracle hard against it until equity falls below `maint`, but stop *before* equity goes negative. Liquidate. Observe in the dump: the fund's `total_deposits` should grow by `fund_slice`. Now reduce the oracle further to push equity below zero on the same market with a fresh position. Liquidate again — `total_drawdowns` should grow by `min(-equity, fund.balance)`. When does the fund stop being able to absorb shortfalls, and what would you ship at that point?
 
 ---
 
@@ -404,6 +483,54 @@ Math:
 1. **The IM↔MM gap is the buffer.** Open a position right at IM (collateral = 10% of notional). Without any oracle move, check via the dump output that the position is healthy (equity ≈ collateral, well above MM). Move the oracle to where the IM gap is consumed (5% adverse). Now equity ≈ MM — still not liquidatable. One more bp of adverse move and `Liquidate` succeeds.
 2. **Funding accrual can flip the answer.** Open a position with collateral right at MM. Don't touch the oracle. Let funding accumulate against you via `funding --update --rate 100`, wait a minute, `funding --update --rate 100`. Check the position's computed equity in the dump — funding PnL has dragged it below MM even though the price hasn't moved. `Liquidate` will succeed.
 3. **Closing returns collateral; liquidating doesn't.** Open at IM, close immediately (no price move, no funding). `position.collateral` ≈ original. Open at IM again, let it fall to MM, get liquidated by a separate keypair. `position.collateral` after liquidate = equity − penalty ≈ much less. The penalty is the daylight between "exit cleanly" and "let yourself get liquidated."
+
+
+### Now let a tool look for the check you forgot
+
+[`fuzz/positions/`](https://github.com/psyto/openhl-solana/blob/main/fuzz/positions) is a [solinv](https://github.com/psyto/solinv) harness for the three position handlers. Two markets share the quote mint Q, each with its oracle, funding state, token account and insurance fund: `m` at 100 and `n` at 200. On `m`, A holds a long and B a short, both healthy; E holds a long opened at 110 that is under maintenance margin at 100 but still owed a remainder; C has no position yet. On `n`, D holds a long, so `n`'s token account has tokens in it. The specs open C's position, close A's, liquidate B's and E's, and swap in `n`'s oracle and funding state, another user's position, `n`'s token account and insurance fund, and token accounts the caller does not hold; two sets swap all of `n`'s accounts at once. Set up as in Chapter 3 §3.7, then:
+
+```bash
+cargo build-sbf --manifest-path programs/openhl-core/Cargo.toml
+cd fuzz/positions
+cargo build --release --features invariant_ch11
+cargo test --release --features invariant_ch11
+timeout -s INT 60 crucible run openhl_positions_fuzz invariant_ch11 \
+    --binary-in target/release/invariant_test --timeout 45
+```
+
+On the program as it is, no `[FUZZ_FINDING]` line appears. On the program before `verify_market_oracle_and_funding`, the first run reported, within seconds:
+
+```
+[FUZZ_FINDING] [account-swap:…] ix open_position succeeded with account 3 swapped … (different context, same shape)
+```
+
+Slot 3 is the oracle. Crucible stops an iteration at the first finding, so Close and Liquidate never got their turn; the tests `close_refuses_another_markets_oracle` and `liquidate_refuses_another_markets_oracle` pin those two.
+
+> **Exercise §11.7.** Delete each check in turn, rebuild, run, and predict first. Here is what we measured, 45 seconds each; for the "no" rows, the last column is what refused the swapped call instead, read from its logs (the `probe` test prints them):
+>
+> | Check deleted | Caught? | How, or what refused it instead |
+> |---|---|---|
+> | Open: `user_ai.is_signer` | no | the runtime: unauthorized signer (the collateral transfer needs the user's signature) |
+> | Open: `market_ai.owner == program_id` | no | our next check: `market is not a Market account` |
+> | Open: `verify_vault_token_account` | **yes**, account-swap, slot 7 | collateral escrowed into `n`'s account, recorded on `m` |
+> | Open: the position PDA | no | the runtime: unauthorized signer (`create_account` at another address needs its signature) |
+> | Open: `verify_market_oracle_and_funding` | **yes**, account-swap, slot 3 | entry price from `n`'s oracle |
+> | Open: the initial margin check | no | nothing in the harness states the margin rule; `open_below_initial_margin_is_refused` fails |
+> | Close: `user_ai.is_signer` | **yes**, signer-skip | anyone could close A's position |
+> | Close: `position.user == user` | **yes**, account-swap, slot 1 | A closed B's position |
+> | Close: `position.market == market` | **yes**, with a set | `m`'s position closed against all of `n`'s accounts |
+> | Close: `verify_vault_token_account` | no | SPL Token: `owner does not match` (`m`'s authority cannot sign for `n`'s account) |
+> | Close: `verify_market_oracle_and_funding` | **yes**, account-swap, slot 2 | closed at `n`'s price; `close_refuses_another_markets_oracle` fails |
+> | Close: `fund.market == market` | **yes**, account-swap, slot 10 | `n`'s insurance fund accepted for `m`'s position (A's close was in profit, so no fund was drawn on; the finding is the acceptance) |
+> | Liquidate: `liquidator_ai.is_signer` | **yes**, signer-skip | — but see below |
+> | Liquidate: `position.market == market` | **yes**, with a set | as for Close |
+> | Liquidate: the owner's token account | **yes**, account-swap, slot 6 | E's remainder paid to the liquidator |
+> | Liquidate: `is_liquidatable` | no | nothing in the harness states when liquidation is allowed; `healthy_position_is_not_liquidatable` fails |
+> | Liquidate: `verify_market_oracle_and_funding` | **yes**, account-swap, slot 2 | B's healthy short liquidated at `n`'s price; `liquidate_refuses_another_markets_oracle` fails |
+>
+> Three rows need a second look. The liquidator signer row is a finding that is not a hole: liquidation is permissionless (§11.5), the penalty goes to whatever token account the caller names, and nothing else depends on who signed, so dropping that check lets in no one who was not already allowed. The two margin rows are holes the fuzzer cannot see: a position opened without enough collateral, or a healthy one liquidated, is a call with all the right accounts. Only the tests, which state the rules, catch those. A fuzzer that swaps accounts finds missing *bindings*; rules about numbers need someone to write them down (Chapter 13 §13.6 does that for fees).
+>
+> Two traps from writing the harness, both of which made a row read "no" for the wrong reason. Our first liquidation target was B, healthy at `m`'s price, so every swap of B's liquidation failed the health check before it reached the account being tested. E, liquidatable at 100, fixed that, and then E's remainder after the penalty was 0, so routing it to the liquidator moved nothing; E now has 130 collateral. And our first version of the owner-account mutation added `false &&` to a condition chained with `||`, which by precedence left the rest of the check in place. In each case the probe's log line showed which check had actually refused the call.
 
 ---
 
