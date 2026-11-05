@@ -13,10 +13,10 @@ has no public URL yet, so the links point at the chapter files on GitHub until i
 |---|---|---|---|---|
 | 1 | The Account Model from the Bytes Up | `openhl-state` (account layouts) | git, openhl-solana | split not yet committed |
 | 2 | Writing a Native Program Without Anchor | — | | the point is to have none |
-| 3 | PDAs from First Principles | solinv `pda_forge`, `bump_seed_canonicalization` | git rev `4a800dc` | not yet linked |
-| 4 | Compute Budget and Heap Discipline | solinv `cu_dos` | git rev `4a800dc` | not yet linked |
+| 3 | PDAs from First Principles | solinv `signer_skip` / `account_swap` via [`fuzz/basics`](https://github.com/psyto/openhl-solana/tree/main/fuzz/basics) | solinv git rev `1badc31` | **linked**: §3.7 exercise, measured |
+| 4 | Compute Budget and Heap Discipline | solinv `cu_dos` via [`fuzz/basics`](https://github.com/psyto/openhl-solana/tree/main/fuzz/basics) | solinv git rev `1badc31` | **linked**: §4.7 exercise, measured |
 | 5 | Sealevel Parallelism and Account Locks | — | | |
-| 6 | CPI Internals via Vault Deposits | solinv `cpi_reentrancy`, `account_swap` | git rev `4a800dc` | not yet linked |
+| 6 | CPI Internals via Vault Deposits | solinv `signer_skip` / `owner_skip` / `account_swap` (+ `check_sets`) via [`fuzz/basics`](https://github.com/psyto/openhl-solana/tree/main/fuzz/basics) | solinv git rev `1badc31` | **linked**: §6.6 exercise, measured |
 | 7 | On-Chain CLOB Data Structures | `openhl-slab` | git, openhl-solana | split not yet committed |
 | 8 | Matching Engine Under CU Pressure | `openhl-slab` | git, openhl-solana | split not yet committed |
 | 9 | Oracle Ingestion: Pyth Internals | `openhl-oracle` | git, openhl-solana | split not yet committed |

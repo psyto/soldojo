@@ -19,7 +19,7 @@
 # 第12章 — ネイティブ Vault プログラム（プール取引）
 
 > 状態: ドラフト (v0.1)。
-> 教材コード: [`crates/state/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs)（`TradingVault`、`VaultShare`）、[`programs/openhl-core/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)（`process_create_trading_vault` 3346–3465 行、`process_vault_deposit` 3480–3639 行、`process_vault_withdraw` 3653–3804 行、`process_vault_update_nav` 3811–3851 行）、[`scripts/vault/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/vault/src/main.rs)、[`fuzz/vault/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/fuzz/vault/src/main.rs)（§12.7 の solinv ハーネス）。
+> 教材コード: [`crates/state/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs)（`TradingVault`、`VaultShare`）、[`programs/openhl-core/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)（`process_create_trading_vault` 3357–3476 行、`process_vault_deposit` 3491–3650 行、`process_vault_withdraw` 3664–3815 行、`process_vault_update_nav` 3822–3862 行）、[`scripts/vault/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/vault/src/main.rs)、[`fuzz/vault/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/fuzz/vault/src/main.rs)（§12.7 の solinv ハーネス）。
 >
 > 部品化に伴い、この章で読むロジックは [`crates/vault/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/vault/src/lib.rs)(`openhl-vault`)に移り、プログラムはそれを呼び出す。以下に引用するコードは分割前の `programs/openhl-core/src/lib.rs` の版で、行番号は追従していない。
 
@@ -485,7 +485,7 @@ timeout -s INT 90 crucible run openhl_vault_fuzz invariant_vault \
 >
 > 先を読む前に、「いいえ」の 4 行がなぜ「いいえ」なのかを考えよ。
 >
-> 4 つとも、別の仕組みが裏で支えている。これらは攻撃を試しておらず、通り道が見つからなかっただけだ。2 つの所有者チェックは、ランタイム自身が支えている(第 1 章)。withdraw は両方のアカウントに書き込み、プログラムは自分が所有していないアカウントを変えられないので、すり替えたアカウントは次の CPI か命令の最後で落ちる。deposit の署名チェックは SPL Token が支えている(第 6 章)。deposit は預金者の口座からトークンを動かすので、預金者の署名が要る。この 3 つも、早く、分かりやすいエラーで落ちるので、検査として残す価値はある。
+> 4 つとも、別の仕組みが裏で支えている。これらは攻撃を試しておらず、通り道が見つからなかっただけだ。2 つの所有者チェックは、ランタイム自身が支えている(第 1 章)。withdraw は両方のアカウントに書き込み、プログラムは自分が所有していないアカウントを変えられないので、すり替えたアカウントは次の CPI か命令の最後で落ちる。deposit の署名チェックは、ランタイムの署名の規則が支えている(第 6 章 §6.2)。deposit が呼ぶ SPL Token の `Transfer` は預金者を署名者として扱うが、プログラムは自分が受け取った署名しか渡せないので、SPL Token が動く前に CPI が落ちる(`Cross-program invocation with unauthorized signer`)。この 3 つも、早く、分かりやすいエラーで落ちるので、検査として残す価値はある。
 >
 > 4 つ目は SPL Token の authority の照合が支えている。vault は自分としてしか署名せず、各 vault のトークン口座はその vault にしか従わないので、払い出し元に別の vault のトークン口座を指定すると `OwnerMismatch` で落ちる。最初からそうだったわけではない。この章の最初の版では、市場のトークン口座はすべて 1 つの `vault_authority` の PDA(`[VAULT_AUTH_SEED, market]`)に従っており、この行は本物の穴だった。C は屑の mint で vault を開き、屑を 300,000 入れ、払い出し元に本物の mint のトークン口座を、送り先に C 自身の本物の mint の口座を指定して引き出し、屑 300,000 を本物 300,000 に換えた。これは**2 つ**のアカウントを同時に変える必要がある。solinv のふつうの account-swap は 1 度に 1 つの slot しか変えないので、最初の表はこの行を「いいえ」とし、害はないと書いていた。攻撃を見つけたのはレビュアーである。ハーネスは今もこの組を宣言しており(`check_sets`: C の屑の引き出しで、送り先と払い出し元を一緒に差し替える。払い出し元は今は K のトークン口座)、テスト `withdraw_refuses_the_token_account_of_another_vault` でも押さえてある。このテストがわざと K の残高より少ない 100,000 を求めているのには理由がある。K の口座の残高より多い 300,000 を求めると、SPL Token は authority を見る前に残高で拒否する。するとプログラムの照合を消しても出るのは「insufficient funds」で、この行を SPL Token が支えているかどうかは分からない。100,000 なら `OwnerMismatch` が出る。拒否から何かを結論するときは、**どの**拒否なのかを確かめよ。そして fuzzer の「いいえ」は、あなたが書いた差し替えでは通り道が見つからなかったという意味でしかない。通り道がないという意味ではない。
 >

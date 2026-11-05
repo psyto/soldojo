@@ -19,7 +19,7 @@
 # 第6章 — Vault Deposits で歩く CPI 内部
 
 > 状態: ドラフト (v0.1)。
-> 教材コード: `programs/openhl-core/src/lib.rs`（`process_create_vault` 615–728 行、`process_deposit` 731–800 行）、`scripts/create-vault/src/main.rs`、`scripts/deposit/src/main.rs`。
+> 教材コード: [`programs/openhl-core/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)（`process_create_vault` 881–990 行、`process_deposit` 997–1065 行）、[`scripts/create-vault/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/create-vault/src/main.rs)、[`scripts/deposit/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/deposit/src/main.rs)、[`fuzz/basics/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics/src/main.rs)（§6.6 の solinv ハーネス）。
 > 検証対象バージョン: solana-cpi 2.2.1、solana-program 2.3.0、SPL Token プログラム（TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA）。
 
 ---
@@ -95,11 +95,11 @@ pub fn invoke(instruction: &Instruction, account_infos: &[AccountInfo]) -> Progr
 
 ## §6.3  CreateVault を歩く — 2 連続 CPI
 
-CreateVault は、両方の CPI 形式が同じハンドラに現れる場所だ。`programs/openhl-core/src/lib.rs:680–720` から。
+CreateVault は、両方の CPI 形式が同じハンドラに現れる場所だ。`programs/openhl-core/src/lib.rs:881–990` から。
 
-**PDA 派生**（668–678 行）が 2 つの pubkey を準備する: `[VAULT_SEED, market.key, mint.key]` の `vault_token_account` と、`[VAULT_AUTH_SEED, market.key]` の `vault_authority`。第 3 章と同じ find_program_address 機構。bump が返り、vault bump は下で使う。authority bump はまだ不要だ（出金を追加する後の章で、プログラムが vault authority として署名する必要が出てきたときに重要になる）。
+**PDA 派生**（921–943 行）が 2 つの pubkey を準備する: `[VAULT_SEED, market.key, mint.key]` の `vault_token_account` と、`[VAULT_AUTH_SEED, market.key]` の `vault_authority`。第 3 章と同じ find_program_address 機構。bump が返り、vault bump は下で使う。authority bump はまだ不要だ（出金を追加する後の章で、プログラムが vault authority として署名する必要が出てきたときに重要になる）。
 
-**CPI 1 — System::create_account**、689–700 行。
+**CPI 1 — System::create_account**、945–964 行。
 
 ```rust
 let create_ix = system_instruction::create_account(
@@ -125,7 +125,7 @@ invoke_signed(
 
 AccountInfo 配列に注目: `[payer_ai, vault_ai, system_ai]`。System プログラムが `create_account` で必要とするのはこの 3 つだけ（ハンドラの他のアカウント — market、mint、vault_authority、token_program — は System が必要としないので渡さない）。
 
-**CPI 2 — SPL Token InitializeAccount3**、707–720 行。
+**CPI 2 — SPL Token InitializeAccount3**、966–986 行。
 
 ```rust
 let mut init_data = Vec::with_capacity(1 + 32);
@@ -154,7 +154,7 @@ CPI 2 つ、ハンドラ 1 つ、両方の署名形式。このパターンは P
 
 ## §6.4  Deposit を歩く — ユーザは外側で署名
 
-Deposit はより単純なケースだ。`programs/openhl-core/src/lib.rs:771–800` から。
+Deposit はより単純なケースだ。`programs/openhl-core/src/lib.rs:997–1065` から。
 
 命令データ。
 
@@ -206,7 +206,7 @@ invoke(
 
 ## §6.5  SPL Token 命令データを手で組み立てる
 
-`spl-token` クレートは**意図的に**インポートしなかった。代わりに 2 命令分のバイトを手で組み立てた。`lib.rs` の 594–598 行。
+`spl-token` クレートは**意図的に**インポートしなかった。代わりに 2 命令分のバイトを手で組み立てた。`lib.rs` の 861–864 行。
 
 ```rust
 mod spl_token_ix {
@@ -274,8 +274,53 @@ openhl-core CPI マップ:
 ### 自分で検証する 3 項目
 
 1. **`invoke` はシードなしの `invoke_signed`。** `solana-cpi-2.2.1/src/lib.rs:137` を開き、3 行の本体を読め。両者の違いは「PDA シードを渡したか」だけだと身体化せよ。それ以外のすべては同じシステムコール。
-2. **被呼び出しプログラムの AccountInfo。** CreateVault の両 CPI で、`invoke[_signed]` に渡される `accounts` スライスは被呼び出しプログラムの AccountInfo を含む — CPI 1 では `system_ai`、CPI 2 では `token_ai`。これを忘れるのは初期 Solana で最も頻出のミスの 1 つで、ランタイムは紛らわしい `AccountNotFound` 風味のエラーを返す。`lib.rs:691, 720` を読んで確認せよ。
+2. **被呼び出しプログラムの AccountInfo。** CreateVault の両 CPI で、`invoke[_signed]` に渡される `accounts` スライスは被呼び出しプログラムの AccountInfo を含む — CPI 1 では `system_ai`、CPI 2 では `token_ai`。これを忘れるのは初期 Solana で最も頻出のミスの 1 つで、ランタイムは紛らわしい `AccountNotFound` 風味のエラーを返す。[`lib.rs:955, 986`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs#L955) を読んで確認せよ。
 3. **ユーザは一度署名し、SPL Token がそれを使う。** バリデータに対して `deposit` を実行せよ。ユーザ鍵ペアが外側トランザクションに署名する。SPL Token は `is_signer = true`（ユーザについて）の `Transfer` 命令を受け取る。トランスファが確定する。どこにも 2 度目の署名はない。1 署名、伝播。
+
+
+### 検査を道具に試させる
+
+`CreateVault` には検査が 7 つ、`Deposit` には 4 つある。第 3 章 §3.7 では [solinv](https://github.com/psyto/solinv) を `CreateMarket` に走らせ、消した検査はどれもランタイムが支えていた。この 2 つのハンドラは別のプログラムに CPI するので、検査を支えるものの候補が増え、支えるもののない検査も 1 つある。同じハーネス [`fuzz/basics/`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics) に両方の仕様がある。payer や user の署名フラグを外すことと、各 slot を攻撃者が渡せる物に差し替えることだ(このプログラムが所有しない「market」、「mint」としてのトークン口座、PDA ではない vault のアドレス、vault の authority としての呼び出し側自身、各プログラムの slot に別のプログラム、A の払い出し元として B のトークン口座)。第 3 章 §3.7 のとおり準備してから:
+
+```bash
+cd fuzz/basics
+cargo build --release --features invariant_ch6
+cargo test --release --features invariant_ch6      # A は B のトークンを使えない
+timeout -s INT 60 crucible run openhl_basics_fuzz invariant_ch6 \
+    --binary-in target/release/invariant_test --timeout 45
+```
+
+今のプログラムでは `[FUZZ_FINDING]` の行は出ない。
+
+> **演習 §6.6.** 検査を 1 つずつ消し、作り直して走らせよ。走らせる前に予想すること。私たちが各 45 秒で測った結果を示す。最後の列は、差し替えた呼び出しを代わりに拒否したもので、ログから読んだ:
+>
+> | 消した検査 | 捕まったか | 代わりに呼び出しを拒否したもの |
+> |---|---|---|
+> | CreateVault: `payer_ai.is_signer` | いいえ | ランタイム: 権限のない署名者 |
+> | CreateVault: `market_ai.owner == program_id` | いいえ | 自前の vault の PDA の検査 |
+> | CreateVault: `mint_ai.owner == SPL Token` | いいえ | 自前の vault の PDA の検査 |
+> | CreateVault: `system_ai.key == System` | いいえ | ランタイム: 命令に要るアカウントがない |
+> | CreateVault: `token_ai.key == SPL Token` | いいえ | ランタイム: 命令に要るアカウントがない |
+> | CreateVault: `vault_ai.key == expected_vault` | いいえ | ランタイム: 権限のない署名者 |
+> | CreateVault: `vault_auth_ai.key == expected_auth` | **はい**、account-swap、slot 4 | — |
+> | Deposit: `user_ai.is_signer` | いいえ | ランタイム: 権限のない署名者 |
+> | Deposit: `user_token_ai.owner == SPL Token` | いいえ | ランタイム: 所有していないアカウントのデータを命令が変えた |
+> | Deposit: `vault_token_ai.owner == SPL Token` | いいえ | ランタイム: 所有していないアカウントのデータを命令が変えた |
+> | Deposit: `token_ai.key == SPL Token` | いいえ | ランタイム: 命令に要るアカウントがない |
+>
+> 先を読む前に、ほかに何も支えていない行を 1 つ見つけよ。
+>
+> ほとんどの行は §6.2 と §6.1 の繰り返しだ。プログラムは自分が受け取った署名しか渡せないので、payer や user の署名がなければ CPI で落ちる(§6.2)。ハンドラは内側の命令に呼び先の ID を書き込んで組む(`SPL_TOKEN_PROGRAM_ID`、`system_program::ID`)ので、slot に別のプログラムを入れても CPI の行き先は変わらず、ランタイムが本物の呼び先のアカウントを見つけられないだけだ(§6.1)。PDA ではないアドレスへの `create_account` には、そのアドレス自身の署名が要る。中身が同じで別のプログラムが所有するトークン口座は SPL Token を通り抜け、`Transfer` まで実行される。そのあとランタイムが拒否する。SPL Token が自分の所有していないアカウントを変えたからだ(第 1 章)。B の本物のトークン口座は SPL Token 自身が拒否する。A がその authority ではないからだ(`owner does not match`。テストで押さえてある)。
+>
+> 2 つの行は自前のコードが支えているが、それは fuzzer の差し替え方のせいでしかない。vault の PDA は market と mint から導くので、どちらか一方だけを差し替えると slot 3 が違うアドレスになる。それらから導くアカウントと一緒に組で差し替えると(`account_swap::check_sets`。第 12 章 §12.7 でも使う)、2 行は分かれる。mint の所有者検査を消しても、SPL Token がトークン口座を mint として認めない(`Invalid Mint`)。market の所有者検査を消すと呼び出しは通り、実は誰かのトークン口座である「market」のためのトークン口座が作られた。この検査は本当に仕事をしている。
+>
+> 覚えておくべきは**はい**の行だ。`vault_authority` は作られることがない。ただのアドレスで、`InitializeAccount3` が新しいトークン口座の持ち主として書き込む。CPI のどこも、それが PDA であることに頼っていない。だからプログラムが確かめなければ、呼び出し側は自分を指定でき、以後その市場の vault に入る預け入れはすべて呼び出し側が動かせるものになる。ランタイムにとってそのアドレスはただのデータなので、ランタイムの規則では捕まえられない。
+>
+> もう 2 つ試せる。1 つ目、`fuzz/basics/src/main.rs` で `Deposit` の slot 2(送り先)の差し替え候補に `self.b_ata` を足して、もう一度走らせよ。A はどのトークン口座にも預け入れられるので、実行のたびに報告される。これは穴か。ここではそうではない。`Deposit` は何も記録しないので、A が B の口座に払うのは贈り物でしかない。送り先が意味を持つ帳簿づけは第 11・12 章で加わり、そこで送り先を縛る。検出とは、プログラムが許した呼び出しのことだ。それが問題かどうかは、プログラムが何を約束したかの問いである。
+>
+> 2 つ目は、第 3 章から持ち越した、読むときの問いだ。`CreateVault` は market の所有者を確かめるが、アドレスは確かめない。第 2 章の `Initialize` は今も、呼び出し側が作った任意のアカウントに `Market` を作れるので、同じ組に PDA ではない 2 つ目の市場がありうる。`--features invariant_ch3_reader` で作って走らせよ。このハーネスはそういう市場を作り、`CreateVault` にそれを読ませる(3 つの slot を一緒に差し替える。market と、そこから導く 2 つのアドレス)。今のプログラムで報告が出る。テスト `create_vault_accepts_a_market_not_at_its_pda` でも直接確かめられる。**これは**穴か。先を読む前に考えよ。
+>
+> PDA が約束したのは、`(base, quote)` ごとにアドレスが 1 つ、ということだった。プログラムのほとんどはそれに頼っていない。市場に結びつくアカウント(トークン口座とその authority、板、オラクル、資金調達の状態、ポジション、trading vault、保険基金)はどれも市場自身のアドレスを seed にしているので、2 つ目の市場は別の島になる。それに `CreateMarket` でも、市場の authority は誰でも選べる。例外はどれも第 13 章にある。手数料の vault とその authority(quote の mint ごとに 1 つ、全市場で共有)と、builder の profile(builder ごとに 1 つ)だ。第 6〜12 章の範囲では、2 つ目の市場が別の市場のトークンに届く道は見つからなかった。手数料の vault から利用者の払った以上を取り出せるかどうかは、第 13 章の問いである。「その」市場を PDA を導いて見つけるクライアントは大丈夫だ。市場の形をしたアカウントなら何でも信じるクライアントは大丈夫ではない。組ごとに市場を 1 つに限りたいなら、`CreateVault` が市場自身の `base_mint`・`quote_mint` と保存された `bump` からアドレスを導き直せばよい(第 3 章の「bump の保存」)。試したところ、その検査を足すと組は拒否され(`InvalidSeeds`)、fuzzer は 45 秒で何も見つけなかった。
 
 ---
 

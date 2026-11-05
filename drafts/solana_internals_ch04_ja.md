@@ -19,7 +19,7 @@
 # 第4章 — コンピュートバジェットとヒープの規律
 
 > 状態: ドラフト (v0.1)。
-> 教材コード: `programs/openhl-core/src/lib.rs`（`process_bench`、355–402 行）、`scripts/bench/src/main.rs`。
+> 教材コード: [`programs/openhl-core/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)（`process_bench`、682–728 行）、[`scripts/bench/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/bench/src/main.rs)、[`fuzz/basics/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics/src/main.rs)（§4.7 の solinv ハーネス）。
 > 検証対象バージョン: solana-program 2.3.0、solana-program-entrypoint 2.3.0、solana-compute-budget-interface 2.2.2。
 
 ---
@@ -186,7 +186,7 @@ compute-budget 命令はトランザクション内の位置に関わらずラ�
 
 ## §4.4  `process_bench` を歩く
 
-ハンドラは小さい — `programs/openhl-core/src/lib.rs:355–402` の約 50 行。構造は、`sol_log_compute_units` で挟まれた 3 フェーズだ。
+ハンドラは小さい — `programs/openhl-core/src/lib.rs:682–728` の約 50 行。構造は、`sol_log_compute_units` で挟まれた 3 フェーズだ。
 
 **入口。** 8 バイトのペイロードを復号し（`rounds: u32 LE`、`heap_bytes: u32 LE`）、開始 CU を記録する。
 
@@ -221,7 +221,7 @@ for i in 0..rounds {
 
 ここが実際に CU を燃やす作業だ。`sha256` は BPF 上では syscall（`sol_sha256_`）で、コストは入力長に依存する。フェーズ A の読み値からフェーズ B の読み値を引いた差が、1 ラウンドあたりの CU コスト — おおよそ `(sha256 syscall 基本コスト) + (バイトあたりコスト × heap_bytes)` だ。
 
-`lib.rs:392` のカウンタとの XOR は、オプティマイザに正直でいてもらうために存在する。これがないと、毎回同じバイトをハッシュすることになり、十分に攻撃的なオプティマイザはループを潰してしまう可能性がある。`i` をバッファに混ぜることで、各反復の入力が本当に異なるものになる。
+`lib.rs:720` のカウンタとの XOR は、オプティマイザに正直でいてもらうために存在する。これがないと、毎回同じバイトをハッシュすることになり、十分に攻撃的なオプティマイザはループを潰してしまう可能性がある。`i` をバッファに混ぜることで、各反復の入力が本当に異なるものになる。
 
 最後の `_` 読み値は、関数 return 時に `sol_log_compute_units` が自動で残す（ランタイム自身が「consumed N of M compute units」というログ行をプログラム終了後に出力する形で）。
 
@@ -237,26 +237,28 @@ for i in 0..rounds {
 bench --rounds 50 --heap-bytes 1024
 
 simulation:
-  units_consumed: 87412
+  units_consumed: 35029
   err:            (none)
 
 program logs:
   Program <openhl-core ID> invoke [1]
   Program log: bench: start (rounds=50, heap_bytes=1024)
-  Program consumption: 199772 units remaining
+  Program consumption: 199128 units remaining
   Program log: bench: after heap alloc (1024 bytes)
-  Program consumption: 199639 units remaining
+  Program consumption: 198536 units remaining
   Program log: bench: after 50 hash rounds
-  Program consumption: 112433 units remaining
-  Program <openhl-core ID> consumed 87412 of 200000 compute units
+  Program consumption: 164984 units remaining
+  Program <openhl-core ID> consumed 35029 of 200000 compute units
   Program <openhl-core ID> success
 
 on-chain signature: ...
 ```
 
-注目したい数値は 3 つ。入口直後の残り CU（199,772）が、プログラム起動の固定コストを示す — 命令データ復号、ディスパッチャ、ログ — このビルドでは約 230 CU。フェーズ A が消費したのは (199,772 − 199,639) = 133 CU、1 KiB の確保に対して。フェーズ B は (199,639 − 112,433) = 87,206 CU を消費、1 KiB 入力で 50 ラウンドの sha256 — 1 ラウンドあたり約 1,744 CU。
+(`solana-test-validator` 4.1.2 で測った値。syscall の値段はリリースごとに変わる。この章の以前の版は古いツールチェーンで、同じ呼び出しを 87,412 CU と測っていた。自分で走らせ、自分の数値を使うこと。)
 
-ここから外挿できる。100 ラウンド: 約 175K CU。120 ラウンド: 約 209K CU — 既定 200K 上限を超える。`--cu-limit` なしで実行すれば `ComputationalBudgetExceeded` 付きの `ProgramFailedToComplete` が出る。`--cu-limit 400000` を付ければまた成功する。
+注目したい数値は 3 つ。入口直後の残り CU（199,128）が、プログラム起動の固定コストを示す — 命令データ復号、ディスパッチャ、最初のログ — このビルドでは約 870 CU。フェーズ A が消費したのは (199,128 − 198,536) = 592 CU だが、その大半は `msg!` と `sol_log_compute_units` の呼び出しそのものだ。`--heap-bytes 0` だと同じフェーズは 527 CU なので、1 KiB の確保は約 65 CU になる。フェーズ B は (198,536 − 164,984) = 33,552 CU を消費、1 KiB 入力で 50 ラウンドの sha256 — フェーズの終わりのログ呼び出しも含めて、1 ラウンドあたり約 671 CU。
+
+ここから外挿し、確かめられる。100 ラウンド: 測ると 68,047 CU。290 ラウンド: 193,447。300 ラウンド: 既定 200K 上限を超える。`--cu-limit` なしで実行すれば `ComputationalBudgetExceeded` が出る。`--cu-limit 400000` を付ければまた成功し、200,197 CU だった。
 
 これがこの章の核心だ。1 度測り、予測し、その上で作業をバジェットに収めるか、明示的に上限を引き上げるかを決める。推測は、まだ負荷下で出荷していないプロジェクトのやり方だ。
 
@@ -308,9 +310,34 @@ Anchor が**やる**のは、型付きアカウントごとに概ね 2,000〜5,0
 
 ### 自分で検証する 3 項目
 
-1. **既定上限は本物。** `--cu-limit` なしで `bench --rounds 150 --heap-bytes 1024` を実行せよ。`ComputationalBudgetExceeded` で失敗するはずだ。シミュレーションの `units_consumed` は 200,000 より大きな数値を示す可能性があるが、ランタイムは上限を超えた時点で計測を打ち切るので、数値が頭打ちになる場合がある。
+1. **既定上限は本物。** `--cu-limit` なしで `bench --rounds 300 --heap-bytes 1024` を実行せよ。`ComputationalBudgetExceeded` で失敗するはずだ。シミュレーションの `units_consumed` は 200,000 より大きな数値を示す可能性があるが、ランタイムは上限を超えた時点で計測を打ち切るので、数値が頭打ちになる場合がある。
 2. **ヒープ上限は本物。** `bench --rounds 0 --heap-bytes 65536` を実行せよ。[`solana-program-entrypoint-2.3.0/src/lib.rs:342`](#) の bump アロケータが null を返し、Rust の alloc-error ハンドラがプログラムを中断する。見えるエラーは `ComputationalBudgetExceeded` ではなく、メモリ中断になる。
 3. **compute-budget 命令は同じ tx 内に必須。** `bench` を編集し、`ComputeBudgetInstruction` を bench 命令とは**別の**トランザクションで送るようにせよ。次の bench tx は依然として既定 200,000 しか受け取らない。compute-budget 命令の効果は、それ自身のトランザクション内に閉じる — 永続しない。
+
+
+### 高くつく呼び出しを道具に探させる
+
+あなたは引数を選んで `bench` を測った。命令を高くつかせたい呼び出し側も、引数を選べる。[solinv](https://github.com/psyto/solinv) の cu-dos は、その側から問う。命令が使ってよい CU をあなたが宣言し、fuzzer が引数を変え、上限を超えて成功した呼び出しがあれば検出になる。[`fuzz/basics/`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics) が第 3・4・6 章のためのハーネスで、`Bench` の仕様の上限は 50,000 CU(`BENCH_CU_CAP`)、fuzzer は 2,000 未満の `rounds` と 4,096 未満の `heap_bytes` を試す。第 3 章 §3.7 のとおり準備してから:
+
+```bash
+cd fuzz/basics
+cargo build --release --features invariant_ch4
+cargo test --release --features invariant_ch4      # CU は rounds とともに増える
+timeout -s INT 60 crucible run openhl_basics_fuzz invariant_ch4 \
+    --binary-in target/release/invariant_test --timeout 45
+```
+
+> **演習 §4.7.** 走らせよ。数秒で次のような行が出るはずだ:
+>
+> ```
+> [FUZZ_FINDING] [cu-dos:…] ix bench consumed 186571 CU (cap 50000)
+> ```
+>
+> これは予想どおりだ。`bench` は呼び出し側に値段を選ばせるためにある。次に `BENCH_CU_CAP` を 200,000(既定の上限)にしてもう一度走らせよ。私たちの 45 秒では検出は出なかった。なぜこれは直したことにならないのか。
+>
+> cu-dos が見られるのは成功した呼び出しだけで、200,000 を超える呼び出しはどれも先にランタイムで落ちるからだ。上限をランタイムの限界に置くと、「呼び出し側は、この命令を私の計画より高くつかせられるか」という問いが「ありえないほど高くつかせられるか」に変わり、答えはいつも「いいえ」になる。上限はあなたの数値、つまりこの命令に計画した CU であって、ランタイムの数値ではない。
+>
+> `bench` ではその値段が目的だ。他の人が頼る命令では不具合になる。たどる注文の数に応じて値段が増えるマッチャは、注文を置く人に上限の向こうへ押し出され、そうなると誰の約定も通らない。そのマッチャは第 8 章で作る。
 
 ---
 
