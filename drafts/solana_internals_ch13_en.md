@@ -19,7 +19,7 @@
 # Chapter 13 — Builder Codes as a Protocol Primitive
 
 > Status: draft (v0.1).
-> Companion code: [`crates/state/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs) (`BuilderProfile`), [`programs/openhl-core/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (`process_register_builder`, `process_place_order_with_builder`, `process_claim_builder_fees`, `process_create_fee_vault`), [`scripts/builder/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/builder/src/main.rs).
+> Companion code: [`crates/state/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs) (`BuilderProfile`), [`programs/openhl-core/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (`process_register_builder`, `process_place_order_with_builder`, `process_claim_builder_fees`, `process_create_fee_vault`), [`scripts/builder/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/builder/src/main.rs), [`fuzz/fees/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/fuzz/fees/src/main.rs) (the solinv harness for §13.6).
 >
 > Since the parts split, the logic this chapter walks through lives in [`crates/fees/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/fees/src/lib.rs) (`openhl-fees`); the program calls it. The code quoted below is the pre-split version from `programs/openhl-core/src/lib.rs`, and its line numbers are not kept in sync.
 
@@ -64,11 +64,11 @@ pub struct BuilderProfile {
     pub max_fee_share_bps: u64,     // self-cap, clamped at register-time
     pub accumulated_fees: u64,      // claim target
     pub total_volume: u64,          // stat: base size routed through this builder
-    pub _reserved: [u8; 32],
+    pub fee_mint: [u8; 32],         // set at registration; fees are earned and claimed only in it
 }
 ```
 
-104 bytes. The four meaningful fields:
+104 bytes. Four of the fields carry the design (`fee_mint` is covered under the constraints below):
 
 **`builder`** is the pubkey of the frontend / aggregator. Used as the only seed in the PDA derivation: `[BUILDER_PROFILE_SEED, builder.key]`. This means every Solana pubkey has at most one builder profile, derivable by anyone who knows the pubkey. The profile is owned by openhl-core (so only this program can mutate `accumulated_fees`), but anyone can *read* the public-facing fields (`builder`, `total_volume`) to verify a builder's claimed routing volume.
 
@@ -81,7 +81,7 @@ pub struct BuilderProfile {
 Two design constraints worth noting:
 
 - **One profile per builder.** The PDA derivation makes the (builder pubkey) → (profile pubkey) mapping bijective. A builder cannot have two profiles with different fee splits per market; if they want to A/B test fee splits they use two different builder wallets.
-- **Fee accumulation in quote units.** `accumulated_fees` is denominated in whatever quote currency the protocol fee is taken in. With multiple quote currencies (USDC and USDT, say) the design would need per-(builder, mint) profiles, not just per-builder. We deliberately keep it single-quote here since the rest of the program is also single-quote.
+- **Fee accumulation in quote units.** `accumulated_fees` is denominated in whatever quote currency the protocol fee is taken in. With multiple quote currencies (USDC and USDT, say) the design would need per-(builder, mint) profiles, not just per-builder. We deliberately keep it single-quote here since the rest of the program is also single-quote — and the program enforces it: anyone can create a market with any quote mint, so the builder names its `fee_mint` in `RegisterBuilder` (account 3, the builder signs), a `PlaceOrderWithBuilder` on a market quoted in another mint is refused, and `ClaimBuilderFees` pays only from `fee_mint`'s fee vault. Fixing it at registration rather than at the first credit matters: `PlaceOrderWithBuilder` is signed by the trader, not the builder, so a first-credit pin would let anyone pin someone else's profile to a junk mint. Without that pin, fees earned on a market quoted in a worthless mint could be claimed, unit for unit, from the USDC fee vault (`tests/builder_fee_mint.rs`).
 
 > **Exercise §13.1.** A frontend registers with `max_fee_share_bps = 3000`. Three trades route through them: notional 1000, 2500, 700. With `PROTOCOL_FEE_BPS = 10` (0.1%), what is the total `accumulated_fees` after all three trades?
 
@@ -133,6 +133,9 @@ let notional_val = (price as u128) * (size as u128);
 let protocol_fee = (notional_val * (PROTOCOL_FEE_BPS as u128) / 10_000) as u64;
 
 // ... read builder profile, compute share_bps clamped to caps ...
+if profile.fee_mint != *mint_ai.key.as_ref() {
+    return Err(ProgramError::InvalidAccountData); // profile earns fees in another mint
+}
 
 let builder_share = ((protocol_fee as u128) * (share_bps as u128) / 10_000) as u64;
 profile.accumulated_fees = profile.accumulated_fees.checked_add(builder_share)?;
@@ -199,6 +202,9 @@ The clamp is silent — the registration succeeds, just with a reduced share. Lo
 if profile.builder != *builder_ai.key.as_ref() {
     return Err(ProgramError::IllegalOwner);
 }
+if profile.fee_mint != *mint_ai.key.as_ref() {
+    return Err(ProgramError::InvalidAccountData); // fees were earned in another mint
+}
 let claimed = profile.accumulated_fees;
 profile.accumulated_fees = 0;
 // ... borrow scope ends ...
@@ -214,7 +220,7 @@ spl_token_transfer_fee_vault_signed(
 )?;
 ```
 
-Authorization (only the builder can claim their own fees), zero the accumulator, release the borrow, PDA-sign the Transfer. The Transfer helper is structurally identical to `spl_token_transfer_vault_signed`, which makes Chapter 11's position payouts (close and liquidate) — same `invoke_signed` pattern, same `InvalidSeeds` protection — with the per-(quote_mint) `[FEE_VAULT_AUTH_SEED, quote_mint]` seeds instead of per-(market) `[VAULT_AUTH_SEED, market]`. Order matters: zero the accumulator *before* the Transfer so a transfer-failure tx revert restores the accumulator (atomic), and so a successful Transfer cannot be replayed against a still-funded accumulator.
+Authorization (only the builder can claim their own fees, and only from its `fee_mint`'s vault), zero the accumulator, release the borrow, PDA-sign the Transfer. The Transfer helper is structurally identical to `spl_token_transfer_vault_signed`, which makes Chapter 11's position payouts (close and liquidate) — same `invoke_signed` pattern, same `InvalidSeeds` protection — with the per-(quote_mint) `[FEE_VAULT_AUTH_SEED, quote_mint]` seeds instead of per-(market) `[VAULT_AUTH_SEED, market]`. Order matters: zero the accumulator *before* the Transfer so a transfer-failure tx revert restores the accumulator (atomic), and so a successful Transfer cannot be replayed against a still-funded accumulator.
 
 A real production claim also typically supports partial withdrawals (`claim --amount N` rather than always-everything), accumulator timeouts (fees idle for >N days are forfeited to the protocol), and per-token claims when the protocol supports multiple quote currencies. None of these change the fundamental shape; they're policy decisions on top.
 
@@ -255,7 +261,10 @@ Builder lifecycle:
 
   1) Builder registers
      RegisterBuilder(max_fee_share_bps=2000)
-     ──► BuilderProfile{ builder, max_share=2000, fees=0, vol=0 }
+     accounts: [payer/builder(S,W), builder_profile(W), system_program(R),
+                mint(R)]
+     ──► BuilderProfile{ builder, max_share=2000, fees=0, vol=0,
+                         fee_mint=mint }
 
 
   2) User trades through builder
@@ -304,9 +313,53 @@ Two-cap safety:
 
 Prerequisites: bootstrap the fee vault for the quote mint (`builder --create-fee-vault --mint <quote_mint>`) and ensure your trader has a funded quote-token account before any place-order variant; otherwise the fee Transfer reverts.
 
-1. **The cap stacks correctly.** Register a builder with `--max-share-bps 9999`. The handler should log the clamp, and the dump should show `max_fee_share_bps = 5000` (our `PROTOCOL_BUILDER_SHARE_CAP_BPS`). Now route a trade through them — the builder's share should be exactly 50% of the protocol fee.
+1. **The cap stacks correctly.** Register a builder with `--max-share-bps 9999 --mint <quote_mint>`. The handler should log the clamp, and the dump should show `max_fee_share_bps = 5000` (our `PROTOCOL_BUILDER_SHARE_CAP_BPS`). Now route a trade through them — the builder's share should be exactly 50% of the protocol fee.
 2. **Atomicity holds under failure.** Use a simulated failure: try `PlaceOrderWithBuilder` with a stale oracle (so the order placement will fail). The simulation should fail with `oracle stale` *and* the builder profile's `accumulated_fees` should be unchanged, the fee vault's balance should be unchanged, and the trader's quote-token account should be unchanged after the failed sim (the entire transaction reverts). The split doesn't happen unless the trade does.
-3. **Volume accrues per trade.** Place 5 orders through the same builder with sizes 10, 20, 30, 40, 50. The `total_volume` should be exactly 150 (10+20+30+40+50). If `accumulated_fees` doesn't add up to `(notional_total × PROTOCOL_FEE_BPS × share_bps / 10000 / 10000)`, there's an off-by-one in the math — chase it down. Then run `--claim --builder-token-account <pubkey>`; the builder's quote-token account balance should grow by exactly `accumulated_fees`, and the dump should show `accumulated_fees = 0`.
+3. **Volume accrues per trade.** Place 5 orders through the same builder with sizes 10, 20, 30, 40, 50. The `total_volume` should be exactly 150 (10+20+30+40+50). If `accumulated_fees` doesn't add up to `(notional_total × PROTOCOL_FEE_BPS × share_bps / 10000 / 10000)`, there's an off-by-one in the math — chase it down. Then run `--claim --mint <fee_mint> --builder-token-account <pubkey>` (the dump prints `fee_mint`); the builder's quote-token account balance should grow by exactly `accumulated_fees`, and the dump should show `accumulated_fees = 0`.
+
+
+### Now let a tool check the money, not just the accounts
+
+Chapters 3, 6 and 12 end with [solinv](https://github.com/psyto/solinv) swapping accounts. The question here is different: does the fee vault always hold what builders are owed? Chapter 6 §6.6 left it open, because the fee vault is the one account every market shares, and a pair can have a second market that is not at its PDA.
+
+[`fuzz/fees/`](https://github.com/psyto/openhl-solana/blob/main/fuzz/fees) is the harness. Builders B and B2 register in the quote mint Q; user U trades through either. There are three markets, each with its book and a fresh oracle: `(base, Q)` at its PDA, a second `(base, Q)` market made by `Initialize` (Chapter 2) at an address that is not the PDA, and `(base, J)` for a mint J that anyone can make. Besides the usual signer-skip and account-swap, the specs declare two rules:
+
+- a **relation** (solinv's `Relation`, checked by `unchecked_math`): the sum of `accumulated_fees` over B's and B2's profiles is at most the Q fee vault's balance, on both `PlaceOrderWithBuilder` and `ClaimBuilderFees`. (B2's profile is appended to each instruction's accounts so the relation can read it; the handlers ignore the extra account.) It is reported only if it held before the instruction and fails after it.
+- a **guard** (checked by `precondition_skip`): `PlaceOrderWithBuilder` may succeed only if `profile.fee_mint == market.quote_mint`. solinv compares fields of at most 16 bytes, so the 32-byte mints take two guards.
+
+Set up as in Chapter 3 §3.7, then:
+
+```bash
+cargo build-sbf --manifest-path programs/openhl-core/Cargo.toml
+cd fuzz/fees
+cargo build --release --features invariant_ch13
+cargo test --release --features invariant_ch13
+timeout -s INT 60 crucible run openhl_fees_fuzz invariant_ch13 \
+    --binary-in target/release/invariant_test --timeout 45
+```
+
+On the program as it is, no `[FUZZ_FINDING]` line appears, on any of the three markets. That answers §6.6's question for this chapter. Every credit to `accumulated_fees` is at most half of a `protocol_fee` that the same transaction moves into the fee vault, in the same mint, so a second market (or any market) cannot owe a builder more than its users paid. The test `credit_never_exceeds_payment` checks it on both Q markets.
+
+> **Exercise §13.6.** Delete each check below in turn, or make the change in the last two rows, rebuild, and run. Predict first. Here is what we measured, 45 seconds each; for the "no" rows, the last column is what refused the swapped call instead, read from its logs (the `probe` test prints them):
+>
+> | Change | Caught? | How, or what refused it instead |
+> |---|---|---|
+> | Place: `profile.fee_mint == mint` | **yes** | precondition-skip: the guard was false on J's market and the order went through; `junk_mint_order_does_not_credit_a_q_builder` fails |
+> | Place: `market.quote_mint == mint` | no | the `fee_mint` check: paying in J on the Q market still names B, who is paid in Q |
+> | Place: `verify_fee_vault_token_account` | no | SPL Token: `Account not associated with this Mint` |
+> | Place: `user_ai.is_signer` | no | the runtime: unauthorized signer |
+> | Place: the book PDA | **yes** | account-swap: the order went into another market's book |
+> | Place: the oracle PDA | **yes** | account-swap: the price band came from another market's oracle |
+> | Claim: `profile.builder == builder` | **yes** | account-swap: B claimed B2's fees |
+> | Claim: `builder_ai.is_signer` | **yes** | signer-skip: anyone could claim B's fees, into an account they name |
+> | Claim: `profile.fee_mint == mint` | **yes**, with a set | account-swap `check_sets`: B's Q fees paid out of J's vault into B's J account (four slots together) |
+> | Claim: `verify_fee_vault_token_account` | no | SPL Token: `owner does not match` (the Q vault authority cannot sign for J's vault) |
+> | Claim: no `accumulated_fees = 0` | **yes** | the relation, on the first claim: owed 12,262 against 12,266 in the vault before, 12,262 against 6 after; `claim_pays_once` fails |
+> | Place: builder share of `notional`, not of `protocol_fee` | **yes** | the relation: 0 owed against 0 before the first order, 5,000 owed against 10 after |
+>
+> Three things are worth a second look. The last two rows are not missing checks at all: every account is right and every check passes, and the program still promises more than it holds. Only a rule about the numbers can see that, and it is the rule the chapter's atomicity argument (§13.4) is about. One more trap, this one in our harness: the first version had B2 earn its fees in `setup()`. With the share computed from `notional`, that setup order already broke the relation, and solinv reports a relation that is false before the instruction as a declaration problem, not a finding, so the row read "no". Now only the fuzzer's own orders credit builders. And the claim-side `fee_mint` row needed four accounts swapped together. Our first set swapped three and left B's Q account as the destination, so SPL Token refused it for a mint mismatch, which said nothing about the check we had deleted. An attacker names a destination in J. As in Chapter 12, a refusal is evidence only once you know which check gave it.
+>
+> One swap is left out on purpose. Point `PlaceOrderWithBuilder`'s slot 8 at another builder's profile and it goes through: U credits B2 instead of B. That is the design. The user chooses which frontend to credit, and pays the fee either way.
 
 ---
 
