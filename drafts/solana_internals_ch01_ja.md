@@ -19,7 +19,7 @@
 # 第1章 — バイトから組み立てるアカウントモデル
 
 > 状態: ドラフト (v0.1)。
-> 教材コード: `crates/state/src/lib.rs`、`scripts/allocate-market/src/main.rs`。
+> 教材コード: [`crates/state/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs)、[`scripts/allocate-market/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/allocate-market/src/main.rs)。
 > 検証対象バージョン: solana-sdk 2.3.1、solana-rent 2.2.1、solana-account 2.2.1、solana-system-interface 1.0.0。
 
 ---
@@ -417,9 +417,9 @@ account data (raw bytes, annotated against openhl_state::Market):
 
 ### 自分で検証する 3 項目
 
-1. **所有者の確認。** スクリプト実行後、`solana account <market_pubkey>` を実行する。`Owner` 行が `11111111111111111111111111111111`（System）であることを確認せよ。本書のスクリプトはこれを `main.rs:69` で明示的に要求し、ランタイムはそれに従う。
+1. **所有者の確認。** スクリプト実行後、`solana account <market_pubkey>` を実行する。`Owner` 行が `11111111111111111111111111111111`（System）であることを確認せよ。本書のスクリプトはこれを [`main.rs:69`](https://github.com/psyto/openhl-solana/blob/main/scripts/allocate-market/src/main.rs#L69) で明示的に要求し、ランタイムはそれに従う。
 2. **レント免除計算。** `solana rent 256` を実行する。出力はスクリプトが表示した `rent lamports` と一致するはずだ。両者は同じ計算式 [`solana-rent-2.2.1/src/lib.rs:93`](#) を出所とする — 片方はローカル計算、もう片方は RPC 経由。
-3. **レイアウトのオフセット。** `crates/state/src/lib.rs:43–56` を開き、フィールド長を手で足し合わせよ。`quote_mint` がバイト 80 から始まり、`_reserved` がバイト 256 で終わることを確認すること。`cargo test -p openhl-state` を実行すれば、コンパイラもこれを保証する — `lib.rs:67–70` の `market_size_is_256_bytes` テストは、フィールドのサイズが変わった瞬間に失敗する。
+3. **レイアウトのオフセット。** [`crates/state/src/lib.rs:43–56`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs#L43) を開き、フィールド長を手で足し合わせよ。`quote_mint` がバイト 80 から始まり、`_reserved` がバイト 256 で終わることを確認すること。`cargo test -p openhl-state` を実行すれば、コンパイラもこれを保証する — [`lib.rs:67–70`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs#L67) の `market_size_is_256_bytes` テストは、フィールドのサイズが変わった瞬間に失敗する。
 
 ---
 

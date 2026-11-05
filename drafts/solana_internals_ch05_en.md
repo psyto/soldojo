@@ -19,7 +19,7 @@
 # Chapter 5 — Sealevel Parallelism and Account Locks
 
 > Status: draft (v0.1).
-> Companion code: `programs/openhl-core/src/lib.rs` (`process_create_stats` at lines 442–501, `process_bump_stats` at lines 503–540), `scripts/stats/src/main.rs`, `scripts/create-market/src/main.rs`.
+> Companion code: [`programs/openhl-core/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (`process_create_stats` at lines 442–501, `process_bump_stats` at lines 503–540), [`scripts/stats/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/stats/src/main.rs), [`scripts/create-market/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/create-market/src/main.rs).
 > Tested against: solana-instruction 2.3.3, solana-program 2.3.0.
 
 ---

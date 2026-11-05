@@ -14,8 +14,8 @@ export async function seedSoldojoInternalsHlPrimitivesEN(prisma: PrismaClient) {
       description:
         "Build a Hyperliquid-style perpetuals exchange on top of the Foundations track. Nine chapters: SPL Token CPI, on-chain CLOB, matching engine under CU pressure, oracle ingestion, funding rates, liquidations, native trading vaults, builder codes, and the off-chain keeper layer that runs the whole thing.",
       difficulty: "ADVANCED",
-      duration: 405,
-      xpReward: 1100,
+      duration: 450,
+      xpReward: 1200,
       track: "solana-internals",
       tags,
       isPublished: true,
@@ -39,7 +39,7 @@ export async function seedSoldojoInternalsHlPrimitivesEN(prisma: PrismaClient) {
                   content: `# Chapter 6 — CPI Internals via Vault Deposits
 
 > Status: draft (v0.1).
-> Companion code: \`programs/openhl-core/src/lib.rs\` (\`process_create_vault\` at lines 615–728, \`process_deposit\` at lines 731–800), \`scripts/create-vault/src/main.rs\`, \`scripts/deposit/src/main.rs\`.
+> Companion code: [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (\`process_create_vault\` at lines 892–1001, \`process_deposit\` at lines 1008–1076), [\`scripts/create-vault/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/create-vault/src/main.rs), [\`scripts/deposit/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/deposit/src/main.rs), [\`fuzz/basics/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics/src/main.rs) (the solinv harness for §6.6).
 > Tested against: solana-cpi 2.2.1, solana-program 2.3.0, SPL Token program (TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA).
 
 ---
@@ -115,11 +115,11 @@ Both mechanisms — outer-tx propagation and PDA seeds — live in the same \`in
 
 ## §6.3  Walking CreateVault — two consecutive CPIs
 
-CreateVault is the place where both flavors of CPI appear in the same handler. From \`programs/openhl-core/src/lib.rs:680–720\`.
+CreateVault is the place where both flavors of CPI appear in the same handler. From \`programs/openhl-core/src/lib.rs:892–1001\`.
 
-**The PDA derivation** (lines 668–678) sets up two pubkeys: \`vault_token_account\` at \`[VAULT_SEED, market.key, mint.key]\` and \`vault_authority\` at \`[VAULT_AUTH_SEED, market.key]\`. Same find_program_address mechanic as Chapter 3. The bumps are returned and the vault bump is used below; the authority bump we don't need yet (it will matter when we add withdrawals in a later chapter and the program must sign as the vault authority).
+**The PDA derivation** (lines 932–954) sets up two pubkeys: \`vault_token_account\` at \`[VAULT_SEED, market.key, mint.key]\` and \`vault_authority\` at \`[VAULT_AUTH_SEED, market.key]\`. Same find_program_address mechanic as Chapter 3. The bumps are returned and the vault bump is used below; the authority bump we don't need yet (it will matter when we add withdrawals in a later chapter and the program must sign as the vault authority).
 
-**CPI 1 — System::create_account** at lines 689–700:
+**CPI 1 — System::create_account** at lines 956–975:
 
 \`\`\`rust
 let create_ix = system_instruction::create_account(
@@ -145,7 +145,7 @@ This is \`invoke_signed\` because the new account is a PDA we own and System req
 
 Note the AccountInfo array: \`[payer_ai, vault_ai, system_ai]\`. These are the only three accounts the System program needs to see for \`create_account\` (the rest of our handler's accounts — market, mint, vault_authority, token_program — aren't passed because System doesn't need them).
 
-**CPI 2 — SPL Token InitializeAccount3** at lines 707–720:
+**CPI 2 — SPL Token InitializeAccount3** at lines 977–997:
 
 \`\`\`rust
 let mut init_data = Vec::with_capacity(1 + 32);
@@ -174,7 +174,7 @@ Two CPIs, one handler, both kinds of signing. The pattern repeats throughout the
 
 ## §6.4  Walking Deposit — user signs at the outer level
 
-Deposit is the simpler case. From \`programs/openhl-core/src/lib.rs:771–800\`.
+Deposit is the simpler case. From \`programs/openhl-core/src/lib.rs:1008–1076\`.
 
 The instruction data:
 
@@ -226,7 +226,7 @@ This is the canonical "program-mediated user transfer" pattern: the user authori
 
 ## §6.5  Hand-rolling SPL Token instruction data
 
-We deliberately did *not* import the \`spl-token\` crate. Instead we hand-rolled two instructions worth of bytes. Lines 594–598 of \`lib.rs\`:
+We deliberately did *not* import the \`spl-token\` crate. Instead we hand-rolled two instructions worth of bytes. Lines 861–864 of \`lib.rs\`:
 
 \`\`\`rust
 mod spl_token_ix {
@@ -294,8 +294,53 @@ openhl-core CPI map:
 ### Three things to verify yourself
 
 1. **\`invoke\` is \`invoke_signed\` with no seeds.** Open \`solana-cpi-2.2.1/src/lib.rs:137\` and read the three-line body. Internalize that the only difference between the two is "did we pass PDA seeds." Everything else is the same syscall.
-2. **AccountInfo for the callee program.** In both CPIs in CreateVault, the \`accounts\` slice passed to \`invoke[_signed]\` includes the callee program's AccountInfo — \`system_ai\` for CPI 1, \`token_ai\` for CPI 2. Omitting them is one of the most common early-Solana mistakes; the runtime returns a confusing \`AccountNotFound\`-flavored error. Verify by reading \`lib.rs:691, 720\`.
+2. **AccountInfo for the callee program.** In both CPIs in CreateVault, the \`accounts\` slice passed to \`invoke[_signed]\` includes the callee program's AccountInfo — \`system_ai\` for CPI 1, \`token_ai\` for CPI 2. Omitting them is one of the most common early-Solana mistakes; the runtime returns a confusing \`AccountNotFound\`-flavored error. Verify by reading [\`lib.rs:966, 997\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs#L966).
 3. **User signs once, used by SPL Token.** Run \`deposit\` against your validator. The user keypair signs the outer transaction; SPL Token receives a \`Transfer\` instruction with \`is_signer = true\` on the user; the transfer commits. There is no second signature anywhere. One signature, propagated.
+
+
+### Now let a tool try the checks
+
+\`CreateVault\` has seven checks and \`Deposit\` four. Chapter 3 §3.7 ran [solinv](https://github.com/psyto/solinv) on \`CreateMarket\`, and every deleted check was backed by the runtime. These two handlers make CPIs to a second program, so there are more places a check can be backed, and one where it is not. The same harness, [\`fuzz/basics/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics), has specs for both: the payer's or user's signer flag cleared, and each slot swapped for something an attacker could pass (a "market" this program does not own, a token account as the "mint", a vault address that is not the PDA, the caller as the vault's authority, the wrong program in each program slot, B's token account as A's source). Set up as in Chapter 3 §3.7, then:
+
+\`\`\`bash
+cd fuzz/basics
+cargo build --release --features invariant_ch6
+cargo test --release --features invariant_ch6      # A cannot spend B's tokens
+timeout -s INT 60 crucible run openhl_basics_fuzz invariant_ch6 \\
+    --binary-in target/release/invariant_test --timeout 45
+\`\`\`
+
+On the program as it is, no \`[FUZZ_FINDING]\` line appears.
+
+> **Exercise §6.6.** Delete each check in turn, rebuild, run, and predict first. Here is what we measured, 45 seconds each. The last column is what refused the swapped call instead, read from its logs:
+>
+> | Check deleted | Caught? | What refused the call instead |
+> |---|---|---|
+> | CreateVault: \`payer_ai.is_signer\` | no | the runtime: unauthorized signer |
+> | CreateVault: \`market_ai.owner == program_id\` | no | our vault PDA check |
+> | CreateVault: \`mint_ai.owner == SPL Token\` | no | our vault PDA check |
+> | CreateVault: \`system_ai.key == System\` | no | the runtime: an account required by the instruction is missing |
+> | CreateVault: \`token_ai.key == SPL Token\` | no | the runtime: an account required by the instruction is missing |
+> | CreateVault: \`vault_ai.key == expected_vault\` | no | the runtime: unauthorized signer |
+> | CreateVault: \`vault_auth_ai.key == expected_auth\` | **yes**, account-swap, slot 4 | — |
+> | Deposit: \`user_ai.is_signer\` | no | the runtime: unauthorized signer |
+> | Deposit: \`user_token_ai.owner == SPL Token\` | no | the runtime: instruction modified data of an account it does not own |
+> | Deposit: \`vault_token_ai.owner == SPL Token\` | no | the runtime: instruction modified data of an account it does not own |
+> | Deposit: \`token_ai.key == SPL Token\` | no | the runtime: an account required by the instruction is missing |
+>
+> Before reading on, find the one row where nothing else stands behind the check.
+>
+> Most rows are §6.2 and §6.1 again. A program can pass on only the signatures it was given, so a missing payer or user signature fails at the CPI (§6.2). The handler builds each inner instruction with the callee's ID written in (\`SPL_TOKEN_PROGRAM_ID\`, \`system_program::ID\`), so a wrong program in the slot does not redirect the CPI; the runtime just cannot find the real callee's account (§6.1). \`create_account\` on an address that is not the PDA needs that address's own signature. A token account owned by some other program, with the same bytes inside, gets past SPL Token, which runs the \`Transfer\`; then the runtime refuses it, because SPL Token changed an account it does not own (Chapter 1). B's real token account is refused by SPL Token itself, because A is not its authority (\`owner does not match\`, which the test pins).
+>
+> Two rows are backed by our own code, and only because of how the fuzzer swaps. The vault PDA is derived from the market and the mint, so swapping either one alone makes slot 3 the wrong address. Swap them together with the accounts derived from them, a set (\`account_swap::check_sets\`; Chapter 12 §12.7 uses one too), and the rows split: with the mint owner check gone, SPL Token still refuses a token account as a mint (\`Invalid Mint\`). With the market owner check gone, the call went through and created a token account for a "market" that was someone's token account. That check is doing real work.
+>
+> The **yes** row is the one to remember. \`vault_authority\` is never created; it is only an address, which \`InitializeAccount3\` writes into the new token account as its owner. Nothing about the CPI depends on it being the PDA, so if the program does not check it, the caller can name themselves, and from then on every deposit into that market's vault is the caller's to move. No runtime rule can catch this, because to the runtime the address is just data.
+>
+> Two more to try. First, add \`self.b_ata\` to \`Deposit\`'s slot 2 alternates in \`fuzz/basics/src/main.rs\` (the destination) and run again: it is reported on every execution, since A can deposit into any token account. Is that a hole? Here it is not. \`Deposit\` records nothing, so A paying into B's account is a gift. Chapters 11 and 12 add the bookkeeping that makes the destination matter, and bind it. A finding is a call the program allowed; whether it matters is a question about what the program promised.
+>
+> Second, the read-time question from Chapter 3. \`CreateVault\` checks the market's owner, not its address. Chapter 2's \`Initialize\` can still make a \`Market\` in any account the caller creates, so a pair can have a second market that is not at its PDA. Build with \`--features invariant_ch3_reader\` and run: that harness makes such a market and has \`CreateVault\` read it (three slots swapped together: the market and the two addresses derived from it). It is reported on the current program, and the test \`create_vault_accepts_a_market_not_at_its_pda\` shows it directly. Is *that* a hole? Work it out before reading on.
+>
+> What the PDA promised was one address per \`(base, quote)\`. Almost nothing in the program relies on that. Every account keyed to a market (its token accounts and their authority, the book, oracle, funding state, positions, trading vaults, insurance fund) is seeded by the market's own address, so a second market is a separate island, and \`CreateMarket\` lets anyone choose a market's authority anyway. The exceptions are all in Chapter 13: the fee vault and its authority (one per quote mint, shared by every market) and builder profiles (one per builder). We found no way in Chapters 6–12 for a second market to reach another market's tokens; whether it can take more out of the fee vault than its users paid in, Chapter 13 §13.6 checks with the same tool: it cannot, because every credit is paid for in the same transaction. A client that finds "the" market by deriving its PDA is fine; a client that believes any account shaped like a market is not. If the program wanted to enforce one market per pair, \`CreateVault\` would re-derive the address from the market's own \`base_mint\`, \`quote_mint\` and stored \`bump\` (Chapter 3's "bump stored"). We tried it: with that check added, the set was refused (\`InvalidSeeds\`) and the fuzzer found nothing in 45 seconds.
 
 ---
 
@@ -316,7 +361,7 @@ Chapter 7 walks the on-chain CLOB design: critbit vs heap vs slab, zero-copy acc
                   content: `# Chapter 7 — On-Chain CLOB Data Structures
 
 > Status: draft (v0.1).
-> Companion code: \`crates/state/src/lib.rs\` (\`Order\` + \`OrderBook\`), \`programs/openhl-core/src/lib.rs\` (\`process_create_order_book\` at 833–891, \`process_place_order\` at 904–1000, \`process_cancel_order\` at 1002–1064), \`scripts/book/src/main.rs\`.
+> Companion code: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs) (\`Order\` + \`OrderBook\`), [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (\`process_create_order_book\` at 1091–1155, \`process_place_order\` at 1162–1253, \`process_cancel_order\` at 1260–1327), [\`scripts/book/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/book/src/main.rs).
 
 ---
 
@@ -369,7 +414,7 @@ This is the wrong choice for production for one specific reason: **best-bid / be
 
 So why pick it?
 
-- **It exposes the cost.** The CU log shows the linear scan happening. A student can run \`book --place\` and watch the CU drop as the book fills.
+- **It exposes the cost.** The CU log shows the linear scan happening. A student can run \`book --place\` and watch the CU rise as the book fills (by a few CU per order; §7.3).
 - **It is easy to verify.** Two \`for\` loops over an array. No invariants to break. No subtle off-by-one in tree rebalancing.
 - **It is enough for Chapter 7.** This chapter is about the data layout and the cost shape. Chapter 8 will introduce matching, and *that* is where the wrong choice becomes a real problem — at which point we have permission to refactor to a slab.
 
@@ -405,7 +450,7 @@ Why \`size == 0\` and not a separate \`is_active: bool\`?
 - A boolean field would cost a byte plus padding to maintain alignment. The \`size\` field already exists and a real order always has \`size > 0\`. Repurposing it as the active sentinel saves the extra field.
 - Zero-initialization on account creation makes the convention work for free: a newly allocated \`OrderBook\`'s slots are all "empty" without any explicit setup pass.
 
-The cost is a one-line invariant the program must respect: never write an \`Order\` with \`size == 0\`. Both handlers explicitly reject \`size == 0\` in the payload as the first guard. From \`process_place_order\` (lib.rs:929–932):
+The cost is a one-line invariant the program must respect: never write an \`Order\` with \`size == 0\`. \`place_order\` rejects \`size == 0\` in the payload as its first guard (\`cancel_order\` takes only an order id, and writes an all-zero \`Order\` on purpose to empty the slot). From \`process_place_order\` (lib.rs:1183–1186):
 
 \`\`\`rust
 if price == 0 || size == 0 {
@@ -422,11 +467,11 @@ That's the price of repurposing the field. Anchor's \`#[derive(BorshSerialize)]\
 
 ## §7.3  Walking \`place_order\`
 
-From \`programs/openhl-core/src/lib.rs:904–1000\`. The handler decomposes into three parts.
+From \`programs/openhl-core/src/lib.rs:1162–1253\`. The handler decomposes into three parts.
 
-**Validation** (lines 911–950): payload size, side byte (must be 0 or 1), price and size non-zero, user is a signer, book owner matches our program, book size matches \`OrderBook::LEN\`, book discriminator matches.
+**Validation** (lines 1167–1210): payload size, side byte (must be 0 or 1), price and size non-zero, user is a signer, book owner matches our program, book size matches \`OrderBook::LEN\`, book discriminator matches.
 
-**The linear scan** at lines 958–965:
+**The linear scan** at lines 1216–1222:
 
 \`\`\`rust
 let mut chosen_slot: Option<usize> = None;
@@ -440,28 +485,32 @@ for (i, slot) in book.slots.iter().enumerate() {
 
 Scan from index 0, take the first slot with \`size == 0\`, break. Worst case: book is full. Then the loop runs all 32 iterations and returns \`None\`, which triggers the "book full" branch and returns \`AccountDataTooSmall\`. Best case: slot 0 is empty (the book is fresh). One iteration.
 
-The CU cost shape:
+The CU cost shape, measured (whole instruction, LiteSVM, with \`fuzz/matching\`'s \`ch7_grid\` test; Chapter 4 §4.5 checked that LiteSVM counts like \`solana-test-validator\`):
 
-- **Empty book** (active_count = 0, slot 0 empty): 1 loop iteration. About 50 CU for the scan.
-- **Half-full book** (active_count = 16, slots 0–15 occupied): 16 iterations. About 800 CU.
-- **Full minus one** (active_count = 31, slot 31 is the only empty): 31 iterations. About 1550 CU.
-- **Full** (active_count = 32, all slots occupied): 32 iterations + error path. About 1700 CU + the error overhead.
+| Book before the place | Iterations | CU |
+|---|---|---|
+| empty | 1 | 2,357 |
+| 8 orders | 9 | 2,374 |
+| 16 orders | 17 | 2,417 |
+| 24 orders | 25 | 2,433 |
+| 31 orders | 32 | 2,446 |
+| 32 orders (full) | 32 + error | fails (we did not measure failed calls) |
 
-In absolute terms these numbers are tiny — even the worst case is under 1% of the default 200 KCU budget. But the *shape* is the lesson: O(N) means the cost grows with the data, and for an order book that growth can outrun the budget at scale. A slab keeps the placement at O(log N), so even with 1024 orders the placement still costs less than 16 iterations of our array does at N = 32.
+The scan is linear, and cheap: 89 CU from an empty book to 31 orders, about 3 CU per slot visited. (An earlier draft estimated about 50 CU per slot, 1,550 CU at 31 orders; it was more than ten times too high.) Almost all of the 2,357 is the fixed cost of an instruction: entry, validation, the two \`sol_log_compute_units\` calls and the \`msg!\` lines. So the *shape* is the lesson here more than the size: O(N) means the cost grows with the data, but at 32 slots and a few CU per slot it hardly shows. It shows in Chapter 8, where the scan runs once per fill, and with a bigger book. For comparison, Chapter 15's slab places an order into 1,023 others for 1,954 CU, less than this array charges at 16.
 
-**The write** (lines 970–987): increment \`next_order_id\`, increment \`active_count\`, copy the user pubkey into \`owner\`, construct an \`Order\` literal, drop it into the chosen slot. All O(1) once the slot is found.
+**The write** (lines 1228–1242): increment \`next_order_id\`, increment \`active_count\`, copy the user pubkey into \`owner\`, construct an \`Order\` literal, drop it into the chosen slot. All O(1) once the slot is found.
 
-The CU brackets at lines 952 (before scan) and 988 (after write) let you read the cost from the validator log. Two \`sol_log_compute_units\` calls, subtract, get the actual CU consumed for "scan + write" on this particular instruction.
+The CU brackets at lines 1203 (before scan) and 1250 (after write) let you read the cost from the validator log. Two \`sol_log_compute_units\` calls, subtract, get the CU consumed between them: the scan and the write, plus the data borrow, the discriminator check and the logging in that range.
 
-> **Exercise §7.3.** Pre-populate the book with N orders for various N (say 0, 8, 16, 24, 31) and then place a single new order. Record the CU consumed (between the two log calls) for each N. Plot it. It should be approximately linear in N.
+> **Exercise §7.3.** Pre-populate the book with N orders for various N (say 0, 8, 16, 24, 31) and then place a single new order. Record the CU consumed (between the two log calls) for each N. Plot it. It should be linear in N, with a slope of a few CU per order: compare your numbers with the table above.
 
 ---
 
 ## §7.4  Walking \`cancel_order\`
 
-\`process_cancel_order\` (lines 1002–1064) is structurally the same as \`place_order\` — linear scan, then mutation — but with a different match key and a different mutation.
+\`process_cancel_order\` (lines 1260–1327) is structurally the same as \`place_order\` — linear scan, then mutation — but with a different match key and a different mutation.
 
-**The scan** at lines 1037–1043:
+**The scan** at lines 1295–1301:
 
 \`\`\`rust
 let mut found: Option<usize> = None;
@@ -475,7 +524,7 @@ for (i, slot) in book.slots.iter().enumerate() {
 
 \`slot.size != 0\` skips empty slots; \`slot.order_id == order_id\` selects by ID. Worst case is "order is in the last slot" or "order not found" — both pay full O(N).
 
-**The authorization check** at lines 1050–1053:
+**The authorization check** at lines 1307–1311:
 
 \`\`\`rust
 if book.slots[slot_idx].owner != *user_ai.key.as_ref() {
@@ -486,7 +535,7 @@ if book.slots[slot_idx].owner != *user_ai.key.as_ref() {
 
 Only the order's original placer may cancel it. The \`owner\` field on the slot is the cancel-authorization mechanism. This is a per-slot check, not a per-book check — there is no single "operator can cancel anything" path, which is appropriate for an open CLOB but would be different for a vault-managed strategy.
 
-**The zero** at line 1057:
+**The zero** at line 1315:
 
 \`\`\`rust
 book.slots[slot_idx] = <Order as bytemuck::Zeroable>::zeroed();
@@ -494,7 +543,7 @@ book.slots[slot_idx] = <Order as bytemuck::Zeroable>::zeroed();
 
 \`Order::zeroed()\` returns the all-zeros \`Order\`. The \`<Order as bytemuck::Zeroable>::zeroed()\` qualified-syntax is needed because \`Order::zeroed\` is not in scope as an inherent method — it comes from the \`bytemuck::Zeroable\` trait. Once written, the slot's \`size\` is 0 and the next \`place_order\` scanning for an empty slot will see this position as available.
 
-The CU cost is symmetric to \`place_order\`: best case is "matched at slot 0" (1 iteration); worst case is "not found" (N iterations + error). The brackets at lines 1029 and 1059 let you measure.
+The CU cost is symmetric to \`place_order\`: best case is "matched at slot 0" (1 iteration); worst case is "not found" (N iterations + error). We measured 1,994 CU for the order in the first slot of a full book and 2,177 for the one in the last, about 6 CU per slot visited (the "not found" path fails, and we did not measure failed calls). The brackets at lines 1284 and 1324 let you measure.
 
 > **Exercise §7.4.** Place 10 orders, then cancel order_id 5. Then place another order. Which slot does the new order land in? Trace the slot allocation through the dump output of \`book\` (no flags) before and after each operation.
 
@@ -506,17 +555,17 @@ Chapter 8 implements matching. The core matching loop is "for each incoming take
 
 1. Linear-scan every taker → O(N) per taker
 2. For each match attempt, linear-scan every maker → O(N) per maker check
-3. With M takers crossing K makers, the total cost is O(M × N) just to find the right slots, before any token movement happens
+3. With M takers crossing K makers, the total cost is O(M × K × N) just to find the right slots, before any token movement happens
 
-At ORDER_CAPACITY = 32, M = 10, K = 5, this is ~1600 array-traversals per match instruction. About 80,000 CU of pure scanning. The default budget is 200,000.
+At ORDER_CAPACITY = 32, M = 10, K = 5, this is ~1600 array-traversals per match instruction. An earlier draft priced that at about 80,000 CU of pure scanning, using the 50 CU per slot above; with the measured few CU per slot it is a few thousand. Chapter 8's matcher, which scans the book once per fill, measured 12,662 CU for 5 fills against a full book and 22,250 for 10, everything included. The default budget is 200,000.
 
-When Chapter 8 needs to actually move tokens (CPI to SPL Token, which is itself ~3,000 CU per transfer), it will not fit in the default budget. We will need to either:
+So the flat book's problem at 32 slots is not this instruction's budget. It is what happens as the book grows: every fill scans every slot, so the cost is O(fills × N), and Chapter 8 §8.2 shows a 128-slot book running out of budget. Adding token movement to each fill (a CPI to SPL Token per transfer) makes that come sooner. We will need to either:
 
 - Refactor to a slab — the production answer
 - Raise the CU limit via \`ComputeBudgetInstruction::set_compute_unit_limit\` — the band-aid
 - Limit matching per-instruction to N crossings and require multiple matcher invocations — the workaround
 
-Chapter 8 explores all three and explains why slab is the only one that actually scales. For now, the flat array is correct, slow, and visibly so. That visibility is the prerequisite for understanding what the refactor buys us.
+Chapter 8 explores all three and explains why slab is the only one that actually scales; Chapter 15 ships the slab implementation. For now, the flat array is correct, slow, and visibly so. That visibility is the prerequisite for understanding what the refactor buys us.
 
 **What Anchor hides:** Anchor's \`#[account(zero_copy)]\` attribute makes \`bytemuck\`-cast accounts available with typed field access. It does nothing about choosing the right data structure — that decision is yours regardless of the framework. Anchor programs with naive \`Vec<Order>\` book layouts blow CU budgets just as fast as ours would in the matcher.
 
@@ -559,6 +608,13 @@ cancel_order(order_id):
 2. **Empty-slot convention.** Place 5 orders, cancel order 3, then place a 6th. The 6th order should land at slot index 2 (the slot vacated by cancel), not at slot index 5. The "first empty slot wins" rule fills holes left by cancellations.
 3. **Pod-layout invariants stay enforced.** \`cargo test -p openhl-state\` runs three Order/OrderBook layout tests. Change \`ORDER_CAPACITY\` to 33, recompile. The \`order_book_size_matches_layout\` test should now show \`2112 → 2176\`. That stable, predictable byte count is why bytemuck works at all on this struct.
 
+
+### What a fuzzer can and cannot check here
+
+The checks in \`place_order\` and \`cancel_order\` are about two accounts, the signer and the book, and one rule: only an order's owner may cancel it (§7.4). That rule is out of reach of a [solinv](https://github.com/psyto/solinv)-style account swap, because the order to cancel is named by its id in the instruction data, not by an account. So it is pinned by a test instead: \`cancel_refuses_another_users_order\` in [\`fuzz/matching/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/matching) has someone else cancel the maker's order and expects \`caller is not the order owner\`. Delete the owner check and rebuild: the test fails (we checked). Chapters 3, 6 and 12 show what the fuzzer does find, the bindings between accounts; Chapter 13 §13.6 shows how to state a rule like this one as a guard when the values live in account fields.
+
+The numbers in §7.3 and §7.4 come from the same harness: \`cargo test --release --features invariant_ch8 -- --ignored --nocapture ch7_grid\` in \`fuzz/matching\`, after building the program as in Chapter 3 §3.7.
+
 ---
 
 ## Hook into Chapter 8
@@ -578,33 +634,27 @@ Chapter 8 implements \`Match\` (or \`Take\`, depending on the flavor) — an ins
                   content: `# Chapter 8 — Matching Engine Under CU Pressure
 
 > Status: draft (v0.1).
-> Companion code: \`programs/openhl-core/src/lib.rs\` (\`process_match\` at lines 1116–1228), \`scripts/match/src/main.rs\`.
+> Companion code: [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (\`process_match\` at lines 1365–1493), [\`scripts/match/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/match/src/main.rs), [\`fuzz/matching/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/matching/src/main.rs) (the solinv harness for §8.6).
 > Builds on Chapter 7's \`OrderBook\` data structure.
 
 ---
 
-## §8.0  Framing — and a scope honesty note
+## §8.0  Framing — what this chapter teaches
 
-Chapter 7's hook promised a working slab implementation in this chapter, measured against the flat-array baseline. Living with the implementation across a few weeks of writing, I've made a different scope call: this chapter walks the matcher on the flat book, measures its CU cost shape exactly, enumerates the three real responses to CU exhaustion (raise the budget, paginate via \`max_fills\`, refactor to a slab), and gives the slab as a thoroughly-pseudocoded design — but does not implement the slab. The reasons:
-
-1. **The pedagogical job of this chapter is the cost shape.** "Linear scans inside a fill loop are O(K × N), and that's the problem" is what the worked example needs to prove. Adding a working slab would dilute that focus into two parallel implementations that the reader has to hold in their head simultaneously.
-2. **A real slab implementation deserves its own chapter.** It involves a node pool with a free-list, a critbit tree over price levels, and a FIFO queue per level. None of those are throwaway — and squeezing them into 50% of one chapter would teach all three badly.
-3. **The flat matcher with \`max_fills\` pagination is genuinely useful** for low-throughput / educational deployments. Shipping it cleanly, with the pagination response built in, is honest engineering.
+Chapter 7 hooked a slab implementation here; that promise moved to its own chapter (15) because the slab grew big enough to deserve one. This chapter is about the **CU cost shape** of matching against the flat-array book Chapter 7 shipped — measured precisely, with the three responses to CU exhaustion (raise the budget, paginate via \`max_fills\`, refactor to a slab) named and costed. The slab pseudocode in §8.4 is the design spec that Chapter 15's code implements.
 
 So this chapter:
 
 1. Walks the \`Match\` algorithm on the flat book.
 2. Reads its CU cost shape from real logs and shows it is O(fills × N).
 3. Demonstrates the three CU-pressure responses (budget raise, pagination, slab refactor) and explains which costs what.
-4. Provides slab pseudocode + diagrams at a level of detail that lets you implement it yourself if you choose.
-
-The full slab implementation moves to a future chapter (or your own homework). The hook is being downsized; the engineering content is not.
+4. Provides slab pseudocode + diagrams as the design spec; Chapter 15 ships the implementation.
 
 ---
 
 ## §8.1  The Match algorithm on a flat book
 
-From \`programs/openhl-core/src/lib.rs:1116–1228\`. The handler takes four payload fields:
+From \`programs/openhl-core/src/lib.rs:1365–1493\`. The handler takes four payload fields:
 
 \`\`\`text
 [side u8][limit_price u64 LE][size u64 LE][max_fills u8]
@@ -612,7 +662,7 @@ From \`programs/openhl-core/src/lib.rs:1116–1228\`. The handler takes four pay
 
 \`side\` is the *taker's* side (a bid taker buys against asks, an ask taker sells against bids). \`limit_price\` is the worst price the taker will accept. \`size\` is total base units to take. \`max_fills\` is the per-instruction cap on how many resting maker orders to cross — the pagination knob.
 
-The matching loop at lines 1175–1217:
+The matching loop at lines 1424–1483:
 
 \`\`\`rust
 let mut fills_done: u8 = 0;
@@ -665,28 +715,25 @@ The handler deliberately omits the *settlement* step. A real exchange would also
 
 Run the matcher with \`--max-fills\` varying from 1 to 16 against a half-full book (16 active makers, all bids, taker is an ask matching against them):
 
-| max_fills | sim units_consumed | per-fill marginal |
-|-----------|--------------------|-------------------|
-|   1       |    ~ 5,000         |   ~ 3,500         |
-|   2       |    ~ 8,500         |   ~ 3,500         |
-|   4       |    ~16,000         |   ~ 3,750         |
-|   8       |    ~30,500         |   ~ 3,600         |
-|  16       |    ~58,500         |   ~ 3,500         |
+| max_fills | units consumed | per-fill marginal |
+|-----------|----------------|-------------------|
+|   1       |    4,254       |   —               |
+|   2       |    5,950       |   1,696           |
+|   4       |    9,276       |   1,663           |
+|   8       |   15,637       |   1,590           |
+|  16       |   27,220       |   1,448           |
 
-Per-fill marginal cost is roughly constant at ~3.5 KCU for a 16-maker book. This breaks down into:
+(Measured with \`fuzz/matching\`'s \`grid\` test, which runs the real program in LiteSVM; Chapter 4 §4.5 checked that LiteSVM and \`solana-test-validator\` 4.1.2 count the same. An earlier draft of this table, from an older toolchain, read about 3,500 CU per fill. Measure your own.)
 
-- ~1,000 CU per fill for the linear scan (16 slots × ~60 CU each)
-- ~1,200 CU per fill for the maker mutation + slot zero
-- ~1,000 CU per fill for the \`msg!\` log line documenting the fill
-- ~300 CU per fill for loop housekeeping and the \`Order\` write
+Per-fill marginal cost is roughly constant, about 1.5 KCU for a 16-maker book. Part of it is the linear scan, which visits all 32 slots on every fill, empty or not. Part is the maker write and the \`msg!\` line each fill logs. We did not split it further; the number that matters is how it grows.
 
-Doubling the book size doubles the scan portion but leaves the rest constant. At ORDER_CAPACITY = 32 with all slots active, per-fill marginal becomes ~5 KCU. At 256 slots (a more realistic book), it would be ~20 KCU — and a 10-fill cross would consume 200 KCU on scans alone, hitting the default budget before any work.
+It grows with the book, but slowly at this size. Four fills against 8, 16, 24 and 32 makers cost 8,500, 9,276, 9,980 and 10,680 CU: about 22 CU per extra active maker per fill. A full 32-slot book can never hold more than 32 makers, so a single \`Match\` here makes at most 32 fills: 57,696 CU with \`max_fills = 32\`. Asking for more adds one more scan that finds nothing, and that is the worst case: 58,148 CU with \`max_fills = 255\`, well inside the 200K default. To see the budget break, make the book bigger. With \`ORDER_CAPACITY = 128\` (in \`crates/state\`), one fill against 128 makers costs 7,565 CU and 16 fills 80,533, so each fill after the first adds about 4,900; 64 fills against 64 makers cost 194,916, and 64 fills against 128 makers no longer fit at all.
 
-This is the cost shape the chapter exists to make visible. The flat matcher's per-fill cost grows linearly with the book size. The total per-instruction cost is \`O(fills × N)\`. Both factors are knobs you might want to push (more fills per call, bigger book). Push either far enough and the budget breaks.
+This is the cost shape the chapter exists to make visible. The flat matcher's per-fill cost grows linearly with the book size. The total per-instruction cost is \`O(fills × N)\`. Both factors are knobs you might want to push (more fills per call, bigger book). Push either far enough and the budget breaks; at 32 slots, "far enough" is further than the book can go.
 
 **What the SDK hides:** Anchor's program logs include the same "consumed N of M compute units" line because it comes from the runtime, not the user code. But Anchor does not surface a typed \`units_consumed\` field anywhere — you read it from the simulation result like we do here, with \`sim.value.units_consumed\`.
 
-> **Exercise §8.2.** With the book at 30/32 capacity, run the matcher with \`--max-fills 30\`. The simulation should report units_consumed near or above 200,000. Now add \`--cu-limit 400000\` and re-run. Does the on-chain commit succeed? At what \`max_fills\` does it stop succeeding even at \`--cu-limit 1400000\` (the network maximum)?
+> **Exercise §8.2.** With the book at 30/32 capacity, run the matcher with \`--max-fills 30\`. We measured 54,935 CU on a full book: comfortably inside the default. Now set \`ORDER_CAPACITY = 128\` in \`crates/state/src/lib.rs\`, rebuild the program, fill the book with 128 makers, and run \`--max-fills 64\`. It should fail with \`ComputationalBudgetExceeded\`. Add \`--cu-limit 400000\` and re-run. Does the on-chain commit succeed? At what \`max_fills\` does it stop succeeding even at \`--cu-limit 1400000\` (the network maximum)?
 
 ---
 
@@ -749,13 +796,13 @@ while remaining > 0 and fills_done < max_fills:
     fills_done += 1
 \`\`\`
 
-Per-fill cost is \`O(log N)\` instead of \`O(N)\`. For N = 1024, that's ~10 vs ~1000 inspections per fill. The matcher fits in budget for realistic books.
+Per-fill cost is \`O(log N)\` instead of \`O(N)\` when prices are spread out: for N = 1024, ~10 vs ~1000 inspections per fill. A critbit is not self-balancing, though. Its depth follows the bits of the prices, up to the key's 64 bits, and a maker who picks prices can make it that deep (Chapter 15 §15.7 measures this). The matcher fits in budget for realistic books, and a cap on \`max_fills\` keeps it there for adversarial ones.
 
 **Cost:** Significant implementation effort. A correct critbit + node pool + FIFO is roughly 1,500 lines of careful Rust with strong invariants (every node either lives in the tree+queue or on the free-list; every level either has ≥1 order or is gone from the tree). Audit cost is correspondingly higher. The whole thing is \`bytemuck::Pod\`-friendly but requires care: the tree nodes carry indices into the pool, not pointers.
 
 **When it's the right answer:** for production CLOBs with non-trivial liquidity. Phoenix and Serum both use this design for good reasons.
 
-The slab implementation is left to a future chapter (or your own implementation). The pseudo-code below is enough to write it.
+The slab implementation lives in Chapter 15, which walks the code produced from the design spec below.
 
 ---
 
@@ -765,7 +812,7 @@ A minimum slab structure, in pseudo-Rust:
 
 \`\`\`rust
 const POOL_CAPACITY: usize = 1024;
-const TREE_CAPACITY: usize = 256;   // unique price levels
+const TREE_CAPACITY: usize = 256;   // tree nodes: about 128 price levels per side (leaves + inner nodes)
 
 #[repr(C, Pod)]
 struct Slab {
@@ -824,9 +871,9 @@ The pedagogical points to absorb if you do implement this:
 4. **Critbit, not red-black.** Critbit trees have simpler rebalancing rules and don't need rotation logic. Serum uses critbit; Phoenix uses critbit. The pattern is well-trodden.
 5. **One tree per side.** Bids and asks have different "best" semantics (max vs min). Keep two trees and you avoid threading a comparator through the tree code.
 
-Implementing slab is a 3-4 day exercise if you've never done it before. The first day is the pool + free-list. The second is critbit insert/remove. The third is wiring it into a matcher. The fourth is testing edge cases (book full, level full, all-or-nothing fills).
+Implementing slab is a 3-4 day exercise if you've never done it before. The first day is the pool + free-list. The second is critbit insert/remove. The third is wiring it into a matcher. The fourth is testing edge cases (book full, level full, all-or-nothing fills). Chapter 15 walks the resulting implementation.
 
-> **Exercise §8.4.** Build the pool + free-list piece. Write a \`Pool<OrderNode, 1024>\` with \`alloc() -> Option<u16>\` and \`free(idx: u16)\` methods. Verify with 10,000 random alloc/free pairs that the pool always has the right \`available_count\`. This is the hardest single piece to get right — invariants on \`free_head\` are easy to break.
+> **Exercise §8.4.** Build the pool + free-list piece *from scratch* before reading Chapter 15. Write a \`Pool<OrderNode, 1024>\` with \`alloc() -> Option<u16>\` and \`free(idx: u16)\` methods. Verify with 10,000 random alloc/free pairs that the pool always has the right \`available_count\`. Then compare to Chapter 15's \`pool_alloc_node\` / \`pool_free_node\`. The invariants are easy to break; checking against a working implementation is part of the value.
 
 ---
 
@@ -844,7 +891,7 @@ It is not enough for:
 - A matcher that needs to atomically process large takers.
 - Any HFT-style use case where latency-per-fill matters.
 
-For those, you implement slab. The pseudo-code in §8.4 is the design spec.
+For those, ship the slab. The pseudo-code in §8.4 is the design spec and Chapter 15 is its implementation.
 
 ---
 
@@ -856,15 +903,17 @@ For those, you implement slab. The pseudo-code in §8.4 is the design spec.
 Match on flat book (this chapter):
 
   Per fill:    O(N) scan + O(1) write     → O(K × N) total
-  Per K=16 on ORDER_CAPACITY=32 book:    ~60 KCU
-  Failure mode:  CU exhaustion past ~30 fills
+  Per K=16 on ORDER_CAPACITY=32 book:    ~27 KCU (16 makers), 33 KCU (32)
+  Failure mode:  none at 32 slots (worst case 32 fills + one empty scan ≈ 58 KCU);
+                 CU exhaustion past ~40 fills at 128 slots
 
 
-Match on slab (future chapter, pseudocoded above):
+Match on slab (Chapter 15, pseudocoded above):
 
   Per fill:    O(log N) tree walk + O(1) FIFO advance  →  O(K × log N) total
-  Per K=16 on ~1024-order book:           ~30 KCU
-  Failure mode:  pool exhaustion (handle with separate place_order rejection)
+  Per K=16 on a 1,024-order slab:          22 KCU (measured, §15.6)
+  Failure mode:  pool exhaustion (handle with separate place_order rejection);
+                 CU on long matches over deep price keys (§15.7)
 
 
 Three responses to CU pressure:
@@ -884,9 +933,33 @@ Three responses to CU pressure:
 
 ### Three things to verify yourself
 
-1. **Cost grows multiplicatively.** Pre-populate the book with 8, 16, 24 active makers. For each, run \`match-cli\` with \`--max-fills 4\` (constant). Record \`units_consumed\`. The numbers should roughly track 4 × N, not just N or 4.
-2. **Pagination has correct subtotals.** Run \`match-cli\` with \`--max-fills 16\` against a full 32-maker book and a 10-unit taker. Note \`units_consumed\` and the post-state \`active_count\`. Now do the same matcher work as two calls with \`--max-fills 8\`. The sum of both calls' \`units_consumed\` should be very close to the single 16-call's number (slightly higher due to two \`process_match\` setup overheads).
-3. **Budget raise is real.** Run a deliberately-too-large match (e.g., 25 fills against a packed 32-maker book) without \`--cu-limit\`. It should fail. Add \`--cu-limit 500000\`. Should succeed. Confirm that \`sim.value.units_consumed\` is between the default 200,000 and 500,000.
+1. **Cost grows multiplicatively.** Pre-populate the book with 8, 16, 24 active makers. For each, run \`match-cli\` with \`--max-fills 4\` (constant). Record \`units_consumed\`. They grow with N, but at this size the fixed part of each fill dominates: we measured 8,500, 9,276 and 9,980. The \`O(K × N)\` term is there (about 22 CU per extra maker per fill); it just needs a bigger N to matter (§8.2).
+2. **Pagination has correct subtotals.** Run \`match-cli\` with \`--max-fills 16\` against a full 32-maker book and a 10-unit taker. Note \`units_consumed\` and the post-state \`active_count\`. Now do the same matcher work as two calls with \`--max-fills 8\`. The sum of both calls' \`units_consumed\` should be very close to the single 16-call's number (slightly higher due to two \`process_match\` setup overheads). With a taker large enough to take all 16, we measured 33,020 for one call and 18,476 + 17,072 for two.
+3. **Budget raise is real.** A 32-slot book cannot hold a match too large for the default budget: 25 fills against a packed 32-maker book measured 47,645. Raise \`ORDER_CAPACITY\` to 128 (as in Exercise §8.2), fill the book, and run 64 fills without \`--cu-limit\`. It should fail. Add \`--cu-limit 500000\`. Should succeed. Confirm that \`sim.value.units_consumed\` is between the default 200,000 and 500,000.
+
+
+### Now let a tool look for the expensive match
+
+Chapter 4 §4.7 ran [solinv](https://github.com/psyto/solinv)'s cu-dos check on \`Bench\`, whose cost the caller picks on purpose. \`Match\` is the instruction other people depend on, and its cost is picked by two parties: the taker chooses \`max_fills\`, and the makers choose how full the book is. [\`fuzz/matching/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/matching) fills the book with 32 bids (the most it holds; cu-dos restores it after every attempt), lets the taker pick any \`max_fills\` from 1 to 255, and declares a cap of 50,000 CU (\`MATCH_CU_CAP\`) for one \`Match\`. Set up as in Chapter 3 §3.7, then:
+
+\`\`\`bash
+cargo build-sbf --manifest-path programs/openhl-core/Cargo.toml
+cd fuzz/matching
+cargo build --release --features invariant_ch8
+cargo test --release --features invariant_ch8      # cost grows with the book
+timeout -s INT 60 crucible run openhl_matching_fuzz invariant_ch8 \\
+    --binary-in target/release/invariant_test --timeout 45
+\`\`\`
+
+> **Exercise §8.6.** Run it. Within seconds you should see lines like
+>
+> \`\`\`
+> [FUZZ_FINDING] [cu-dos:…] ix match consumed 58148 CU (cap 50000)
+> \`\`\`
+>
+> The taker asked for more fills than the cap allows on a full book; 58,148 is the full-book worst case from §8.2. In Chapter 4 the lesson was that raising the cap to the runtime's limit fixes nothing. Here there is a real fix, because the worst case is bounded: the book has 32 slots, and the program decides how much work one call may do. From the §8.2 numbers, how large may \`max_fills\` be for a full book to stay under 50,000? Add \`if max_fills > N { return Err(...) }\` to \`process_match\` with your answer, rebuild, and run again.
+>
+> The measurements answer it. On a full book, 26 fills cost 49,147 and 27 cost 50,627, so 26 is the largest that fits. A partly full book costs less for the same cap (28 asked of 27 makers: 48,011), because the fills stop when the makers run out, so the full book is the worst case for any cap. We used 24, to leave room for the next toolchain's prices, and the fuzzer then found nothing in 45 seconds, as the bound predicts. That is option (2) of §8.3, pagination, made mandatory: a taker who wants more fills sends more calls. It holds only while the book stays at 32 slots. At 128 slots the first fill costs 7,565 CU and each later one about 4,900, so the same cap would let a call cost about 119,000, and the cap would have to come down with every increase in \`ORDER_CAPACITY\`. That coupling is the argument for option (3), the slab (Chapter 15), whose per-fill cost grows with log N rather than N (§8.4).
 
 ---
 
@@ -907,8 +980,10 @@ Chapter 9 walks Pyth integration: the price-account layout, how to read it insid
                   content: `# Chapter 9 — Oracle Ingestion: Pyth Internals
 
 > Status: draft (v0.1).
-> Companion code: \`crates/state/src/lib.rs\` (\`Oracle\`), \`programs/openhl-core/src/lib.rs\` (\`process_create_oracle\` 1302–1373, \`process_set_oracle_price\` 1375–1427, \`process_place_order_checked\` 1429–1535), \`scripts/oracle/src/main.rs\`.
+> Companion code: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs) (\`Oracle\`, plus the Pyth v1 and v2 layout constants for §9.5), [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (\`process_create_oracle\`, \`process_set_oracle_price\`, \`process_place_order_checked\`, \`process_place_order_checked_pyth\`, \`process_place_order_checked_pyth_v2\`, and the \`read_fresh_oracle\` / \`read_fresh_pyth_v1_oracle\` / \`read_fresh_pyth_v2_oracle\` helpers), [\`scripts/oracle/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/oracle/src/main.rs), [\`programs/openhl-core/tests/pyth_binding.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/tests/pyth_binding.rs) (the feed-pinning tests for §9.5).
 > Reference targets: Pyth Network mainnet program (\`FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH\`), Switchboard On-Demand.
+>
+> Since the parts split, the logic this chapter walks through lives in [\`crates/oracle/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/oracle/src/lib.rs) (\`openhl-oracle\`); the program calls it. The code quoted below is the pre-split version from \`programs/openhl-core/src/lib.rs\`, and its line numbers are not kept in sync.
 
 ---
 
@@ -981,7 +1056,7 @@ Every column on the right has a direct counterpart in the column on the left. Ev
 
 ## §9.2  Writing the oracle — \`SetOraclePrice\`
 
-For the chapter to exercise staleness scenarios we need a way to write the oracle at a known moment. From \`programs/openhl-core/src/lib.rs:1375–1427\`:
+For the chapter to exercise staleness scenarios we need a way to write the oracle at a known moment. From \`programs/openhl-core/src/lib.rs:1513–1571\`:
 
 \`\`\`rust
 fn process_set_oracle_price(
@@ -1023,11 +1098,16 @@ The chapter codes (1) and (2) as exercises and walks (3) in prose. The deliberat
 
 ## §9.3  Reading the oracle — staleness as the foundational check
 
-The reader pattern is at \`process_place_order_checked\` (lines 1429–1535). The key block at lines 1473–1490:
+The reader pattern lives in a small helper \`read_fresh_oracle\` (lib.rs:1965–1987), called from \`process_place_order_checked\` and reused by the three position handlers Chapter 11 will add (so the gauntlet stays in one place rather than copied four times):
 
 \`\`\`rust
-let mark: u64;
-{
+fn read_fresh_oracle(
+    oracle_ai: &AccountInfo,
+    program_id: &Pubkey,
+) -> Result<u64, ProgramError> {
+    if oracle_ai.owner != program_id || oracle_ai.data_len() != Oracle::LEN {
+        return Err(ProgramError::InvalidAccountData);
+    }
     let oracle_data = oracle_ai.try_borrow_data()?;
     let oracle: &Oracle = bytemuck::from_bytes(&oracle_data[..Oracle::LEN]);
     if oracle.discriminator != ORACLE_DISCRIMINATOR {
@@ -1036,32 +1116,28 @@ let mark: u64;
     if oracle.price <= 0 {
         return Err(ProgramError::InvalidAccountData);
     }
-
     let clock = Clock::get()?;
     let age = clock.slot.saturating_sub(oracle.publish_slot);
     if age > MAX_ORACLE_STALENESS_SLOTS {
-        msg!(
-            "place_order_checked: oracle stale ({} slots, max {})",
-            age,
-            MAX_ORACLE_STALENESS_SLOTS
-        );
+        msg!("oracle stale ({} slots, max {})", age, MAX_ORACLE_STALENESS_SLOTS);
         return Err(ProgramError::InvalidAccountData);
     }
-
-    mark = oracle.price as u64;
+    Ok(oracle.price as u64)
 }
 \`\`\`
+
+\`process_place_order_checked\` calls it as \`let mark = read_fresh_oracle(oracle_ai, program_id)?;\` and then runs the sanity band against \`mark\`.
 
 Four checks before the price is trusted:
 
 1. **Discriminator check** (\`oracle.discriminator != ORACLE_DISCRIMINATOR\`): refuses an oracle account that isn't initialized. In real Pyth this is the magic constant + version match.
 2. **Price-positivity check** (\`oracle.price <= 0\`): refuses oracle states with non-positive prices. Real Pyth occasionally publishes \`0\` to signal "no good price right now" — your reader must handle that.
 3. **Staleness check** (\`age > MAX_ORACLE_STALENESS_SLOTS\`): refuses prices older than 25 slots (~10 sec). This is the heart of the chapter. A price you cannot freshness-check is a price you cannot trust — because an attacker who can pause the publisher (or just exploit a network outage) can use a stale price to game any program that trusts it blindly.
-4. **Owner check** (line 1463, \`oracle_ai.owner != program_id\`): refuses an account from a different program. In real Pyth this is \`oracle_ai.owner == &pyth_program::ID\`.
+4. **Owner check** (line 1969, \`oracle_ai.owner != program_id\`): refuses an account from a different program. In real Pyth this is \`oracle_ai.owner == &pyth_program::ID\`.
 
-\`MAX_ORACLE_STALENESS_SLOTS = 25\` from \`lib.rs:153\`. The choice is workload-driven: 25 slots is ~10 seconds at the current target slot time. High-volatility pairs (BTC, ETH on a fast-moving day) need tighter — perhaps 10–15 slots. Stablecoin pairs can tolerate wider. The constant should ideally live on the per-market \`Market\` struct so each market tunes it; we keep it global for simplicity.
+\`MAX_ORACLE_STALENESS_SLOTS = 25\` from \`lib.rs:205\`. The choice is workload-driven: 25 slots is ~10 seconds at the current target slot time. High-volatility pairs (BTC, ETH on a fast-moving day) need tighter — perhaps 10–15 slots. Stablecoin pairs can tolerate wider. The constant should ideally live on the per-market \`Market\` struct so each market tunes it; we keep it global for simplicity.
 
-The borrow is scoped to a sub-block (\`{ ... }\`) so it drops before we mutate the book. This matters because both the oracle and the book are passed as \`AccountInfo\`, and the runtime requires that no two mutable borrows of the same underlying account memory coexist. Even though our oracle and book are different accounts, the pattern of scoping borrows tightly is good hygiene — it prevents subtle aliasing bugs when handlers grow.
+The borrow inside \`read_fresh_oracle\` is naturally scoped to the helper's body — it drops when the function returns, before the caller mutates the book. This matters because both the oracle and the book are passed as \`AccountInfo\`, and the runtime requires that no two mutable borrows of the same underlying account memory coexist. Even though our oracle and book are different accounts, the pattern of scoping borrows tightly is good hygiene — it prevents subtle aliasing bugs when handlers grow.
 
 **What the SDK hides:** \`pyth-sdk-solana::load_price_feed_from_account_info\` does the discriminator check, the owner check, and a deserialization into a typed \`PriceFeed\`. It does *not* do the staleness check — that is always your job. Programs that use Pyth without an explicit staleness gate ship with one of the largest classes of oracle bugs in DeFi.
 
@@ -1073,7 +1149,7 @@ The borrow is scoped to a sub-block (\`{ ... }\`) so it drops before we mutate t
 
 A staleness-checked price is now safe to read. The first risk control we use it for: refuse \`place_order\` calls whose limit price drifts too far from the oracle mark.
 
-From \`process_place_order_checked\` lines 1493–1506:
+From \`process_place_order_checked\` lines 1658–1671:
 
 \`\`\`rust
 let band = mark.saturating_mul(SANITY_BAND_BPS) / 10_000;
@@ -1091,7 +1167,7 @@ if price < low || price > high {
 }
 \`\`\`
 
-\`SANITY_BAND_BPS = 2000\` (lib.rs:159) means ±20%. With \`mark = 100\`, an order at price 50 is rejected (below \`low = 80\`), an order at 95 is accepted, an order at 121 is rejected. A wide band on purpose: tighter bands cause legitimate users to fail more often during normal volatility, and ch.9 is about the *pattern*, not the calibration.
+\`SANITY_BAND_BPS = 2000\` (lib.rs:211) means ±20%. With \`mark = 100\`, an order at price 50 is rejected (below \`low = 80\`), an order at 95 is accepted, an order at 121 is rejected. A wide band on purpose: tighter bands cause legitimate users to fail more often during normal volatility, and ch.9 is about the *pattern*, not the calibration.
 
 Production bands are tuned per market:
 
@@ -1107,51 +1183,173 @@ The band is the first risk control in the program because it's the simplest one 
 
 ---
 
-## §9.5  Production Pyth — the real shape, in one page
+## §9.5  Production Pyth v1 — implemented bytes-up
 
-If you replace our \`Oracle\` with a real Pyth price account, the changes are localized and small:
+The mock \`Oracle\` is built so the chapter can pause publishes at known slots. Production reads from a Pyth account that publishers populate independently. The migration is localized — same staleness gauntlet, same sanity band, different parser — and the chapter ships it as a peer instruction \`PlaceOrderCheckedPyth\` (tag 32) so you can compare the two paths side by side. The Pyth v1 layout is well-defined enough that we parse it bytes-up, with no \`pyth-sdk-solana\` dependency — the bytes-up posture from Chapter 1 carries straight through.
 
-\`\`\`rust
-// 1. Owner check changes
-// Was:  if oracle_ai.owner != program_id { ... }
-// Now:  if oracle_ai.owner != &pyth_program::ID { ... }
+### The Pyth v1 PriceAccount layout
 
-// 2. Layout changes
-// Was:  let oracle: &Oracle = bytemuck::from_bytes(&oracle_data[..Oracle::LEN]);
-// Now:  let price_feed = pyth_sdk_solana::load_price_feed_from_account_info(oracle_ai)?;
+Every Pyth v1 price account begins with a magic constant + version + account-type discriminator, then a header of EMA bookkeeping, then the aggregate \`agg\` block we actually trust. The six fields we read:
 
-// 3. Field access changes
-// Was:  oracle.price, oracle.conf, oracle.publish_slot
-// Now:  price_feed.get_price_no_older_than(&clock, MAX_ORACLE_STALENESS_SLOTS)?
-//         .price    (i64)
-//         .conf     (u64)
-//         .expo     (i32)
-// Note: pyth_sdk_solana::PriceFeed::get_price_no_older_than already does the
-// staleness check we did by hand. Use it if you import the SDK; understand
-// what it does either way.
-
-// 4. The fallback pattern — Switchboard or a secondary Pyth feed
-// You typically wire TWO oracle accounts and prefer the first that passes
-// staleness + conf bounds:
-//
-//   let primary = try_read(&primary_oracle_ai);
-//   let secondary = try_read(&secondary_oracle_ai);
-//   let mark = match (primary, secondary) {
-//       (Ok(p), _) => p,
-//       (Err(_), Ok(s)) => s,
-//       (Err(_), Err(_)) => return Err(NoFreshPrice),
-//   };
+\`\`\`text
+offset | size | field                       | what we check
+-------+------+-----------------------------+---------------------------------
+   0   |  4   | magic (u32)                 | == 0xa1b2c3d4
+   4   |  4   | ver   (u32)                 | == 2 (Pyth v1)
+   8   |  4   | atype (u32)                 | == 3 (PriceAccount)
+  20   |  4   | expo  (i32)                 | logged; not applied (see below)
+ 208   |  8   | agg.price (i64)             | > 0
+ 216   |  8   | agg.conf  (u64)             | logged
+ 224   |  4   | agg.status (u32)            | == 1 (Trading)
+ 232   |  8   | agg.pub_slot (u64)          | clock.slot - pub_slot <= MAX_ORACLE_STALENESS_SLOTS
 \`\`\`
 
-The structural pattern is identical to ours. The bytes you parse are different. The auth model (who can write the oracle) flips entirely: in Pyth's case, you don't write anything — you only read.
+(\`agg\` is the publisher network's aggregated price for the slot. Pyth has up to 32 publishers; the on-chain aggregation runs every slot and \`agg.status\` reflects whether they agreed.)
 
-**The Switchboard fallback** is where the chapter's final risk-engineering point lands. A single oracle is a single point of failure. Pyth has been down. Switchboard has been down. Both at the same time has happened (rarely). Programs that protect downside trust *both* and refuse to operate when neither is fresh. The wiring is mechanical:
+Offsets are exported as \`PYTH_V1_OFFSET_*\` constants from \`crates/state/src/lib.rs\`. We deliberately don't mirror the full ~3 KiB \`PriceAccount\` as a Pod struct — the bulk of the bytes are per-publisher \`comp[]\` entries we don't read. Hardcoding the six offsets is fewer bytes of code, easier to audit, and matches the chapter's "the byte layout *is* the contract" stance.
+
+### \`read_fresh_pyth_v1_oracle\`
+
+The helper, in skeleton:
+
+\`\`\`rust
+fn read_fresh_pyth_v1_oracle(oracle_ai: &AccountInfo) -> Result<u64, ProgramError> {
+    let data = oracle_ai.try_borrow_data()?;
+    if data.len() < PYTH_V1_MIN_LEN { return Err(InvalidAccountData); }
+
+    // (1) Header gauntlet.
+    if u32::from_le_bytes(data[0..4]) != PYTH_V1_MAGIC      { return Err(...); }
+    if u32::from_le_bytes(data[4..8]) != PYTH_V1_VERSION    { return Err(...); }
+    if u32::from_le_bytes(data[8..12]) != PYTH_V1_ACCOUNT_TYPE_PRICE { return Err(...); }
+
+    // (2) Aggregate status.
+    let status = u32::from_le_bytes(data[PYTH_V1_OFFSET_AGG_STATUS..]);
+    if status != PYTH_V1_STATUS_TRADING { return Err(InvalidAccountData); }
+
+    // (3) Staleness — agg.pub_slot vs Clock.slot.
+    let pub_slot = u64::from_le_bytes(data[PYTH_V1_OFFSET_AGG_PUB_SLOT..]);
+    let age = Clock::get()?.slot.saturating_sub(pub_slot);
+    if age > MAX_ORACLE_STALENESS_SLOTS { return Err(InvalidAccountData); }
+
+    // (4) Read price + log expo/conf for observability.
+    let price_i = i64::from_le_bytes(data[PYTH_V1_OFFSET_AGG_PRICE..]);
+    if price_i <= 0 { return Err(InvalidAccountData); }
+    Ok(price_i as u64)
+}
+\`\`\`
+
+The check order mirrors the mock path: structural validation first (magic / version / atype), then the status check (the Pyth analog of our mock's discriminator+initialization check), then staleness, then the price sanity. Any failure returns \`InvalidAccountData\` so callers can handle a stale or non-Trading Pyth feed the same way they handle a stale mock.
+
+Four design decisions worth flagging:
+
+**1. The reader checks bytes; the handler checks which account.** The mock path requires \`oracle_ai.owner == program_id\`; the reader here has no owner check, and the first version of this chapter said it did not need one, because "the magic+version+atype gauntlet already structurally guarantees the account is a Pyth v1 PriceAccount." It does not. Anyone can create an account they own, write the magic, version, account type, a Trading status and any price they like into it, and pass it in; the test \`pyth_v1_reads_only_the_pinned_price_account\` in \`programs/openhl-core/tests/pyth_binding.rs\` did exactly that, and the order went through against a price the caller chose. Hardcoding the Pyth program ID would force a mainnet-vs-devnet choice up front (\`FsJ3...epH\` for mainnet, \`gSbE...92s\` for devnet), so the market stores both instead, set by the market authority with \`SetPythFeeds\` (tag 34): the expected Pyth account *pubkey* (\`Market.pyth_v1_price_account\`) and the program that must own it (\`Market.pyth_v1_program\`). \`PlaceOrderCheckedPyth\` checks both on every call, and refuses outright while nothing is pinned. The address alone is not enough: an account at that address could be closed and recreated by someone else, and the test's \`recreated\` case shows the owner check refusing it. Pinning the address also settles the wrong-asset question, since a genuine feed for another pair is a different address. What the program still trusts is the authority's configuration: pin the wrong account and owner, and it will read them.
+
+**2. \`expo\` is read and logged, not applied.** Pyth prices come as \`(mantissa, expo)\` pairs — the real price is \`mantissa × 10^expo\`. For USD pairs \`expo\` is typically \`-8\`. The mock side has no expo (our \`Oracle.price\` is a u64 in whatever scale the market uses), so to keep the two paths interoperable in our chapter we treat the mantissa as the price and log \`expo\` for observability. A production deployment would normalize: either pin a single supported \`expo\` and reject anything else, or translate the price into the program's fixed-point convention on the fly. This is the most likely place to write a real bug in the migration; the chapter calls it out so you can put a TODO there yourself.
+
+**3. We refuse \`price <= 0\` even when status == Trading.** Pyth occasionally publishes zero — a publisher-network corner case where the aggregate is non-negative but degenerate. The mock path refuses the same; the Pyth path matches.
+
+**4. \`agg.status != Trading\` is a hard refusal, not a fallback.** A real production reader with a Switchboard fallback would try the other oracle here rather than returning an error. We don't ship the fallback because the *worked example* is the v1 single-oracle migration; the fallback pattern (try-A-then-B with disagreement tolerance) is straightforward to add on top — the §9.5 closing notes lay it out.
+
+### \`PlaceOrderCheckedPyth\` (tag 32)
+
+The peer instruction. Same payload as \`PlaceOrderChecked\` (\`[side u8][price u64 LE][size u64 LE]\`), same eight prefix accounts modulo two changes:
+
+- Slot 2 is a Pyth v1 PriceAccount, not our mock \`Oracle\`. (The oracle-PDA-from-market cross-check is dropped; Pyth accounts aren't ours to PDA-derive.)
+- The oracle-side gauntlet calls \`read_fresh_pyth_v1_oracle\` instead of \`read_fresh_oracle\`, and before it the handler requires slot 2 to be the market's pinned \`pyth_v1_price_account\` (decision 1 above).
+
+Everything downstream — sanity-band, fee escrow, book write — is identical to the mock path. Both handlers share the same \`SANITY_BAND_BPS\`, \`PROTOCOL_FEE_BPS\`, and the same \`spl_token_transfer_user_signed\` Transfer at the end. The migration's surface is exactly what §9.5 promised: localized.
+
+### Pyth v2 — same chapter, different architecture
+
+The "v1" in \`read_fresh_pyth_v1_oracle\` matters. Pyth's v1 model — publishers writing a static PriceAccount each slot, readers parsing it — is being deprecated in favor of v2's *pull-oracle* architecture. The critical insight for a perp DEX is that the v2 architecture splits cleanly across two layers:
+
+1. **Pyth's \`pyth-solana-receiver\` program** does the cryptographic work. It accepts a Pyth update message wrapped in a Wormhole VAA (Verified Action Approval — a payload signed by 2/3+ of Wormhole's guardian set), verifies the guardian signatures using Solana's secp256k1 precompile, checks any Merkle proofs in the bundled update, and writes the verified price into a \`PriceUpdateV2\` account.
+2. **The consumer** (you, the perp DEX) reads that \`PriceUpdateV2\` account. No VAA verification. No guardian-set management. No cryptography on your hot path.
+
+If you confused those two layers (and an earlier draft of this section did), you'd conclude that v2 needs ~2000 lines of cryptographic code on your side. It doesn't. The Wormhole work lives in Pyth's program, which is shared infrastructure; what you ship on the perp DEX is structurally the same as the v1 reader, just against a different account layout.
+
+\`PlaceOrderCheckedPythV2\` (tag 33) ships the consumer side. Two checks come before the reader, in the handler, because the reader cannot make them: the account must be owned by the receiver program the market pinned (\`Market.pyth_v2_receiver\`; its ID differs between clusters, so it is data, not a constant), and its \`feed_id\` must equal \`Market.pyth_v2_feed_id\`. Without the first, anyone can write a \`PriceUpdateV2\`-shaped account, discriminator and all, from their own program; without the second, a genuine update for another asset passes. The handler also requires the update to be fully verified (\`VerificationLevel::Full\`): a Partial update was checked against fewer guardian signatures than Wormhole's quorum, and Pyth's own SDK refuses one for prices. \`pyth_v2_reads_only_the_pinned_receiver_and_feed\` tries all three, including Partial updates with 0 and 13 signatures. The reader:
+
+\`\`\`rust
+fn read_fresh_pyth_v2_oracle(oracle_ai: &AccountInfo) -> Result<u64, ProgramError> {
+    let data = oracle_ai.try_borrow_data()?;
+    if data.len() < PYTH_V2_MIN_LEN { return Err(InvalidAccountData); }
+
+    // (1) Anchor account discriminator. PriceUpdateV2 uses Anchor's
+    // sha256("account:PriceUpdateV2")[..8] convention.
+    if data[0..8] != PYTH_V2_PRICE_UPDATE_DISCRIMINATOR { return Err(...); }
+
+    // (2) VerificationLevel — log only. Production may demand Full.
+    let level_tag = data[PYTH_V2_OFFSET_VERIFICATION_LEVEL];
+    // Partial { num_signatures }  | Full
+
+    // (3) Staleness — against posted_slot, the Solana slot in which
+    // the receiver wrote the update.
+    let posted_slot = u64::from_le_bytes(data[PYTH_V2_OFFSET_POSTED_SLOT..]);
+    if Clock::get()?.slot.saturating_sub(posted_slot) > MAX_ORACLE_STALENESS_SLOTS {
+        return Err(InvalidAccountData);
+    }
+
+    // (4) Price + log exponent / conf / publish_time.
+    let price_i = i64::from_le_bytes(data[PYTH_V2_OFFSET_PRICE..]);
+    if price_i <= 0 { return Err(InvalidAccountData); }
+    Ok(price_i as u64)
+}
+\`\`\`
+
+PriceUpdateV2's on-chain layout, parsed by offset (Anchor borsh-serializes Pyth's struct):
+
+\`\`\`text
+offset | size | field                            | what we do with it
+-------+------+----------------------------------+---------------------------------------
+   0   |  8   | anchor_discriminator             | == [34,241,35,99,157,126,244,205]
+   8   | 32   | write_authority (Pubkey)         | (not checked — whoever may update or close this account)
+  40   |  1   | verification_level tag           | log; 0=Partial, 1=Full
+  41   |  1   | verification_level.num_signatures| log (only when tag==Partial)
+  42   | 32   | price_message.feed_id            | == \`Market.pyth_v2_feed_id\` (checked by the handler)
+  74   |  8   | price_message.price (i64)        | > 0; returned as u64 mark
+  82   |  8   | price_message.conf  (u64)        | log
+  90   |  4   | price_message.exponent (i32)     | log; production normalizes by 10^expo
+  94   |  8   | price_message.publish_time (i64) | log; informational (Pyth's Unix timestamp)
+ 102   |  8   | price_message.prev_publish_time  | unused
+ 110   |  8   | price_message.ema_price          | unused (the chapter uses the spot price)
+ 118   |  8   | price_message.ema_conf           | unused
+ 126   |  8   | posted_slot (u64)                | staleness gauntlet
+ 134                                                — end
+\`\`\`
+
+The offsets are exported as \`PYTH_V2_OFFSET_*\` from \`crates/state/src/lib.rs\`. They are the offsets of a **Partial** update: Borsh writes \`VerificationLevel::Full\` as 1 byte instead of 2, so in a Full update every field from \`price_message\` on sits one byte earlier. The pre-split reader quoted above used the fixed offsets and misread Full updates; \`openhl_oracle::pyth_v2::parse\` now handles both. As with v1, we don't mirror the full Pod struct — six field reads, no Anchor dep, the byte layout *is* the contract.
+
+### The two-instruction transaction pattern
+
+There's one piece of architecture the v2 reader assumes: the \`PriceUpdateV2\` account has to be *fresh* when the trade instruction runs. In practice the consumer transaction does this by including the receiver's \`post_update_v2\` instruction as the first instruction, and the trade instruction as the second:
+
+\`\`\`text
+tx = [
+  pyth-solana-receiver::post_update_v2(vaa_data, update_data, …),  // verifies VAA, writes account
+  openhl::place_order_checked_pyth_v2(side, price, size),          // reads the just-written account
+]
+\`\`\`
+
+\`post_update_v2\` writes a per-(feed_id, write_authority) \`PriceUpdateV2\` PDA that \`place_order_checked_pyth_v2\` then reads. The client fetches the latest VAA from Pyth's price-update service (an HTTP endpoint that aggregates publisher signatures into VAAs ready to submit), bundles it into the first instruction, and lets the staleness gauntlet enforce that everything stays in sync. There is no on-chain CPI from our handler into the receiver — they communicate through the account, not directly.
+
+This is also why our v2 handler doesn't take a "post" instruction or any Wormhole accounts: the consumer transaction is the wiring; the program just reads.
+
+### What's still genuinely deferred
+
+Now that the consumer side ships, what's left is **running your own Wormhole-style receiver**. That'd be useful if you wanted to read Pyth updates from a Wormhole chain that doesn't have an official Pyth receiver, or if you wanted to verify additional message types (governance updates, mapping changes) the receiver doesn't expose. It's its own chapter — secp256k1 signature recovery against a stored guardian set, replay protection, Merkle proof verification on bundled updates. The perp DEX consumer path here doesn't need any of it.
+
+### The Switchboard fallback
+
+A single oracle is a single point of failure. Pyth has been down. Switchboard has been down. Both at the same time has happened (rarely). Programs that protect downside trust *both* and refuse to operate when neither is fresh. The wiring is mechanical:
 
 1. The transaction's \`AccountMeta\` array includes both oracle accounts.
-2. The handler reads each, doing the full validation pattern (discriminator + owner + price-positive + staleness).
+2. The handler reads each, doing the full validation pattern (discriminator/magic + status + price-positive + staleness).
 3. If either passes, use it. If both fail, refuse the call.
 
 Programs that do this also typically *compare* the two when both are fresh — refuse the call if they disagree by more than some tolerance (e.g., 50 bps). A 50-bp disagreement between Pyth and Switchboard usually means one of them is wrong, and a program that just picks the cheaper price for the user has been gamed.
+
+> **Exercise §9.5.** Pick a real Pyth v1 mainnet PriceAccount (SOL/USD is \`H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG\` at the time of writing — verify via Pyth's price-feed-ids page). Use the local validator's \`clone\` feature to mirror that account into your test cluster, pin it on your market with \`SetPythFeeds\` (signed by the market authority), then invoke \`PlaceOrderCheckedPyth\` against it. Then try the attack decision 1 describes: copy the account's bytes into an account you own and pass that instead. It should fail with \`oracle is not the market's pinned Pyth v1 feed\`. Compare the logged \`expo\` to the SOL/USD product (should be \`-8\`). Confirm the staleness gauntlet by replaying a stale slot of the account from an archive.
 
 ---
 
@@ -1196,7 +1394,7 @@ Required checks before trusting a price:
 
 ### Three things to verify yourself
 
-1. **The discriminator check matters.** Create a market PDA, then construct a transaction that calls \`place_order_checked\` passing the market PDA in the oracle slot. The discriminator check at \`lib.rs:1477\` should fail with \`UninitializedAccount\`. Without this check, the code would \`bytemuck::from_bytes\` into garbage data and use a nonsensical \`price\`.
+1. **The discriminator check matters.** Create a market PDA, then construct a transaction that calls \`place_order_checked\` passing the market PDA in the oracle slot. The discriminator check in \`read_fresh_oracle\` at [\`lib.rs:1974\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs#L1974) should fail with \`UninitializedAccount\`. Without this check, the code would \`bytemuck::from_bytes\` into garbage data and use a nonsensical \`price\`.
 2. **Staleness is the security gate.** Set the oracle, wait 30+ slots, try to place an order at any price inside the band. It should fail with \`oracle stale\`. This is the most commonly forgotten check; it is also the one that has caused the most oracle exploits in the wild.
 3. **The band's edge is exact.** With \`SANITY_BAND_BPS = 2000\` and \`mark = 100\`, an order at exactly 80 should be *accepted* (the check is \`< low\`, not \`<= low\`). An order at exactly 79 should be rejected. Confirm by running both. The edge case for a \`<=\` vs \`<\` slip is a single bp; for tighter bands at higher prices, the dollar value of the difference can be significant.
 
@@ -1219,7 +1417,9 @@ Chapter 10 walks the time-windowed accumulator pattern, the Clock sysvar's \`uni
                   content: `# Chapter 10 — Funding Rate Mechanics
 
 > Status: draft (v0.1).
-> Companion code: \`crates/state/src/lib.rs\` (\`FundingState\`), \`programs/openhl-core/src/lib.rs\` (\`process_create_funding_state\` 1605–1680, \`process_update_funding\` 1682–1758), \`scripts/funding/src/main.rs\`.
+> Companion code: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs) (\`FundingState\`), [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (\`process_create_funding_state\` 2162–2232, \`process_update_funding\` 2239–2317), [\`scripts/funding/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/funding/src/main.rs).
+>
+> Since the parts split, the logic this chapter walks through lives in [\`crates/funding/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/funding/src/lib.rs) (\`openhl-funding\`); the program calls it. The code quoted below is the pre-split version from \`programs/openhl-core/src/lib.rs\`, and its line numbers are not kept in sync.
 
 ---
 
@@ -1314,7 +1514,7 @@ The other fields are mechanical: discriminator for the standard check, bump for 
 
 ## §10.3  Walking \`UpdateFunding\`
 
-\`process_update_funding\` at \`programs/openhl-core/src/lib.rs:1682–1758\` is the only mutator. Its body, ignoring validation:
+\`process_update_funding\` at \`programs/openhl-core/src/lib.rs:2239–2317\` is the only mutator. Its body, ignoring validation:
 
 \`\`\`rust
 let new_rate = new_rate_raw
@@ -1488,7 +1688,7 @@ Sealevel scheduling impact:
 ### Three things to verify yourself
 
 1. **The accumulator is piecewise-linear.** Run three UpdateFunding calls a known number of seconds apart with different rates. The cumulative index after each call should match \`prior_index + prior_rate × elapsed_seconds\` exactly (within the integer division of the 1e9 scaling).
-2. **The clamp is enforced.** Try \`--rate 5000000\` (way above the cap). The chapter's clamp at \`lib.rs:1703–1705\` should reduce it to \`MAX_FUNDING_RATE_PER_SEC_ABS = 1_000_000\`, and you'll see the \`clamped to\` log line.
+2. **The clamp is enforced.** Try \`--rate 5000000\` (way above the cap). The chapter's clamp at [\`lib.rs:2260–2262\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs#L2260) should reduce it to \`MAX_FUNDING_RATE_PER_SEC_ABS = 1_000_000\`, and you'll see the \`clamped to\` log line.
 3. **The slot-vs-time distinction matters.** Run \`UpdateFunding --rate 100\`, immediately run another \`UpdateFunding --rate 200\` (same slot). The second call should report \`elapsed=0s\` and the index should not advance. Wait 10 seconds, run a third with \`--rate 0\` — now you'll see \`elapsed≈10\` and the index advanced by \`200 × 10\`.
 
 ---
@@ -1510,7 +1710,9 @@ Chapter 11 introduces the \`Position\` account: per-user-per-market, holds size 
                   content: `# Chapter 11 — Position Lifecycle and Liquidation Engine
 
 > Status: draft (v0.1).
-> Companion code: \`crates/state/src/lib.rs\` (\`Position\`), \`programs/openhl-core/src/lib.rs\` (helpers + \`process_open_position\` 1881–1993, \`process_close_position\` 1995–2061, \`process_liquidate\` 2063–2152), \`scripts/position/src/main.rs\`.
+> Companion code: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs) (\`Position\`, \`InsuranceFund\`), [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (helpers + \`process_open_position\`, \`process_close_position\`, \`process_liquidate\`, \`process_create_insurance_fund\`, \`process_insurance_fund_deposit\`), [\`scripts/position/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/position/src/main.rs), [\`fuzz/positions/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/positions/src/main.rs) (the solinv harness for §11.7).
+>
+> Since the parts split, the logic this chapter walks through lives in [\`crates/margin/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/margin/src/lib.rs) (\`openhl-margin\`); the program calls it. The code quoted below is the pre-split version from \`programs/openhl-core/src/lib.rs\`, and its line numbers are not kept in sync.
 
 ---
 
@@ -1526,7 +1728,7 @@ The chapter ships three instructions, each of which integrates the SPL Token esc
 
 The collateral now lives where a real perp DEX puts it — the program's vault token account, owned by SPL Token, controlled by an \`invoke_signed\`-only PDA. The position record holds the *bookkeeping* (size, entry price, snapshot index); the vault holds the *money*. The two stay in sync because every state transition that touches the bookkeeping also runs the matching CPI.
 
-One scope-honesty note remains for this chapter: **insurance fund**. When a position closes underwater (\`equity < 0\`), the deposited collateral is already sitting in the vault — and the program currently lets that residue absorb the loss. In production you'd route a fraction of every liquidation penalty into an \`InsuranceFund\` account, draw from it when underwater closes leave a shortfall, and only socialize to the LP pool once the fund is empty. We discuss this in §11.6 but don't implement it; that's a follow-up chapter on its own.
+The chapter also ships the §11.6 **insurance fund**: a per-market \`InsuranceFund\` PDA + dedicated token account that receives a configurable slice (\`INSURANCE_FUND_PENALTY_SHARE_BPS = 5000\`, i.e. half) of every liquidation penalty and drains to cover underwater-close shortfalls. The fund's token account is authority-shared with the position vault (\`[b"vault_auth", market]\`), so no new signer PDA is introduced. Bootstrap via \`CreateInsuranceFund\` once per market; permissionless top-up via \`InsuranceFundDeposit\`.
 
 ---
 
@@ -1557,7 +1759,7 @@ Six load-bearing fields, plus discriminator + bump + padding.
 
 **\`entry_price: u64\`** is the mark price stamped from the oracle at \`OpenPosition\` time. It's the reference point for price PnL: \`(mark - entry) × size\`. We do not maintain a running entry-price for partial closes; the chapter's \`ClosePosition\` is all-or-nothing. Partial closes would require resetting \`entry_price\` to a size-weighted blend on each partial — a useful extension but not in scope.
 
-**\`collateral: u64\`** is the quote-currency margin amount. Strictly positive while the position is open; can be reduced to zero by underwater close or liquidation. Cannot go negative — losses beyond collateral are socialized to the insurance fund (or, in our scope-deferred version, just lost).
+**\`collateral: u64\`** is the quote-currency margin amount. Strictly positive while the position is open; can be reduced to zero by underwater close or liquidation. Cannot go negative — losses beyond collateral are absorbed by the per-market insurance fund up to its balance (§11.6); the residual once the fund is empty falls on whoever holds the other side of the trade (no autodeleverage logic in this chapter — that branch is its own architectural problem and is the only insurance-fund piece §11.6 still defers).
 
 **\`funding_snapshot_index: i64\`** is the cumulative funding index at the last touch (open, close, liquidate). The per-position settle pattern from Chapter 10 makes this the only field needed for funding accounting — the delta between \`funding_now\` and \`funding_snapshot_index\` times \`size\` is the funding PnL accrued since the snapshot.
 
@@ -1569,7 +1771,7 @@ The PDA derivation uses both \`user\` and \`market\` as seeds: \`[b"position", u
 
 ## §11.2  Equity, notional, and the margin formulas
 
-Before walking the handlers, fix the formulas. From \`programs/openhl-core/src/lib.rs:1814–1834\`:
+Before walking the handlers, fix the formulas. From \`programs/openhl-core/src/lib.rs:2329–2342\`:
 
 \`\`\`rust
 fn compute_equity(position: &Position, mark: u64, funding_index_now: i64) -> i128 {
@@ -1616,7 +1818,7 @@ The gap between IM (10%) and MM (5%) is the **maintenance buffer** — how far t
 
 \`process_open_position\` at \`programs/openhl-core/src/lib.rs\`. The handler decomposes into six parts: validation, oracle/funding read, initial margin check, position PDA allocation, **collateral escrow CPI**, and the position state write.
 
-**Validation**: payload size, non-zero size and collateral, user is signer, market is owned by us, system program is the System program, **token program is SPL Token, user_token_account is owned by SPL Token, and the vault_token_account matches the derived PDA at \`[VAULT_SEED, market, mint]\`** (the new escrow-side checks). PDA derivation for the position itself:
+**Validation**: payload size, non-zero size and collateral, user is signer, market is a Market account owned by us **whose \`quote_mint\` is the passed mint** (a position records no mint and ClosePosition/Liquidate pay out of the quote-mint vault, so without this a worthless mint could be escrowed and closed out for real quote tokens), system program is the System program, **token program is SPL Token, user_token_account is owned by SPL Token, and the vault_token_account matches the derived PDA at \`[VAULT_SEED, market, mint]\`** (the new escrow-side checks). PDA derivation for the position itself:
 
 \`\`\`rust
 let (expected, bump) = Pubkey::find_program_address(
@@ -1628,16 +1830,19 @@ if position_ai.key != &expected {
 }
 \`\`\`
 
-**Read external inputs** (lines 1922–1923):
+**Read external inputs** (lines 2911–2912):
 
 \`\`\`rust
+verify_market_oracle_and_funding(oracle_ai, funding_ai, market_ai.key, program_id)?;
 let mark = read_fresh_oracle(oracle_ai, program_id)?;
 let funding_snapshot = read_funding_index(funding_ai, program_id)?;
 \`\`\`
 
-\`read_fresh_oracle\` (lines 1838–1858) factors the Chapter 9 staleness gauntlet into a helper — same checks (owner + discriminator + price>0 + age vs Clock), reused across all three position handlers. \`read_funding_index\` (lines 1860–1869) is the simpler read used to snapshot the funding index.
+\`read_fresh_oracle\` (lines 2353–2372) factors the Chapter 9 staleness gauntlet into a helper — same checks (owner + discriminator + price>0 + age vs Clock), reused across all three position handlers. \`read_funding_index\` (lines 2597–2607) is the simpler read used to snapshot the funding index.
 
-**Initial margin check** (lines 1932–1942):
+Neither helper asks *whose* oracle or funding state it was handed: every market's oracle is owned by this program and carries the same discriminator. So all three position handlers first call \`verify_market_oracle_and_funding\`, which requires the two accounts to be this market's PDAs, \`[ORACLE_SEED, market]\` and \`[FUNDING_SEED, market]\`, the same derivation \`PlaceOrderChecked\` already used for its oracle (Chapter 9). The first version of this chapter left it out of all three handlers. With two markets in one quote mint, one at 100 and one at 200, a user opened a long on the first and closed it naming the second market's oracle: 200 in, 1,200 out of the first market's token account, which holds everyone's collateral. A liquidator could liquidate a healthy short the same way. Chapter 9's publisher check (Exercise §9.2) does not help, because both prices are honest; they are just the wrong market's. §11.7 shows how a fuzzer found it. (Chapter 9's two Pyth order variants cannot use \`[ORACLE_SEED, market]\`, because Pyth's accounts are not this program's PDAs; they check the feed the market pinned with \`SetPythFeeds\` instead, §9.5.)
+
+**Initial margin check** (lines 2915–2926):
 
 \`\`\`rust
 let notional_val = notional(size, mark);
@@ -1688,9 +1893,9 @@ Four data writes. \`entry_price = mark\` stamps the oracle's price as the positi
 
 ## §11.4  Walking \`ClosePosition\`
 
-\`process_close_position\`. Simpler than open in one dimension (no PDA creation) but more involved in another: it adds an outbound SPL Token CPI signed by the vault authority PDA via \`invoke_signed\`.
+\`process_close_position\`. Simpler than open in one dimension (no PDA creation) but more involved in another: it runs two outbound SPL Token CPIs signed by the vault authority PDA via \`invoke_signed\` — the user payout, and (on underwater close) the insurance fund's shortfall drain. The handler takes 12 accounts; the last two are the insurance fund state and its token account (§11.6).
 
-**Validation + owner check** (lines 2007–2024):
+**Validation + owner check** (lines 3052–3062):
 
 \`\`\`rust
 if position.user != *user_ai.key.as_ref() {
@@ -1701,7 +1906,7 @@ if position.user != *user_ai.key.as_ref() {
 
 Only the position's owner may close it voluntarily. Liquidate (§11.5) is the route for anyone else. The user check uses the \`user\` field stored in the position rather than the PDA derivation — same information, easier to read.
 
-**Read external inputs + compute equity** (lines 2026–2040):
+**Read external inputs + compute equity** (lines 3040–3072):
 
 \`\`\`rust
 let mark = read_fresh_oracle(oracle_ai, program_id)?;
@@ -1748,7 +1953,7 @@ spl_token_transfer_vault_signed(
 
 The vault authority is a PDA at \`[VAULT_AUTH_SEED, market]\`, so the program signs for it: \`invoke_signed\` with \`[VAULT_AUTH_SEED, market_key, &[bump]]\`. The vault token account drops \`payout\` units; the user's token account receives them. If \`payout == 0\` (underwater close), the helper skips the CPI — no point burning CU on a zero-amount transfer.
 
-**Underwater closes lose collateral, don't pass losses on.** A position that closes with equity = -50 (loss exceeds collateral) sends \`payout = 0\` to the user, but the 100 units they originally deposited are still sitting in the vault — now decoupled from any position record. That residue is the implicit subsidy to whoever was on the other side of the trade. In production an InsuranceFund draws on these residues + a fraction of liquidation penalties to cover the shortfalls properly; see §11.6.
+**Underwater closes drain the insurance fund.** A position that closes with equity = -50 sends \`payout = 0\` to the user, and the handler additionally drains \`min(50, fund.balance)\` from the insurance fund's token account into the vault. The drain is the bookkeeping side of "the protocol covered the shortfall instead of the residue silently subsidizing the counterparty" — see §11.6 for the full design including the cap behavior when the fund runs dry.
 
 > **Exercise §11.4.** Open a position at entry = 100, size = 5, collateral = 100. Move the oracle to mark = 80. Close. The expected equity is \`100 + 5 × (80 - 100) = 0\`. Verify the user's quote token balance after the close is unchanged from before the open (because payout = 0 — the 100 they deposited went into the vault and stayed there).
 
@@ -1756,7 +1961,7 @@ The vault authority is a PDA at \`[VAULT_AUTH_SEED, market]\`, so the program si
 
 ## §11.5  Walking \`Liquidate\`
 
-\`process_liquidate\`. The crucial difference from close: **anyone can call it**. The handler runs *two* outbound SPL Token CPIs — vault → liquidator for the penalty bounty, vault → position-owner for the remainder — both signed by the vault authority PDA.
+\`process_liquidate\`. The crucial difference from close: **anyone can call it**. The handler runs *four* outbound SPL Token CPIs — vault → liquidator (the liquidator's slice of the penalty), vault → insurance fund (the fund's slice of the penalty), vault → position-owner (the remainder), and fund → vault (the shortfall drain when equity < 0) — all signed by the same vault authority PDA. The handler takes 13 accounts; the last two are the InsuranceFund state and its token account (§11.6).
 
 **Validation**: the *liquidator* must be a signer, but the program does *not* check that the liquidator matches the position's user. Anyone can call liquidate on anyone's position. Additional escrow-side checks: token_program is SPL Token, both \`owner_token\` and \`liquidator_token\` are SPL Token-owned, vault_token matches the derived PDA, vault_authority matches the derived PDA (and the bump is captured for the two invoke_signed calls below).
 
@@ -1768,7 +1973,7 @@ if !liquidator_ai.is_signer { return Err(...); }
 
 This permissionless property is the heart of the liquidation engine. The system pays a small bounty (the liquidation penalty) to whoever first notices an underwater position and submits the liquidation tx. Without this, liquidations would depend on the protocol team running a centralized liquidator bot — which works but introduces uptime risk.
 
-**Health check** (lines 2098–2111):
+**Health check** (lines 3233–3253):
 
 \`\`\`rust
 let equity = compute_equity(position, mark, funding_now);
@@ -1786,7 +1991,7 @@ if equity >= maint_required {
 
 If \`equity >= maintenance_margin\`, the position is fine and the call is rejected. The liquidator just paid tx fees for nothing — a small disincentive to spam-call liquidate against healthy positions. (Production protocols sometimes refund tx fees when this happens, or simply expect liquidators to do their own off-chain health check before submitting.)
 
-**Apply penalty + force-close + run two CPIs**:
+**Apply penalty (split between liquidator and fund) + force-close + run four CPIs**:
 
 \`\`\`rust
 // Inside a borrow scope (so position data ref drops before CPIs):
@@ -1796,22 +2001,31 @@ let equity_positive = if equity < 0 { 0 } else { equity };
 let penalty = raw_penalty.min(equity_positive);             // cap at available equity
 let owner_remainder = (equity_positive - penalty).max(0);
 
-penalty_amount = penalty as u64;
-owner_amount = owner_remainder as u64;
+// Split the penalty per INSURANCE_FUND_PENALTY_SHARE_BPS (= 5000 → 50/50).
+let fund_slice = penalty * INSURANCE_FUND_PENALTY_SHARE_BPS / 10_000;
+let liquidator_slice = penalty - fund_slice;
 
 position.collateral = 0;
 position.size = 0;
 position.entry_price = 0;
 position.funding_snapshot_index = funding_now;
+// ─── borrow ends ───
 
-// ─── outside the borrow scope ───
-// CPI 1: vault → liquidator
-spl_token_transfer_vault_signed(vault_token_ai, liquidator_token_ai, ..., penalty_amount)?;
-// CPI 2: vault → position owner
-spl_token_transfer_vault_signed(vault_token_ai, owner_token_ai, ..., owner_amount)?;
+// Fund state updates (own borrow scope):
+//   fund.balance         += fund_slice;
+//   fund.total_deposits  += fund_slice;
+//   shortfall_drain      = if equity < 0 { min(-equity, fund.balance) } else { 0 };
+//   fund.balance         -= shortfall_drain;
+//   fund.total_drawdowns += shortfall_drain;
+
+// Then four Token Transfers, all invoke_signed with vault_authority seeds:
+spl_token_transfer_vault_signed(vault_token_ai, liquidator_token_ai, ..., liquidator_slice)?;
+spl_token_transfer_vault_signed(vault_token_ai, fund_token_ai,       ..., fund_slice)?;
+spl_token_transfer_vault_signed(vault_token_ai, owner_token_ai,      ..., owner_remainder)?;
+spl_token_transfer_vault_signed(fund_token_ai,  vault_token_ai,      ..., shortfall_drain)?;
 \`\`\`
 
-The penalty is capped at the equity that survives (you can't pay a 50-unit bounty out of a position with 10 units of equity remaining). The two CPIs are sequential, both \`invoke_signed\` with the same vault-authority seeds. Either both succeed and the position is fully wound down, or the whole transaction reverts — atomicity is what keeps the books consistent.
+The penalty is capped at the equity that survives (you can't pay a 50-unit bounty out of a position with 10 units of equity remaining). The four CPIs are sequential, all \`invoke_signed\` with the same vault-authority seeds. Either every Transfer succeeds and the position + fund state are fully wound, or the whole transaction reverts. The shortfall drain only fires (non-zero) on the equity < 0 path; on a healthy liquidation it's a 0-amount Transfer that the helper short-circuits.
 
 The penalty serves two purposes:
 
@@ -1828,25 +2042,90 @@ The Liquidate handler does NOT verify *why* the position is underwater. It could
 
 ---
 
-## §11.6  The missing piece — insurance fund
+## §11.6  Insurance fund — penalty split, shortfall drain
 
-One thing this chapter still does not implement, with its production role called out.
+The vanilla escrow path leaves one honesty problem: when a position closes underwater (\`equity < 0\`), the user's deposited collateral is already in the vault, the user gets 0, and the residue implicitly subsidizes the counterparty. There's no accounting of "the protocol absorbed this loss" — the vault is just quieter than it should be. The insurance fund is the bookkeeping piece that fixes this.
 
-**Insurance fund.** A separate \`InsuranceFund\` account per market holds a pool of quote-currency that covers underwater-close shortfalls. The pattern:
+### The state
 
-\`\`\`text
-when ClosePosition / Liquidate computes equity < 0:
-    shortfall = -equity
-    if insurance_fund.balance >= shortfall:
-        insurance_fund.balance -= shortfall
-        # counterparty made whole, life continues
-    else:
-        # auto-deleverage or socialized loss — bigger architectural question
+Two PDAs per market:
+
+\`\`\`rust
+// crates/state/src/lib.rs
+pub struct InsuranceFund {
+    pub discriminator: [u8; 8],   // INSFUND\\0
+    pub bump: u8,
+    pub _pad0: [u8; 7],
+    pub market: [u8; 32],
+    pub mint: [u8; 32],           // quote_mint (matches market.quote_mint)
+    pub balance: u64,             // mirrors the token-account balance
+    pub total_deposits: u64,      // observability
+    pub total_drawdowns: u64,     // observability
+    pub _reserved: [u8; 32],
+}
 \`\`\`
 
-The insurance fund is funded by a fraction of liquidation penalties (e.g., 50% to liquidator, 50% to insurance fund), exchange fees, and sometimes by exchange equity at launch. Without an insurance fund, every losing position with insufficient collateral imposes a hidden loss on whoever was on the other side — usually the LP pool or the rest of the book.
+\`\`\`text
+fund state PDA  : [b"insurance_fund",       market]      — program-owned
+fund token PDA  : [b"insurance_fund_token", market, mint] — SPL Token-owned,
+                                                             authority = vault_authority
+                                                             (the same PDA Liquidate
+                                                              already signs as)
+\`\`\`
 
-In our current escrowed handlers, the residue of an underwater close stays in the vault — physically, the user's original deposit is still there, just not associated with any active position. That residue is implicitly subsidizing the counterparty. An insurance fund would route those leftovers properly: a fraction of each liquidation penalty into the fund at withdrawal time, a draw from the fund whenever an underwater close would otherwise leave a vault residue. The accounting is a small chapter on its own (15th in the track if added) — the math is simple, the wiring touches \`Liquidate\` and \`ClosePosition\`, and the new \`InsuranceFund\` PDA is the only state addition.
+Reusing \`vault_authority\` is the choice that keeps the implementation small. The position vault and the fund vault are different token accounts but share one signer PDA — so \`Liquidate\` already knows how to sign \`vault → fund\` or \`fund → vault\` Transfers without introducing a new authority surface. The on-chain \`balance\` counter is redundant with the SPL Token account's lamport-side balance, but it gives scripts and indexers cheap access to the running total without parsing SPL Token bytes, and it lets the chapter's "verify yourself" tests assert on it directly.
+
+### Penalty split
+
+\`Liquidate\` now splits the penalty between the liquidator and the fund:
+
+\`\`\`rust
+let fund_slice = penalty * INSURANCE_FUND_PENALTY_SHARE_BPS / 10_000;  // = penalty / 2
+let liquidator_slice = penalty - fund_slice;
+\`\`\`
+
+With \`INSURANCE_FUND_PENALTY_SHARE_BPS = 5000\`, half the penalty goes to the fund as a deposit, the rest to the liquidator as their bounty. Three Token Transfers fire per liquidate now instead of two — vault → liquidator (liquidator slice), vault → fund (fund slice), vault → owner (remainder).
+
+In a healthy liquidation (equity > 0, position only underwater on margin), the liquidator still gets paid enough to make liquidation worth their CU + tx-fee cost. With \`LIQUIDATION_PENALTY_BPS = 100\` and the 50/50 split, the liquidator's effective bounty drops from 1% of notional to 0.5%. For our chapter values that's fine; production tuning is a function of typical position size, liquidator infrastructure costs, and how aggressively the protocol wants to grow the fund.
+
+### Shortfall drain
+
+\`ClosePosition\` and \`Liquidate\` both run the same drain logic at the end of their handler:
+
+\`\`\`rust
+let shortfall_drain = if equity < 0 {
+    let shortfall = (-equity).min(u64::MAX as i128) as u64;
+    shortfall.min(fund.balance)        // never drain more than the fund holds
+} else {
+    0
+};
+fund.balance -= shortfall_drain;
+fund.total_drawdowns += shortfall_drain;
+// ... then: SPL Token Transfer fund_token → vault_token (shortfall_drain)
+\`\`\`
+
+The Transfer goes *into* the vault, not to the user. The user still receives \`payout = if equity < 0 { 0 } else { equity }\`. The drain is bookkeeping for the protocol — it represents the fund covering the loss the vault would otherwise have absorbed silently. The Transfer is signed by \`vault_authority\`, the same PDA that signs the vault → user payout, so the same \`invoke_signed\` call path is reused for both.
+
+When \`fund.balance < shortfall\` the drain caps at \`fund.balance\`. The uncovered remainder is a *socialized loss*: it stays in the vault as residue and falls implicitly on whoever holds the other side of the trade. Production exchanges resolve this with **autodeleverage** (force-close the most profitable counterparty positions until the loss is fully absorbed) or **explicit socialization** (mark all open positions in the same direction down). Our chapter ships the simpler path of "let it stay residue, document the cap" — autodeleverage is its own architectural problem.
+
+### CreateInsuranceFund + InsuranceFundDeposit
+
+\`CreateInsuranceFund\` is the one-shot bootstrap, run once per market. It mirrors \`CreateVault\` from Chapter 6 — System \`create_account\` with PDA signing for both the state account and the token account, plus an \`InitializeAccount3\` CPI to set the fund-token's owner to \`vault_authority\`.
+
+\`InsuranceFundDeposit\` is permissionless. Anyone with quote tokens can credit the fund — most commonly the protocol team for initial seed, but in practice donations or admin top-ups are valid uses too. The handler runs in the standard "update counters in borrow scope, drop borrow, Transfer at the end" pattern, with \`total_deposits\` advancing alongside \`balance\`.
+
+### Two account additions to ClosePosition / Liquidate
+
+Both handlers grew two accounts at the end of their list:
+
+\`\`\`
+N-2.  [WRITE]  insurance_fund        — InsuranceFund state PDA
+N-1.  [WRITE]  insurance_fund_token  — fund's SPL token account
+\`\`\`
+
+\`ClosePosition\` is now 12 accounts; \`Liquidate\` is 13. The fund-state writability is for the counter updates; the fund-token writability is for the penalty-credit Transfer and (on underwater close) the shortfall drain.
+
+> **Exercise §11.6.** Open a position, push the oracle hard against it until equity falls below \`maint\`, but stop *before* equity goes negative. Liquidate. Observe in the dump: the fund's \`total_deposits\` should grow by \`fund_slice\`. Now reduce the oracle further to push equity below zero on the same market with a fresh position. Liquidate again — \`total_drawdowns\` should grow by \`min(-equity, fund.balance)\`. When does the fund stop being able to absorb shortfalls, and what would you ship at that point?
 
 ---
 
@@ -1896,6 +2175,54 @@ Math:
 2. **Funding accrual can flip the answer.** Open a position with collateral right at MM. Don't touch the oracle. Let funding accumulate against you via \`funding --update --rate 100\`, wait a minute, \`funding --update --rate 100\`. Check the position's computed equity in the dump — funding PnL has dragged it below MM even though the price hasn't moved. \`Liquidate\` will succeed.
 3. **Closing returns collateral; liquidating doesn't.** Open at IM, close immediately (no price move, no funding). \`position.collateral\` ≈ original. Open at IM again, let it fall to MM, get liquidated by a separate keypair. \`position.collateral\` after liquidate = equity − penalty ≈ much less. The penalty is the daylight between "exit cleanly" and "let yourself get liquidated."
 
+
+### Now let a tool look for the check you forgot
+
+[\`fuzz/positions/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/positions) is a [solinv](https://github.com/psyto/solinv) harness for the three position handlers. Two markets share the quote mint Q, each with its oracle, funding state, token account and insurance fund: \`m\` at 100 and \`n\` at 200. On \`m\`, A holds a long and B a short, both healthy; E holds a long opened at 110 that is under maintenance margin at 100 but still owed a remainder; C has no position yet. On \`n\`, D holds a long, so \`n\`'s token account has tokens in it. The specs open C's position, close A's, liquidate B's and E's, and swap in \`n\`'s oracle and funding state, another user's position, \`n\`'s token account and insurance fund, and token accounts the caller does not hold; two sets swap all of \`n\`'s accounts at once. Set up as in Chapter 3 §3.7, then:
+
+\`\`\`bash
+cargo build-sbf --manifest-path programs/openhl-core/Cargo.toml
+cd fuzz/positions
+cargo build --release --features invariant_ch11
+cargo test --release --features invariant_ch11
+timeout -s INT 60 crucible run openhl_positions_fuzz invariant_ch11 \\
+    --binary-in target/release/invariant_test --timeout 45
+\`\`\`
+
+On the program as it is, no \`[FUZZ_FINDING]\` line appears. On the program before \`verify_market_oracle_and_funding\`, the first run reported, within seconds:
+
+\`\`\`
+[FUZZ_FINDING] [account-swap:…] ix open_position succeeded with account 3 swapped … (different context, same shape)
+\`\`\`
+
+Slot 3 is the oracle. Crucible stops an iteration at the first finding, so Close and Liquidate never got their turn; the tests \`close_refuses_another_markets_oracle\` and \`liquidate_refuses_another_markets_oracle\` pin those two.
+
+> **Exercise §11.7.** Delete each check in turn, rebuild, run, and predict first. Here is what we measured, 45 seconds each; for the "no" rows, the last column is what refused the swapped call instead, read from its logs (the \`probe\` test prints them):
+>
+> | Check deleted | Caught? | How, or what refused it instead |
+> |---|---|---|
+> | Open: \`user_ai.is_signer\` | no | the runtime: unauthorized signer (the collateral transfer needs the user's signature) |
+> | Open: \`market_ai.owner == program_id\` | no | our next check: \`market is not a Market account\` |
+> | Open: \`verify_vault_token_account\` | **yes**, account-swap, slot 7 | collateral escrowed into \`n\`'s account, recorded on \`m\` |
+> | Open: the position PDA | no | the runtime: unauthorized signer (\`create_account\` at another address needs its signature) |
+> | Open: \`verify_market_oracle_and_funding\` | **yes**, account-swap, slot 3 | entry price from \`n\`'s oracle |
+> | Open: the initial margin check | no | nothing in the harness states the margin rule; \`open_below_initial_margin_is_refused\` fails |
+> | Close: \`user_ai.is_signer\` | **yes**, signer-skip | anyone could close A's position |
+> | Close: \`position.user == user\` | **yes**, account-swap, slot 1 | A closed B's position |
+> | Close: \`position.market == market\` | **yes**, with a set | \`m\`'s position closed against all of \`n\`'s accounts |
+> | Close: \`verify_vault_token_account\` | no | SPL Token: \`owner does not match\` (\`m\`'s authority cannot sign for \`n\`'s account) |
+> | Close: \`verify_market_oracle_and_funding\` | **yes**, account-swap, slot 2 | closed at \`n\`'s price; \`close_refuses_another_markets_oracle\` fails |
+> | Close: \`fund.market == market\` | **yes**, account-swap, slot 10 | \`n\`'s insurance fund accepted for \`m\`'s position (A's close was in profit, so no fund was drawn on; the finding is the acceptance) |
+> | Liquidate: \`liquidator_ai.is_signer\` | **yes**, signer-skip | — but see below |
+> | Liquidate: \`position.market == market\` | **yes**, with a set | as for Close |
+> | Liquidate: the owner's token account | **yes**, account-swap, slot 6 | E's remainder paid to the liquidator |
+> | Liquidate: \`is_liquidatable\` | no | nothing in the harness states when liquidation is allowed; \`healthy_position_is_not_liquidatable\` fails |
+> | Liquidate: \`verify_market_oracle_and_funding\` | **yes**, account-swap, slot 2 | B's healthy short liquidated at \`n\`'s price; \`liquidate_refuses_another_markets_oracle\` fails |
+>
+> Three rows need a second look. The liquidator signer row is a finding that is not a hole: liquidation is permissionless (§11.5), the penalty goes to whatever token account the caller names, and nothing else depends on who signed, so dropping that check lets in no one who was not already allowed. The two margin rows are holes the fuzzer cannot see: a position opened without enough collateral, or a healthy one liquidated, is a call with all the right accounts. Only the tests, which state the rules, catch those. A fuzzer that swaps accounts finds missing *bindings*; rules about numbers need someone to write them down (Chapter 13 §13.6 does that for fees).
+>
+> Two traps from writing the harness, both of which made a row read "no" for the wrong reason. Our first liquidation target was B, healthy at \`m\`'s price, so every swap of B's liquidation failed the health check before it reached the account being tested. E, liquidatable at 100, fixed that, and then E's remainder after the penalty was 0, so routing it to the liquidator moved nothing; E now has 130 collateral. And our first version of the owner-account mutation added \`false &&\` to a condition chained with \`||\`, which by precedence left the rest of the check in place. In each case the probe's log line showed which check had actually refused the call.
+
 ---
 
 ## Hook into Chapter 12
@@ -1915,7 +2242,9 @@ Chapter 12 builds the **native vault program** — the dedicated wrapper account
                   content: `# Chapter 12 — Native Vault Program (Pooled Trading)
 
 > Status: draft (v0.1).
-> Companion code: \`crates/state/src/lib.rs\` (\`TradingVault\`, \`VaultShare\`), \`programs/openhl-core/src/lib.rs\` (\`process_create_trading_vault\` 2195–2280, \`process_vault_deposit\` 2282–2413, \`process_vault_withdraw\` 2415–2500, \`process_vault_update_nav\` 2502–2544), \`scripts/vault/src/main.rs\`.
+> Companion code: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs) (\`TradingVault\`, \`VaultShare\`), [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (\`process_create_trading_vault\` 3444–3563, \`process_vault_deposit\` 3578–3737, \`process_vault_withdraw\` 3751–3902, \`process_vault_update_nav\` 3909–3949), [\`scripts/vault/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/vault/src/main.rs), [\`fuzz/vault/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/vault/src/main.rs) (the solinv harness for §12.7).
+>
+> Since the parts split, the logic this chapter walks through lives in [\`crates/vault/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/vault/src/lib.rs) (\`openhl-vault\`); the program calls it. The code quoted below is the pre-split version from \`programs/openhl-core/src/lib.rs\`, and its line numbers are not kept in sync.
 
 ---
 
@@ -1930,9 +2259,9 @@ Both are reasonable uses of the word "vault." We picked the type names to disamb
 
 The trading vault is the conceptual primitive that turns a perp DEX from a venue where users trade directly into a venue that also hosts *funds*. A user who doesn't want to manage positions themselves can deposit into a vault; the vault's manager runs the strategy; depositors share returns. This is the structure behind every yield vault on Solana — Drift's spot vaults, Kamino's leveraged vaults, Jupiter's perps vault, and so on.
 
-This chapter builds the vault's accounting half — shares, deposits, withdrawals, NAV updates — *with the real SPL Token escrow wired in*. Deposit moves actual quote tokens from the depositor's account into the per-(market, mint) vault PDA (the same vault Chapter 6 created and Chapter 11 uses for position collateral). Withdraw moves them back, signed by the vault-authority PDA via \`invoke_signed\`. The bookkeeping (\`total_shares\`, \`total_assets\`, \`VaultShare.shares\`) and the actual token balance stay in sync because each handler updates both atomically.
+This chapter builds the vault's accounting half — shares, deposits, withdrawals, NAV updates — *with the real SPL Token escrow wired in*. Deposit moves actual quote tokens from the depositor's account into the trading vault's own token account, a PDA at \`[TRADING_VAULT_TOKEN_SEED, vault]\` that \`CreateTradingVault\` creates next to the vault. Withdraw moves them back, signed by the trading vault PDA itself via \`invoke_signed\`. (The first version of this chapter used the per-(market, mint) account that Chapter 6 created and Chapter 11 uses for position collateral, shared by every vault in the market. §12.5 shows what that cost.) The bookkeeping (\`total_shares\`, \`total_assets\`, \`VaultShare.shares\`) and the actual token balance stay in sync because each handler updates both atomically.
 
-It does not build the manager's trading half (which would be a thin wrapper instruction calling into Chapter 11's \`OpenPosition\` with the vault's PDA as the position owner). Adding that is mechanical once the share accounting and the escrow are in place; the chapter explains the design and leaves implementation as a homework piece.
+It does not build the manager's trading half (which would be a thin wrapper instruction calling into Chapter 11's \`OpenPosition\` with the vault's PDA as the position owner, moving collateral from the vault's token account into the market's). Adding that is mechanical once the share accounting and the escrow are in place; the chapter explains the design and leaves implementation as a homework piece.
 
 What this chapter is actually about:
 
@@ -2005,7 +2334,7 @@ their_value = their_shares × total_assets / total_shares
 
 A deposit must preserve this invariant for *all existing depositors*: their pre-deposit value equals their post-deposit value. A withdrawal does the same: the remaining depositors' value is unchanged. NAV updates change everyone's value by the same proportion.
 
-**Deposit.** From \`process_vault_deposit\` at \`programs/openhl-core/src/lib.rs:2327–2335\`:
+**Deposit.** From \`process_vault_deposit\` at \`programs/openhl-core/src/lib.rs:3564–3572\`:
 
 \`\`\`rust
 let shares_to_mint: u64 = if vault.total_shares == 0 || vault.total_assets == 0 {
@@ -2042,7 +2371,7 @@ new_NAV_per_share = new_total_assets / new_total_shares
 
 The NAV per share is unchanged. The invariant holds.
 
-**Withdrawal.** From \`process_vault_withdraw\` at \`lib.rs:2452–2459\`:
+**Withdrawal.** From \`process_vault_withdraw\` at \`lib.rs:3729–3736\`:
 
 \`\`\`rust
 let assets_to_return: u64 = {
@@ -2075,7 +2404,7 @@ new_NAV_per_share = (total_assets - shares_burned × total_assets / total_shares
 
 Withdrawal also preserves the invariant.
 
-**NAV update.** From \`process_vault_update_nav\` at \`lib.rs:2535–2536\`:
+**NAV update.** From \`process_vault_update_nav\` at \`lib.rs:3830–3831\`:
 
 \`\`\`rust
 let prev = vault.total_assets;
@@ -2098,11 +2427,11 @@ This is generally acceptable for vaults because (1) the dust is rounding-error s
 
 \`process_vault_deposit\` is the most complex of the four handlers because it conditionally creates the VaultShare PDA on first deposit *and* runs an SPL Token Transfer CPI at the end. Five phases:
 
-**Validation**: payload size, non-zero deposit, depositor is signer, vault has correct owner + size, system program is correct, **token program is SPL Token, depositor's token account is SPL Token-owned, and the vault_token_account matches the derived PDA at \`[VAULT_SEED, market, mint]\`**. The mint and market accounts passed in must match what's stored in the vault — caught by a \`vault.mint != mint_ai.key\` / \`vault.market != market_ai.key\` check inside the borrow scope below. Share PDA derivation is unchanged from before.
+**Validation**: payload size, non-zero deposit, depositor is signer, vault has correct owner + size, system program is correct, **token program is SPL Token, depositor's token account is SPL Token-owned, and the vault_token account is this vault's own, the PDA at \`[TRADING_VAULT_TOKEN_SEED, vault]\`**. The mint and market accounts passed in must match what's stored in the vault — caught by a \`vault.mint != mint_ai.key\` / \`vault.market != market_ai.key\` check inside the borrow scope below. Share PDA derivation is unchanged from before.
 
 **Read vault state and compute shares to mint**: borrow vault data, cross-check the passed market/mint against vault.market/vault.mint, branch on first-deposit (1:1) vs subsequent (pro-rata).
 
-**Update vault aggregate** (lines 2344–2353):
+**Update vault aggregate** (lines 3580–3587):
 
 \`\`\`rust
 vault.total_shares = vault.total_shares.checked_add(shares_to_mint)?;
@@ -2112,7 +2441,7 @@ drop(vault_data);
 
 \`checked_add\` (not \`saturating_add\`): if the addition would overflow, refuse the deposit rather than silently capping. A vault that accepts deposits past \`u64::MAX\` shares has a different problem to solve. The explicit \`drop(vault_data)\` releases the mutable borrow before we touch the share account — necessary because share creation may CPI back through the vault account check path.
 
-**Conditional create-or-update of the share account** (lines 2355–2403):
+**Conditional create-or-update of the share account** (lines 3591–3636):
 
 \`\`\`rust
 let share_exists = share_ai.owner == program_id && share_ai.data_len() == VaultShare::LEN;
@@ -2144,7 +2473,7 @@ spl_token_transfer_user_signed(
 )?;
 \`\`\`
 
-Same helper from Chapter 11. The depositor signs the outer transaction; the signature flows through to SPL Token via the standard signer-privilege-extension pattern (Chapter 6 §6.2). \`assets\` units move from \`depositor_token\` into \`vault_token\` (the per-(market, mint) vault PDA — same vault account that holds position collateral from Chapter 11).
+Same helper from Chapter 11. The depositor signs the outer transaction; the signature flows through to SPL Token via the standard signer-privilege-extension pattern (Chapter 6 §6.2). \`assets\` units move from \`depositor_token\` into \`vault_token\`, the vault's own token account. Nothing else is in it: not other vaults' deposits, not position collateral.
 
 **Order matters.** The CPI is placed *after* the share+aggregate updates. If the transfer fails (\`InsufficientFunds\`, account frozen, etc.), Solana reverts the entire transaction — including the share creation, the share field updates, and the vault aggregate increment. So a failed escrow leaves the depositor with no shares minted and no vault state change. The atomicity guarantee is what makes the natural error handling correct without explicit rollback code.
 
@@ -2154,11 +2483,11 @@ Same helper from Chapter 11. The depositor signs the outer transaction; the sign
 
 ## §12.4  Walking \`VaultWithdraw\`
 
-Simpler than deposit because there's nothing to create — but it does pay out tokens from the vault, which means an \`invoke_signed\` CPI signed by the vault-authority PDA. \`process_vault_withdraw\`:
+Simpler than deposit because there's nothing to create — but it does pay out tokens from the vault, which means an \`invoke_signed\` CPI signed by the trading vault PDA. \`process_vault_withdraw\`:
 
-**Compute assets to return** at lines 2452–2459 — the inverse of the deposit formula, as covered in §12.2.
+**Compute assets to return** at lines 3729–3736 — the inverse of the deposit formula, as covered in §12.2.
 
-**Authorization** at lines 2470–2473:
+**Authorization** at lines 3751–3754:
 
 \`\`\`rust
 if share.owner != *owner_ai.key.as_ref() {
@@ -2169,7 +2498,18 @@ if share.owner != *owner_ai.key.as_ref() {
 
 Only the share's recorded owner may burn it. This is a *per-share* authorization, not vault-wide — different from the manager check in UpdateNAV. There is no "vault admin can liquidate any share" path in this design (which a real production vault might add for compliance reasons).
 
-**Sufficient-balance check** at lines 2474–2480:
+**Binding the share to this vault**, just before the owner check:
+
+\`\`\`rust
+if share.vault != *vault_ai.key.as_ref() {
+    msg!("vault_withdraw: share belongs to another vault");
+    return Err(ProgramError::InvalidAccountData);
+}
+\`\`\`
+
+Deposit never needed this line: it re-derives the share PDA from \`[VAULT_SHARE_SEED, vault, depositor]\`, so a share of another vault fails the seed check. Withdraw does not re-derive it, and the first version of this chapter left the comparison out. It looked harmless, but vaults' share prices differ. They differ honestly, too, with no one lying: if vault X's shares are worth 1 and vault Y's are worth 2 after a good month, a holder of X shares who burns them against Y gets twice what they put in, paid out of Y's token account, which is Y's depositors' money. A manager who lies makes it worse. The regression test opens its own vault with 100,000 tokens, reports NAV 1, deposits 2 more for 200,000 new shares, and burns them against another vault: without the check that took all 200,000 tokens of the other vault. solinv found the gap, not a reviewer; §12.7 has you find it the same way.
+
+**Sufficient-balance check** at lines 3755–3762:
 
 \`\`\`rust
 if share.shares < shares_to_burn {
@@ -2179,7 +2519,7 @@ if share.shares < shares_to_burn {
 
 You can't burn more shares than you hold.
 
-**Cost basis reduction** at lines 2484–2489:
+**Cost basis reduction** at lines 3767–3769:
 
 \`\`\`rust
 let basis_reduction = (((shares_to_burn as u128) * (share.cost_basis as u128))
@@ -2193,41 +2533,41 @@ The \`as u128 + shares_to_burn as u128\` in the denominator uses \`share.shares\
 
 **Update aggregates** — \`total_shares -= shares_to_burn\`, \`total_assets -= assets_to_return\`. Both \`saturating_sub\` defensively, though both should never underflow given the prior checks.
 
-**Pay the assets out from the vault** as the final step — this is the new escrow CPI:
+**Pay the assets out from the vault** as the final step — this is the escrow CPI:
 
 \`\`\`rust
-spl_token_transfer_vault_signed(
-    vault_token_ai,
-    owner_token_ai,
-    vault_authority_ai,
-    market_ai.key,
-    vault_auth_bump,
-    token_ai,
-    assets_to_return,
+let ix = Instruction {
+    program_id: SPL_TOKEN_PROGRAM_ID,
+    accounts: vec![
+        AccountMeta::new(*vault_token_ai.key, false),
+        AccountMeta::new(*owner_token_ai.key, false),
+        AccountMeta::new_readonly(*vault_ai.key, true),
+    ],
+    data, // [TRANSFER][assets_to_return u64 LE]
+};
+// (inside \`if assets_to_return > 0\`: a zero payout skips the CPI)
+invoke_signed(
+    &ix,
+    &[vault_token_ai.clone(), owner_token_ai.clone(), vault_ai.clone(), token_ai.clone()],
+    &[&[TRADING_VAULT_SEED, vault_market.as_ref(), vault_manager.as_ref(), &[vault_bump]]],
 )?;
 \`\`\`
 
-The mechanics differ from the deposit side in one critical way: **the authority is a PDA, not the user.** The depositor's signature on the outer transaction is meaningless to SPL Token here, because the token account that's being debited (\`vault_token\`) is owned by \`vault_authority\` — a PDA the *program* controls. So the program signs the inner CPI on the vault_authority's behalf via \`invoke_signed\`:
+The mechanics differ from the deposit side in one critical way: **the authority is a PDA, not the user.** The depositor's signature on the outer transaction is meaningless to SPL Token here, because the token account being debited (\`vault_token\`) answers to the trading vault PDA. \`CreateTradingVault\` set that up: it created \`vault_token\` at \`[TRADING_VAULT_TOKEN_SEED, vault]\` and ran \`InitializeAccount3\` with the vault's address as the owner. So the program signs the inner CPI as the vault, with the vault's own seeds: \`[TRADING_VAULT_SEED, market, manager, bump]\`, all read from the \`TradingVault\` account, where \`CreateTradingVault\` stored them.
 
-\`\`\`rust
-let market_key_bytes = market_key.to_bytes();
-let signer_seeds: &[&[u8]] = &[VAULT_AUTH_SEED, market_key_bytes.as_ref(), &[vault_auth_bump]];
-invoke_signed(&ix, &[source, dest, vault_authority, token_program], &[signer_seeds])?;
-\`\`\`
+Two details. First, \`vault_market\`, \`vault_manager\` and \`vault_bump\` are copied out inside the borrow scope, and the borrow ends before the CPI: the vault account is passed to SPL Token as the signer, and the runtime refuses a CPI on an account whose data the caller still has borrowed. Second, a vault signs only for its own token account. If a caller passes another vault's token account as \`vault_token\`, the program refuses it first (the \`[TRADING_VAULT_TOKEN_SEED, vault]\` check), and SPL Token would refuse anyway, because this vault is not that account's authority.
 
-The seeds — \`[VAULT_AUTH_SEED, market, bump]\` — exactly match what \`create_market\` derived in Chapter 6 §6.2 and what \`process_create_market\` recorded as \`vault_auth_bump\` in the Market account. The bump is passed from the caller (loaded from the market by the handler) rather than recomputed, both for compute units and to make the signing seeds match the recorded derivation exactly.
-
-If the seeds don't form a valid PDA whose address equals \`vault_authority_ai.key\`, the runtime rejects the signed CPI with \`ProgramError::InvalidSeeds\`. So a malicious caller can't pass a fake vault_authority — only the one and only PDA that the program can sign for is accepted.
+And SPL Token checks the balance: if \`assets_to_return\` is more than \`vault_token\` holds, the transfer fails and the whole withdrawal reverts. The vault cannot pay out tokens it does not have, whatever its \`total_assets\` says.
 
 **Order matters here too.** The CPI is last. If the token transfer fails (vault_token frozen, dest closed, etc.), the share-burn and aggregate-decrement revert with it. So a failed payout leaves the depositor with their shares intact and the vault unchanged.
 
-> **Exercise §12.4.** With the vault from §12.2's exercise, have depositor A withdraw all their shares. Dump three things before and after: (1) depositor A's share account, (2) the vault aggregate state, and (3) the vault token account balance. Verify that the tokens A receives match what depositor B's claimable value implies for the remaining shares (i.e. that B's value is unchanged).
+> **Exercise §12.4.** With the vault from §12.2's exercise, have depositor A withdraw all their shares. Dump three things before and after: (1) depositor A's share account, (2) the vault aggregate state, and (3) the vault token account balance. Verify that the tokens A receives match what depositor B's claimable value implies for the remaining shares (i.e. that B's value is unchanged). Then look at (3) again: A took 200, the account held 200, and B is still owed 100 out of an empty account. The NAV went from 100 to 200 on the manager's word, not by tokens arriving. §12.5 is about that gap.
 
 ---
 
 ## §12.5  The manager-trust problem — \`VaultUpdateNAV\`
 
-\`process_vault_update_nav\` at lines 2502–2544 is short, but it is where the entire vault model's trust assumption lives:
+\`process_vault_update_nav\` at lines 3800–3840 is short, but it is where the entire vault model's trust assumption lives:
 
 \`\`\`rust
 if vault.manager != *manager_ai.key.as_ref() {
@@ -2240,6 +2580,10 @@ vault.total_assets = new_total_assets;
 \`\`\`
 
 The manager signs a transaction that updates \`total_assets\` to whatever number they choose. There is no on-chain verification that this number reflects the manager's actual trading PnL. **The depositors trust the manager.**
+
+The first version of this chapter was worse than that: *everyone in the market* trusted *every* manager, and \`CreateTradingVault\` lets anyone become one. Withdrawals paid out of the per-(market, mint) token account, which also held every other vault's deposits and every position's collateral, so nothing capped a vault's payout at what that vault held. A manager who deposited 100,000 into their own vault, reported NAV 300,000 and withdrew got 300,000 out, other people's 200,000 included. No check was missing; every account passed was the right one. The fix was the design: each vault now has its own token account (§12.0), and withdraw pays only from it. The test \`manager_cannot_withdraw_more_than_its_vault_holds\` in \`fuzz/vault\` runs the same steps now: the withdrawal of 300,000 fails in SPL Token, because the vault's account holds 100,000, and the other vault's 200,000 is untouched.
+
+So the trust is back to what the paragraph above says, and no wider: a vault's depositors trust that vault's manager. A manager can still report a false NAV, and it still moves money between that vault's own depositors (whoever withdraws first at an inflated NAV takes tokens the others were counting on, as Exercise §12.4 shows). The three patterns below are about that.
 
 Three patterns to harden this in production:
 
@@ -2327,6 +2671,51 @@ Singleton-write reassertion (Ch.5 redux):
 2. **NAV update changes everyone's value uniformly.** From the above state, run \`vault --update-nav --total-assets 600\` (3× value). A's \`claimable_assets = A.shares × total_assets / total_shares = 100 × 600 / 300 = 200\`. B and C the same. All three depositors share the 3× gain proportionally.
 3. **Withdrawal at non-1:1 NAV.** From the above (each depositor has 100 shares worth 200 assets each), have A withdraw all 100 shares. They receive 200 assets. The vault now has \`total_shares = 200, total_assets = 400\`. B and C each still own 100 shares (50% of vault), worth 200 assets each — unchanged by A's exit.
 
+### Now let a tool look for the check you forgot
+
+Three exercises check the arithmetic. None of them checks the account checks: the \`if ... { return Err(...) }\` lines in §12.3 and §12.4 that decide *which* accounts a caller may pass. Forgetting one of those fails no test you would think to write, as §12.4's \`share.vault\` line shows. [solinv](https://github.com/psyto/solinv) fuzzes a native program for exactly this. You tell it which accounts an attacker could pass instead (another depositor's share, another vault, a token account the vault doesn't hold), and it sends each instruction with one of them swapped in, or, for a set you declare, several together. If a swapped call succeeds and changes state, that is a finding.
+
+\`fuzz/vault/\` is that harness for this chapter. It sets up one market with three vaults, each with its own token account: K's, where A and B hold shares, A's own, and C's in a junk mint. It installs solinv the way its README tells anyone to, by git rev. You need the Solana toolchain and the Crucible CLI (\`cargo install --locked --git https://github.com/asymmetric-research/crucible --tag v0.1.0 crucible-fuzz-cli\`):
+
+\`\`\`bash
+cargo build-sbf --manifest-path programs/openhl-core/Cargo.toml
+cd fuzz/vault
+cargo build --release --features invariant_vault
+cargo test --release --features invariant_vault        # the attack from §12.4, refused
+timeout -s INT 90 crucible run openhl_vault_fuzz invariant_vault \\
+    --binary-in target/release/invariant_test --timeout 90
+\`\`\`
+
+On the program as it is, no \`[FUZZ_FINDING]\` line appears. (Crucible checks \`--timeout\` only every 1000 iterations, hence the outer \`timeout\`. On macOS it is \`gtimeout\` from coreutils.)
+
+> **Exercise §12.7.** Delete the \`share.vault\` check from \`process_vault_withdraw\`, rebuild the program (the first command), and run the fuzzer again. Within a few seconds you should see:
+>
+> \`\`\`
+> [FUZZ_FINDING] [account-swap:…] ix vault_withdraw succeeded with account 1 swapped from <K's vault> to <A's vault> (different context, same shape)
+> \`\`\`
+>
+> \`cargo test\` fails too, and its message tells you how much A took. Put the check back. Then delete the others one at a time and predict the result before you run it. Here is what we measured, 60 seconds each:
+>
+> | Check deleted | Caught? |
+> |---|---|
+> | withdraw: \`owner.is_signer\` | yes, signer-skip, slot 0 |
+> | withdraw: \`share.vault == vault\` | yes, account-swap, slot 1 |
+> | withdraw: \`share.owner == owner\` | yes, account-swap, slot 2 |
+> | deposit: the share PDA re-derivation | yes, account-swap, slot 1 |
+> | deposit: \`verify_trading_vault_token\` | yes, account-swap, slot 7 |
+> | deposit: \`depositor.is_signer\` | no |
+> | withdraw: \`vault.owner == program_id\` | no |
+> | withdraw: \`share.owner == program_id\` | no |
+> | withdraw: \`verify_trading_vault_token\` | no, not even with the two-slot set below |
+>
+> Before reading on, work out why the four "no" rows come back "no".
+>
+> All four are backed by something else. We did not try to exploit these, we only found no way through. The two owner checks are backed by the runtime itself (Chapter 1): withdraw writes both accounts, and a program cannot change an account it does not own, so a substituted account fails at the next CPI or at the end of the instruction. The deposit signer check is backed by the runtime's signer rule (Chapter 6 §6.2): deposit's SPL Token \`Transfer\` marks the depositor as a signer, and a program can pass on only the signatures it was given, so the CPI fails (\`Cross-program invocation with unauthorized signer\`) before SPL Token runs. These three are still worth keeping, because they fail earlier and with a clearer error.
+>
+> The fourth is backed by SPL Token's authority check. A vault signs only as itself, and each vault's token account answers only to its own vault, so naming another vault's token account as the source fails with \`OwnerMismatch\`. It was not always so. In the first version of this chapter every token account in the market answered to one \`vault_authority\` PDA, \`[VAULT_AUTH_SEED, market]\`, and this row was a real hole: C opened a vault in a junk mint, deposited 300,000 junk, and withdrew it naming the real mint's token account as the source and C's own real-mint account as the destination, swapping 300,000 junk for 300,000 real. That takes *two* accounts changed together. solinv's plain account-swap changes one slot at a time, our first table listed the row as "no" and called it harmless, and a reviewer found the attack. The harness still declares that pair (\`check_sets\`: C's junk withdrawal with the destination and the source swapped together, now for K's token account), and the test \`withdraw_refuses_the_token_account_of_another_vault\` pins it. That test asks for 100,000, under K's balance, on purpose. Asking for 300,000, more than K's account holds, SPL Token refuses on the balance before it looks at the authority, so with the program's check deleted you would see "insufficient funds" and learn nothing about whether SPL Token backs the row. With 100,000 you see \`OwnerMismatch\`. When you reason from a refusal, check *which* refusal. And a "no" from a fuzzer means only that the swaps you described found no way through. It does not mean there is none.
+>
+> What the harness does not cover: §12.5's manager-reported NAV. A manager who reports a false NAV passes only accounts they are entitled to pass, so a fuzzer that swaps accounts has nothing to swap. The market-wide version of that hole survived all nine checks; closing it took a design change (one token account per vault), not a line. What is left, a manager misreporting to their own depositors, is just as invisible to the fuzzer. Finding these takes reading the design, not deleting lines.
+
 ---
 
 ## Hook into Chapter 13
@@ -2346,7 +2735,9 @@ Chapter 13 builds builder codes — the protocol-native referral / fee-share mec
                   content: `# Chapter 13 — Builder Codes as a Protocol Primitive
 
 > Status: draft (v0.1).
-> Companion code: \`crates/state/src/lib.rs\` (\`BuilderProfile\`), \`programs/openhl-core/src/lib.rs\` (\`process_register_builder\` 2604–2670, \`process_place_order_with_builder\` 2680–2817, \`process_claim_builder_fees\` 2819–2860), \`scripts/builder/src/main.rs\`.
+> Companion code: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs) (\`BuilderProfile\`), [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (\`process_register_builder\`, \`process_place_order_with_builder\`, \`process_claim_builder_fees\`, \`process_create_fee_vault\`), [\`scripts/builder/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/builder/src/main.rs), [\`fuzz/fees/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/fees/src/main.rs) (the solinv harness for §13.6).
+>
+> Since the parts split, the logic this chapter walks through lives in [\`crates/fees/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/fees/src/lib.rs) (\`openhl-fees\`); the program calls it. The code quoted below is the pre-split version from \`programs/openhl-core/src/lib.rs\`, and its line numbers are not kept in sync.
 
 ---
 
@@ -2361,13 +2752,16 @@ Two things builder codes are **not**:
 - **Referral codes.** Referral codes reward whoever introduced a new user; they typically pay once per signup or as a long-tail percentage of the referee's fees forever. Builder codes pay per *trade* and don't track who introduced whom — they reward routing, not introductions.
 - **Maker/taker rebates.** Maker rebates pay the user (the limit order placer) part of their own fee back. Builder codes pay a *third party* (the frontend) a fraction of the user's fee. The user pays the same gross fee either way; what differs is who receives the split.
 
-This chapter ships three instructions:
+This chapter ships three trading instructions and one bootstrap:
 
 1. **\`RegisterBuilder\`** — each builder creates a per-builder \`BuilderProfile\` PDA that holds their accumulated fees and their self-declared max share. Registration is required because the program needs an account to credit; no account, no fees.
-2. **\`PlaceOrderWithBuilder\`** — the trading instruction variant that takes a builder profile as a fourth account. Computes the protocol fee, splits the builder's share into the profile's \`accumulated_fees\`, and runs the same place-order path as \`PlaceOrderChecked\`.
-3. **\`ClaimBuilderFees\`** — the builder's withdraw call. Zeroes the accumulator and logs the amount. Unlike Chapters 11 and 12 — which we extended with real SPL Token escrow — the chapter deliberately stops short of moving tokens for the fee split. §13.5 explains why builder-fee escrow is a different design problem than position or vault escrow, and lays out what a production implementation would look like.
+2. **\`PlaceOrderWithBuilder\`** — the trading instruction variant that takes a builder profile as its last account. Computes the protocol fee, escrows it into the per-(quote_mint) fee vault, splits the builder's share into the profile's \`accumulated_fees\`, and runs the same place-order path as \`PlaceOrderChecked\`.
+3. **\`ClaimBuilderFees\`** — the builder's withdraw call. Zeroes the accumulator and PDA-signs an SPL Token Transfer of the claimed amount from the fee vault into the builder's token account.
+4. **\`CreateFeeVault\`** — one-shot bootstrap per quote mint, run once per cluster before any place-order variant. Allocates the per-(quote_mint) fee_vault token account owned by the \`[b"fee_vault_auth", quote_mint]\` PDA. Mirrors Chapter 6's \`CreateVault\`.
 
-The chapter's intellectual content is three-part: the atomicity argument in §13.4 (why fee splits happen inside the trade instruction, not in a separate "claim per trade" call), the cap-stacking pattern in §13.2 (how a self-declared cap interacts with the protocol-level cap to bound fee leakage even if a builder is compromised), and the production-escrow design discussion in §13.5 (what makes builder fees a structurally harder escrow problem than the two-party movements of Chapters 11 and 12).
+The chapter also extends \`PlaceOrderChecked\` to escrow the same protocol fee. The reason — design choice #2 in §13.5b — is symmetry: if only the builder path escrowed a fee, trades through a builder would cost the user more in real terms than identical trades without one. Production deployments resolve this by treating the protocol fee as universal across both variants from day one.
+
+The chapter's intellectual content is three-part: the atomicity argument in §13.4 (why fee splits happen inside the trade instruction, not in a separate "claim per trade" call), the cap-stacking pattern in §13.2 (how a self-declared cap interacts with the protocol-level cap to bound fee leakage even if a builder is compromised), and the production-escrow design discussion in §13.5b (what makes builder fees structurally different from the two-party movements of Chapters 11 and 12 — and the four design choices behind our fee-vault implementation).
 
 ---
 
@@ -2386,11 +2780,11 @@ pub struct BuilderProfile {
     pub max_fee_share_bps: u64,     // self-cap, clamped at register-time
     pub accumulated_fees: u64,      // claim target
     pub total_volume: u64,          // stat: base size routed through this builder
-    pub _reserved: [u8; 32],
+    pub fee_mint: [u8; 32],         // set at registration; fees are earned and claimed only in it
 }
 \`\`\`
 
-104 bytes. The four meaningful fields:
+104 bytes. Four of the fields carry the design (\`fee_mint\` is covered under the constraints below):
 
 **\`builder\`** is the pubkey of the frontend / aggregator. Used as the only seed in the PDA derivation: \`[BUILDER_PROFILE_SEED, builder.key]\`. This means every Solana pubkey has at most one builder profile, derivable by anyone who knows the pubkey. The profile is owned by openhl-core (so only this program can mutate \`accumulated_fees\`), but anyone can *read* the public-facing fields (\`builder\`, \`total_volume\`) to verify a builder's claimed routing volume.
 
@@ -2403,7 +2797,7 @@ pub struct BuilderProfile {
 Two design constraints worth noting:
 
 - **One profile per builder.** The PDA derivation makes the (builder pubkey) → (profile pubkey) mapping bijective. A builder cannot have two profiles with different fee splits per market; if they want to A/B test fee splits they use two different builder wallets.
-- **Fee accumulation in quote units.** \`accumulated_fees\` is denominated in whatever quote currency the protocol fee is taken in. With multiple quote currencies (USDC and USDT, say) the design would need per-(builder, mint) profiles, not just per-builder. We deliberately keep it single-quote here since the rest of the program is also single-quote.
+- **Fee accumulation in quote units.** \`accumulated_fees\` is denominated in whatever quote currency the protocol fee is taken in. With multiple quote currencies (USDC and USDT, say) the design would need per-(builder, mint) profiles, not just per-builder. We deliberately keep it single-quote here since the rest of the program is also single-quote — and the program enforces it: anyone can create a market with any quote mint, so the builder names its \`fee_mint\` in \`RegisterBuilder\` (account 3, the builder signs), a \`PlaceOrderWithBuilder\` on a market quoted in another mint is refused, and \`ClaimBuilderFees\` pays only from \`fee_mint\`'s fee vault. Fixing it at registration rather than at the first credit matters: \`PlaceOrderWithBuilder\` is signed by the trader, not the builder, so a first-credit pin would let anyone pin someone else's profile to a junk mint. Without that pin, fees earned on a market quoted in a worthless mint could be claimed, unit for unit, from the USDC fee vault (\`tests/builder_fee_mint.rs\`).
 
 > **Exercise §13.1.** A frontend registers with \`max_fee_share_bps = 3000\`. Three trades route through them: notional 1000, 2500, 700. With \`PROTOCOL_FEE_BPS = 10\` (0.1%), what is the total \`accumulated_fees\` after all three trades?
 
@@ -2417,7 +2811,7 @@ Builder codes need *two* fee-share caps, not one, because two parties have diffe
 
 **Builder self-cap (\`BuilderProfile.max_fee_share_bps\`)** — the maximum fraction this *particular* builder will keep. Self-declared at registration; user-visible.
 
-The effective share on any trade is \`min(builder.max_fee_share_bps, PROTOCOL_BUILDER_SHARE_CAP_BPS)\`. From \`programs/openhl-core/src/lib.rs:2742–2748\`:
+The effective share on any trade is \`min(builder.max_fee_share_bps, PROTOCOL_BUILDER_SHARE_CAP_BPS)\`. From \`programs/openhl-core/src/lib.rs:4044–4049\`:
 
 \`\`\`rust
 share_bps = profile.max_fee_share_bps;
@@ -2444,17 +2838,20 @@ Production builder programs often add a *third* cap — a per-market or per-asse
 
 ## §13.3  Walking \`PlaceOrderWithBuilder\`
 
-\`process_place_order_with_builder\` at \`programs/openhl-core/src/lib.rs:2680–2817\`. The handler is a strict superset of \`PlaceOrderChecked\` — same checks, same place logic — with one fee-split block inserted between the validation and the order write.
+\`process_place_order_with_builder\` in \`programs/openhl-core/src/lib.rs\`. The handler is a strict superset of \`PlaceOrderChecked\` — same eight prefix accounts (\`user\`, \`book\`, \`oracle\`, \`market\`, \`mint\`, \`user_token\`, \`fee_vault_token\`, \`token_program\`), one extra \`builder_profile\` account at the end, same fee math, same place logic, plus the builder credit step.
 
-**Validation + sanity band** (lines 2693–2724): identical to \`PlaceOrderChecked\` except for the additional \`builder_profile_ai\` slot in \`accounts\`. The oracle staleness check, the price sanity band against the oracle mark — all carried over verbatim.
+**Validation + sanity band**: identical to \`PlaceOrderChecked\`. Both handlers cross-check the (book, oracle, mint) chain against the passed market, run the oracle staleness gauntlet, and apply the price sanity band.
 
-**Fee computation + builder credit** (lines 2726–2775):
+**Fee computation + builder credit**:
 
 \`\`\`rust
 let notional_val = (price as u128) * (size as u128);
 let protocol_fee = (notional_val * (PROTOCOL_FEE_BPS as u128) / 10_000) as u64;
 
 // ... read builder profile, compute share_bps clamped to caps ...
+if profile.fee_mint != *mint_ai.key.as_ref() {
+    return Err(ProgramError::InvalidAccountData); // profile earns fees in another mint
+}
 
 let builder_share = ((protocol_fee as u128) * (share_bps as u128) / 10_000) as u64;
 profile.accumulated_fees = profile.accumulated_fees.checked_add(builder_share)?;
@@ -2470,9 +2867,11 @@ Three numbers fall out:
 
 \`builder_share\` is added to \`profile.accumulated_fees\` with \`checked_add\` (overflow refuses the trade rather than silently capping — the builder can claim periodically to keep the running total under u64::MAX). \`total_volume\` advances by the trade size for observability.
 
-The remaining \`protocol_fee - builder_share\` is retained by the protocol. In our scope-deferred version it stays implicit (we don't track it anywhere); in production it would be transferred to a protocol fee vault account via SPL Token CPI. The chapter's pedagogical point lands either way: the split happens atomically with the trade.
+**Order placement**: identical to \`PlaceOrderChecked\` from §9.4. Linear-scan for an empty slot, write the order, increment counters.
 
-**Order placement** (lines 2780–2811): identical to \`PlaceOrderChecked\` from §9.4. Linear-scan for an empty slot, write the order, increment counters. The CU cost of \`PlaceOrderWithBuilder\` is \`PlaceOrderChecked + ~600 CU\` for the fee math and the builder profile borrow.
+**Fee escrow**: the handler ends with a CPI to SPL Token Transfer (\`spl_token_transfer_user_signed\`) moving the *full* \`protocol_fee\` from the user's quote-token account into the per-(quote_mint) fee vault. The \`(protocol_fee - builder_share)\` remainder stays in the fee vault as the protocol's take; \`ClaimBuilderFees\` later releases \`accumulated_fees\` from the same vault to each builder. Placed last so a Transfer failure (InsufficientFunds, frozen account) reverts both the order write and the builder credit atomically — same order-matters argument as Chapter 11's collateral escrow.
+
+The CU cost of \`PlaceOrderWithBuilder\` is \`PlaceOrderChecked + ~600 CU\` for the builder profile borrow. The fee math and the fee-escrow Transfer are already in \`PlaceOrderChecked\`; the marginal cost over the no-builder path is just the builder credit.
 
 > **Exercise §13.3.** What happens if \`PlaceOrderWithBuilder\` is called with \`price × size\` so large that \`notional × PROTOCOL_FEE_BPS\` overflows \`u128\`? Trace the failure path. Why is \`u128\` the right precision for this calculation rather than \`u64\`?
 
@@ -2496,9 +2895,9 @@ This accrue-batch-claim pattern is identical to ERC-20 dividend distributions in
 
 ---
 
-## §13.5  \`RegisterBuilder\` and \`ClaimBuilderFees\`
+## §13.5  \`RegisterBuilder\`, \`ClaimBuilderFees\`, \`CreateFeeVault\`
 
-Both are short. \`RegisterBuilder\` (lines 2604–2670) is the standard PDA-creation pattern from Chapter 3, with one twist: the requested \`max_fee_share_bps\` is clamped at registration time:
+\`RegisterBuilder\` is the standard PDA-creation pattern from Chapter 3, with one twist: the requested \`max_fee_share_bps\` is clamped at registration time:
 
 \`\`\`rust
 if max_share > PROTOCOL_BUILDER_SHARE_CAP_BPS {
@@ -2513,44 +2912,53 @@ if max_share > PROTOCOL_BUILDER_SHARE_CAP_BPS {
 
 The clamp is silent — the registration succeeds, just with a reduced share. Logging the clamp lets builders verify their effective cap from program logs.
 
-\`ClaimBuilderFees\` (lines 2819–2860) is even simpler:
+\`ClaimBuilderFees\` is two steps — zero the accumulator inside a borrow scope, then PDA-sign a Transfer out of the fee vault:
 
 \`\`\`rust
 if profile.builder != *builder_ai.key.as_ref() {
     return Err(ProgramError::IllegalOwner);
 }
-
+if profile.fee_mint != *mint_ai.key.as_ref() {
+    return Err(ProgramError::InvalidAccountData); // fees were earned in another mint
+}
 let claimed = profile.accumulated_fees;
 profile.accumulated_fees = 0;
+// ... borrow scope ends ...
 
-msg!(
-    "claim_builder_fees: builder {} claimed {} units ...",
-    builder_ai.key,
-    claimed
-);
+spl_token_transfer_fee_vault_signed(
+    fee_vault_ai,
+    builder_token_ai,
+    fee_vault_auth_ai,
+    mint_ai.key,
+    fee_vault_auth_bump,
+    token_ai,
+    claimed,
+)?;
 \`\`\`
 
-Authorization (only the builder can claim their own fees), zero the accumulator, log. In production this is where an SPL Token Transfer CPI would PDA-sign a move of \`claimed\` quote tokens from a protocol fee-vault token account into the builder's token account.
+Authorization (only the builder can claim their own fees, and only from its \`fee_mint\`'s vault), zero the accumulator, release the borrow, PDA-sign the Transfer. The Transfer helper is structurally identical to \`spl_token_transfer_vault_signed\`, which makes Chapter 11's position payouts (close and liquidate) — same \`invoke_signed\` pattern, same \`InvalidSeeds\` protection — with the per-(quote_mint) \`[FEE_VAULT_AUTH_SEED, quote_mint]\` seeds instead of per-(market) \`[VAULT_AUTH_SEED, market]\`. Order matters: zero the accumulator *before* the Transfer so a transfer-failure tx revert restores the accumulator (atomic), and so a successful Transfer cannot be replayed against a still-funded accumulator.
 
 A real production claim also typically supports partial withdrawals (\`claim --amount N\` rather than always-everything), accumulator timeouts (fees idle for >N days are forfeited to the protocol), and per-token claims when the protocol supports multiple quote currencies. None of these change the fundamental shape; they're policy decisions on top.
 
+\`CreateFeeVault\` is the one-shot bootstrap. Mirrors \`process_create_vault\` from Chapter 6 verbatim, with two differences: the seeds are \`[b"fee_vault", quote_mint]\` / \`[b"fee_vault_auth", quote_mint]\` instead of \`[b"vault", market, mint]\` / \`[b"vault_auth", market]\`, and only one is needed per quote currency (not per market). The handler does the standard two-CPI dance — System \`create_account\` with PDA signing, then SPL Token \`InitializeAccount3\` setting the authority PDA as the owner — and is run once before any place-order variant.
+
 > **Exercise §13.5.** Modify \`process_claim_builder_fees\` to accept a \`partial_amount: Option<u64>\` in the payload. If \`Some(n)\`, claim \`min(n, accumulated_fees)\`; if \`None\`, claim all. Why is the partial-withdraw pattern useful for builders even though the total they can withdraw is the same?
 
-### Production-escrow design notes (why this one is left as homework)
+### §13.5b  Production-escrow design notes — the four choices behind the implementation
 
-Chapters 11 and 12 added real SPL Token escrow to position collateral and vault deposits. This chapter does not. The reason is that builder-fee escrow is a *structurally different* escrow problem than the two-party token movements those chapters needed — and a single concrete implementation would mislead more than teach. Four design choices have to be made before any plumbing gets written.
+Chapters 11 and 12 added real SPL Token escrow to position collateral and vault deposits with a single matching helper apiece. This chapter's escrow needed four design choices instead, because builder fees are a *structurally different* escrow problem than the two-party token movements those chapters needed. The implementation in \`process_place_order_checked\`, \`process_place_order_with_builder\`, and \`process_claim_builder_fees\` is shaped by all four; understanding them is what makes the code read as a sequence of forced moves rather than arbitrary choices.
 
-**1. Two parties vs three.** Position collateral and vault deposits are two-party movements: user ↔ vault, signed by one side, with the entire economic decision (how much, signed by whom) encoded in the instruction. Builder fees are a *three-party split*: the user pays a single protocol fee, of which one fraction goes to the protocol and another to the builder. Splitting one user payment across two recipients atomically — and crediting the right fraction to each — needs a different shape than \`spl_token_transfer_user_signed\` and \`spl_token_transfer_vault_signed\` provide. The natural implementation is a *fee-vault* token account (one per quote mint) owned by a PDA at e.g. \`[b"fee_vault", quote_mint]\`. Every \`PlaceOrderWithBuilder\` would (a) Transfer the *full* \`protocol_fee\` from the user's token account into the fee vault, then (b) credit \`builder_share\` to the builder's accumulator. The \`(protocol_fee - builder_share)\` remainder stays in the fee vault as the protocol's take.
+**1. Two parties vs three.** Position collateral and vault deposits are two-party movements: user ↔ vault, signed by one side, with the entire economic decision (how much, signed by whom) encoded in the instruction. Builder fees are a *three-party split*: the user pays a single protocol fee, of which one fraction goes to the protocol and another to the builder. Splitting one user payment across two recipients atomically — and crediting the right fraction to each — does not fit \`spl_token_transfer_user_signed\` and \`spl_token_transfer_vault_signed\` alone. The implementation introduces a *fee-vault* token account (one per quote mint) owned by a PDA at \`[b"fee_vault_auth", quote_mint]\`. Every place-order variant (a) Transfers the *full* \`protocol_fee\` from the user's token account into the fee vault, then (b) credits \`builder_share\` to the builder's accumulator (in the builder variant). The \`(protocol_fee - builder_share)\` remainder stays in the fee vault as the protocol's take.
 
-**2. The \`PlaceOrderChecked\` asymmetry.** Adding fee escrow only to \`PlaceOrderWithBuilder\` creates a perverse incentive: the no-builder path (\`PlaceOrderChecked\`) doesn't charge any token-denominated fee, so trades through a builder would cost the user more in real terms than identical trades without one. The natural fix is to make *all* place-order variants escrow the protocol fee — which is a bigger surgery on the trade path than the chapter can land without bloating §13.3 beyond utility. Production deployments resolve this by treating the protocol fee as universal across both variants from day one.
+**2. The \`PlaceOrderChecked\` asymmetry.** Adding fee escrow only to \`PlaceOrderWithBuilder\` would create a perverse incentive: the no-builder path would charge no token-denominated fee, so trades through a builder would cost the user more in real terms than identical trades without one. The chapter resolves this by making *all* place-order variants escrow the protocol fee — which is why \`process_place_order_checked\` grew the same \`(market, mint, user_token, fee_vault_token, token_program)\` prefix that \`PlaceOrderWithBuilder\` carries. Both variants now escrow the same fee; the builder variant additionally credits the builder share. Production deployments make this choice from day one rather than as a follow-up because the asymmetric design is a one-way migration trap — once users have signed transactions that assume an account shape, you can't quietly add slots later.
 
-**3. Multi-quote support.** With one quote currency (our case) the fee vault is a single account. With multiple quote currencies the design needs per-(quote_mint) fee vaults *and* per-(builder, quote_mint) accumulators — meaning \`BuilderProfile\` either grows a map field (not Pod-friendly) or splits into many one-per-quote profile PDAs. §13.1 mentioned the single-quote constraint as deliberate; the production escrow design is where it actually starts costing accounts.
+**3. Multi-quote support.** With one quote currency (our case) the fee vault is a single account per cluster, and the per-builder accumulator is a single u64. With multiple quote currencies the design needs per-(quote_mint) fee vaults *and* per-(builder, quote_mint) accumulators — meaning \`BuilderProfile\` either grows a map field (not Pod-friendly) or splits into many one-per-quote profile PDAs. §13.1 mentioned the single-quote constraint as deliberate; here is where it pays off architecturally. Note that the PDA seeds we picked (\`[b"fee_vault", quote_mint]\` rather than \`[b"fee_vault"]\`) already support per-mint vaults; only the per-(builder, quote_mint) accumulator side would need restructuring to go multi-quote.
 
-**4. Claim-side authority.** Once the fee vault exists, \`ClaimBuilderFees\` becomes a PDA-signed Transfer from \`fee_vault\` to \`builder_token\`, signed by the fee-vault authority PDA. Structurally identical to §12.4's \`VaultWithdraw\` — same \`invoke_signed\` pattern, same \`InvalidSeeds\` protection, different seeds. This is the only piece that's a "mechanical extension" of work the chapter already did.
+**4. Claim-side authority.** With the fee vault in place, \`ClaimBuilderFees\` is a PDA-signed Transfer from \`fee_vault\` to \`builder_token\`, signed by the fee-vault authority PDA — structurally identical to §12.4's \`VaultWithdraw\`, same \`invoke_signed\` pattern, same \`InvalidSeeds\` protection, different seeds. This is the piece that was always going to be a "mechanical extension" of work the prior chapters already did; it lands as the new \`spl_token_transfer_fee_vault_signed\` helper next to its per-(market) cousin.
 
-The mechanism the chapter actually teaches — accrual atomic with trade, claim as a separate batch operation, two-cap safety — survives all four design choices unchanged. Only the SPL Token plumbing differs across them.
+The mechanism the chapter teaches — accrual atomic with trade, claim as a separate batch operation, two-cap safety — survives all four design choices unchanged. Choices 1 and 2 dictate where Transfers land; choice 4 dictates how the claim signs; choice 3 is what we get for free by keeping the seeds mint-scoped.
 
-> **Exercise §13.5b (design).** Sketch the account layout for a production \`ClaimBuilderFees\`: which accounts must be passed (in order), which are signers, which are PDAs, and which seeds derive them. You don't need to write code — just the \`accounts: vec![...]\` declaration as it would appear in \`scripts/builder/src/main.rs\`. Compare with §12.4's \`VaultWithdraw\` declaration: what's structurally identical, what's structurally different, and which difference traces back to which of the four design choices above?
+> **Exercise §13.5b (design).** Compare the \`accounts: vec![...]\` declarations in \`scripts/builder/src/main.rs\` for \`--place-with-builder\`, \`--claim\`, and the original Chapter 12 \`--withdraw\` (in \`scripts/vault/src/main.rs\`). Identify three structural similarities and three structural differences. Trace each difference back to one of the four design choices above. Hint: the seed-derivation pattern is identical; the authority side is identical; the asymmetries are in account count, signer role, and PDA-derivation seeds.
 
 ---
 
@@ -2561,14 +2969,25 @@ The mechanism the chapter actually teaches — accrual atomic with trade, claim 
 \`\`\`
 Builder lifecycle:
 
+  0) Cluster bootstrap (once per quote mint)
+     CreateFeeVault(quote_mint)
+     ──► fee_vault token account at [b"fee_vault", quote_mint]
+         owned by [b"fee_vault_auth", quote_mint] PDA
+
+
   1) Builder registers
      RegisterBuilder(max_fee_share_bps=2000)
-     ──► BuilderProfile{ builder, max_share=2000, fees=0, vol=0 }
+     accounts: [payer/builder(S,W), builder_profile(W), system_program(R),
+                mint(R)]
+     ──► BuilderProfile{ builder, max_share=2000, fees=0, vol=0,
+                         fee_mint=mint }
 
 
   2) User trades through builder
      PlaceOrderWithBuilder(side, price, size)
-     accounts: [user(S), book(W), oracle(R), builder_profile(W)]
+     accounts: [user(S,W), book(W), oracle(R), market(R), mint(R),
+                user_token(W), fee_vault(W), token_program(R),
+                builder_profile(W)]
 
        notional       = price × size
        protocol_fee   = notional × 10 / 10000    (PROTOCOL_FEE_BPS)
@@ -2578,13 +2997,19 @@ Builder lifecycle:
      atomic:
        order placed in book                       ─┐
        profile.accumulated_fees += builder_share   ├─ same tx, same slot
-       profile.total_volume     += size            ─┘
+       profile.total_volume     += size            │
+       SPL Token Transfer:                         │
+         user_token → fee_vault   protocol_fee     ─┘
 
 
   3) Builder claims periodically
      ClaimBuilderFees(empty)
+     accounts: [builder(S), profile(W), mint(R), fee_vault(W),
+                fee_vault_auth(R), builder_token(W), token_program(R)]
      ──► profile.accumulated_fees = 0
-     ──► (production: SPL Token CPI moves the claimed amount)
+     ──► invoke_signed SPL Token Transfer:
+           fee_vault → builder_token  (claimed amount)
+           signer seeds: [b"fee_vault_auth", quote_mint, &[bump]]
 
 
 Two-cap safety:
@@ -2602,9 +3027,55 @@ Two-cap safety:
 
 ### Three things to verify yourself
 
-1. **The cap stacks correctly.** Register a builder with \`--max-share-bps 9999\`. The handler should log the clamp, and the dump should show \`max_fee_share_bps = 5000\` (our \`PROTOCOL_BUILDER_SHARE_CAP_BPS\`). Now route a trade through them — the builder's share should be exactly 50% of the protocol fee.
-2. **Atomicity holds under failure.** Use a simulated failure: try \`PlaceOrderWithBuilder\` with a stale oracle (so the order placement will fail). The simulation should fail with \`oracle stale\` *and* the builder profile's \`accumulated_fees\` should be unchanged after the failed sim (because the entire transaction reverts). The split doesn't happen unless the trade does.
-3. **Volume accrues per trade.** Place 5 orders through the same builder with sizes 10, 20, 30, 40, 50. The \`total_volume\` should be exactly 150 (10+20+30+40+50). If \`accumulated_fees\` doesn't add up to \`(notional_total × PROTOCOL_FEE_BPS × share_bps / 10000 / 10000)\`, there's an off-by-one in the math — chase it down.
+Prerequisites: bootstrap the fee vault for the quote mint (\`builder --create-fee-vault --mint <quote_mint>\`) and ensure your trader has a funded quote-token account before any place-order variant; otherwise the fee Transfer reverts.
+
+1. **The cap stacks correctly.** Register a builder with \`--max-share-bps 9999 --mint <quote_mint>\`. The handler should log the clamp, and the dump should show \`max_fee_share_bps = 5000\` (our \`PROTOCOL_BUILDER_SHARE_CAP_BPS\`). Now route a trade through them — the builder's share should be exactly 50% of the protocol fee.
+2. **Atomicity holds under failure.** Use a simulated failure: try \`PlaceOrderWithBuilder\` with a stale oracle (so the order placement will fail). The simulation should fail with \`oracle stale\` *and* the builder profile's \`accumulated_fees\` should be unchanged, the fee vault's balance should be unchanged, and the trader's quote-token account should be unchanged after the failed sim (the entire transaction reverts). The split doesn't happen unless the trade does.
+3. **Volume accrues per trade.** Place 5 orders through the same builder with sizes 10, 20, 30, 40, 50. The \`total_volume\` should be exactly 150 (10+20+30+40+50). If \`accumulated_fees\` doesn't add up to \`(notional_total × PROTOCOL_FEE_BPS × share_bps / 10000 / 10000)\`, there's an off-by-one in the math — chase it down. Then run \`--claim --mint <fee_mint> --builder-token-account <pubkey>\` (the dump prints \`fee_mint\`); the builder's quote-token account balance should grow by exactly \`accumulated_fees\`, and the dump should show \`accumulated_fees = 0\`.
+
+
+### Now let a tool check the money, not just the accounts
+
+Chapters 3, 6 and 12 end with [solinv](https://github.com/psyto/solinv) swapping accounts. The question here is different: does the fee vault always hold what builders are owed? Chapter 6 §6.6 left it open, because the fee vault is the one account every market shares, and a pair can have a second market that is not at its PDA.
+
+[\`fuzz/fees/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/fees) is the harness. Builders B and B2 register in the quote mint Q; user U trades through either. There are three markets, each with its book and a fresh oracle: \`(base, Q)\` at its PDA, a second \`(base, Q)\` market made by \`Initialize\` (Chapter 2) at an address that is not the PDA, and \`(base, J)\` for a mint J that anyone can make. Besides the usual signer-skip and account-swap, the specs declare two rules:
+
+- a **relation** (solinv's \`Relation\`, checked by \`unchecked_math\`): the sum of \`accumulated_fees\` over B's and B2's profiles is at most the Q fee vault's balance, on both \`PlaceOrderWithBuilder\` and \`ClaimBuilderFees\`. (B2's profile is appended to each instruction's accounts so the relation can read it; the handlers ignore the extra account.) It is reported only if it held before the instruction and fails after it.
+- a **guard** (checked by \`precondition_skip\`): \`PlaceOrderWithBuilder\` may succeed only if \`profile.fee_mint == market.quote_mint\`. solinv compares fields of at most 16 bytes, so the 32-byte mints take two guards.
+
+Set up as in Chapter 3 §3.7, then:
+
+\`\`\`bash
+cargo build-sbf --manifest-path programs/openhl-core/Cargo.toml
+cd fuzz/fees
+cargo build --release --features invariant_ch13
+cargo test --release --features invariant_ch13
+timeout -s INT 60 crucible run openhl_fees_fuzz invariant_ch13 \\
+    --binary-in target/release/invariant_test --timeout 45
+\`\`\`
+
+On the program as it is, no \`[FUZZ_FINDING]\` line appears, on any of the three markets. That answers §6.6's question for this chapter. Every credit to \`accumulated_fees\` is at most half of a \`protocol_fee\` that the same transaction moves into the fee vault, in the same mint, so a second market (or any market) cannot owe a builder more than its users paid. The test \`credit_never_exceeds_payment\` checks it on both Q markets.
+
+> **Exercise §13.6.** Delete each check below in turn, or make the change in the last two rows, rebuild, and run. Predict first. Here is what we measured, 45 seconds each; for the "no" rows, the last column is what refused the swapped call instead, read from its logs (the \`probe\` test prints them):
+>
+> | Change | Caught? | How, or what refused it instead |
+> |---|---|---|
+> | Place: \`profile.fee_mint == mint\` | **yes** | precondition-skip: the guard was false on J's market and the order went through; \`junk_mint_order_does_not_credit_a_q_builder\` fails |
+> | Place: \`market.quote_mint == mint\` | no | the \`fee_mint\` check: paying in J on the Q market still names B, who is paid in Q |
+> | Place: \`verify_fee_vault_token_account\` | no | SPL Token: \`Account not associated with this Mint\` |
+> | Place: \`user_ai.is_signer\` | no | the runtime: unauthorized signer |
+> | Place: the book PDA | **yes** | account-swap: the order went into another market's book |
+> | Place: the oracle PDA | **yes** | account-swap: the price band came from another market's oracle |
+> | Claim: \`profile.builder == builder\` | **yes** | account-swap: B claimed B2's fees |
+> | Claim: \`builder_ai.is_signer\` | **yes** | signer-skip: anyone could claim B's fees, into an account they name |
+> | Claim: \`profile.fee_mint == mint\` | **yes**, with a set | account-swap \`check_sets\`: B's Q fees paid out of J's vault into B's J account (four slots together) |
+> | Claim: \`verify_fee_vault_token_account\` | no | SPL Token: \`owner does not match\` (the Q vault authority cannot sign for J's vault) |
+> | Claim: no \`accumulated_fees = 0\` | **yes** | the relation, on the first claim: owed 12,262 against 12,266 in the vault before, 12,262 against 6 after; \`claim_pays_once\` fails |
+> | Place: builder share of \`notional\`, not of \`protocol_fee\` | **yes** | the relation: 0 owed against 0 before the first order, 5,000 owed against 10 after |
+>
+> Three things are worth a second look. The last two rows are not missing checks at all: every account is right and every check passes, and the program still promises more than it holds. Only a rule about the numbers can see that, and it is the rule the chapter's atomicity argument (§13.4) is about. One more trap, this one in our harness: the first version had B2 earn its fees in \`setup()\`. With the share computed from \`notional\`, that setup order already broke the relation, and solinv reports a relation that is false before the instruction as a declaration problem, not a finding, so the row read "no". Now only the fuzzer's own orders credit builders. And the claim-side \`fee_mint\` row needed four accounts swapped together. Our first set swapped three and left B's Q account as the destination, so SPL Token refused it for a mint mismatch, which said nothing about the check we had deleted. An attacker names a destination in J. As in Chapter 12, a refusal is evidence only once you know which check gave it.
+>
+> One swap is left out on purpose. Point \`PlaceOrderWithBuilder\`'s slot 8 at another builder's profile and it goes through: U credits B2 instead of B. That is the design. The user chooses which frontend to credit, and pays the fee either way.
 
 ---
 
@@ -2645,7 +3116,7 @@ Six keepers, one indexer:
 6. **Maintenance keeper** — odds and ends: closing dormant accounts, archiving filled orders, garbage collecting empty book slots.
 7. **Indexer** — not a keeper but an essential read-side service: subscribes to chain state and feeds frontends, analytics, alerting.
 
-The chapter closes Phase B and the track. After §14.7's retrospective there are no more chapters; there are no more on-chain features to add before the program is feature-complete in the sense the curriculum committed to in Chapter 0. Where you go after is your own choice — production deployment, audit prep, scaling experiments, your own perp DEX. The pieces are in your hands.
+The chapter closes Phase B's main arc. §14.7's retrospective summarizes what the fourteen chapters built. Chapter 15 follows as a separate appendix-style chapter that ships the slab order book §8.4 designed — the Phase B program is feature-complete with or without it, but the slab is the production-grade order book and lives next to the flat-array Chapter 7 book for direct comparison. Where you go after is your own choice — production deployment, audit prep, scaling experiments, your own perp DEX. The pieces are in your hands.
 
 ---
 
@@ -2910,14 +3381,11 @@ Across fourteen chapters, we built:
 
 **Phase A (foundations, ch.1–5):** Account model, native programs, PDAs, compute budget, Sealevel parallelism. A complete "Solana from scratch, no Anchor" curriculum that stands on its own — a learner who finishes Phase A can write a real Solana program and debug a real Solana program, without ever touching a framework.
 
-**Phase B (HL primitives, ch.6–14):** SPL Token vaults via CPI, on-chain order books, matching engines, oracle integration, funding rate accumulators, position lifecycle with liquidation, pooled trading vaults, builder codes, and the off-chain infrastructure that runs the result. A working — if scope-deferred — perp DEX, with every design choice annotated and every honesty note about what's deferred written into the chapter.
+**Phase B (HL primitives, ch.6–14, plus the ch.15 appendix):** SPL Token vaults via CPI, on-chain order books (flat-array in ch.7 + slab in ch.15), matching engines, oracle integration, funding rate accumulators, position lifecycle with liquidation, pooled trading vaults, builder codes, insurance fund, and the off-chain infrastructure that runs the result. A working — if scope-deferred — perp DEX, with every design choice annotated and every honesty note about what's deferred written into the chapter.
 
 Things explicitly deferred (so they're easy to find later):
 
-- **SPL Token escrow** of collateral (ch.11), vault assets (ch.12), and builder fees (ch.13). The math is production-correct; only the token plumbing is missing.
-- **Slab-based order book.** Ch.8 ships the flat-array matcher with pagination and pseudocodes the slab in §8.4. Implementing it is well-scoped homework.
-- **Insurance fund.** Ch.11 discusses it (§11.6); not in code. Required before underwater closes can be socialized correctly.
-- **Real Pyth integration.** Ch.9 uses a mock; the §9.5 migration table is the one-page diff to switch to real Pyth.
+- **A self-hosted Wormhole-style oracle receiver.** Ch.9 §9.5 ships consumer readers for both Pyth v1 (\`PlaceOrderCheckedPyth\`) and Pyth v2 (\`PlaceOrderCheckedPythV2\`, which reads \`PriceUpdateV2\` accounts that Pyth's receiver program produces). What's still genuinely open is *being* a receiver — verifying Wormhole VAA signatures against a stored guardian set, doing Merkle proof verification on bundled updates, writing your own price-cache PDAs. You only need this if you're consuming updates from a chain where Pyth's receiver isn't deployed, or you want to verify additional message types. Its own chapter.
 
 Things you'd add for a real production deployment:
 
@@ -2946,6 +3414,473 @@ This is a closing chapter, not a roadmap. We didn't write:
 - A "what to read next" reading list. The Phase A and Phase B chapters cite Solana docs, Pyth docs, and source code where relevant; that's the canonical further reading.
 - A pitch for any particular Solana ecosystem direction. Where the chain goes from here is for the people building on it to decide; this track teaches the substrate, not the strategy.
 - A "thank you" or "see you next time." Curriculum endings are for readers, not writers. If you got something out of these fourteen chapters, the next valuable thing you do is ship something with it. Go.
+`,
+                },
+                {
+                  title: "Chapter 15 — Slab Order Book",
+                  slug: "solana-internals-ch15-slab-en",
+                  type: 'CONTENT',
+                  sortOrder: 9,
+                  duration: 45,
+                  xpReward: 100,
+                  content: `# Chapter 15 — Slab Order Book
+
+> Status: draft (v0.1).
+> Companion code: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs) (\`Slab\`, \`OrderNode\`, \`CritbitTree\`, \`TreeNode\`), [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (slab helpers + \`process_create_slab\`, \`process_slab_place_order\`, \`process_slab_match\`), [\`scripts/slab/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/slab/src/main.rs), [\`fuzz/slab/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/slab/src/main.rs) (the solinv harness for §15.6–15.7).
+>
+> Since the parts split, the logic this chapter walks through lives in [\`crates/slab/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/slab/src/lib.rs) (\`openhl-slab\`); the program calls it. The code quoted below is the pre-split version from \`programs/openhl-core/src/lib.rs\`, and its line numbers are not kept in sync.
+
+---
+
+## §15.0  Framing — what the slab buys, and why it deserved its own chapter
+
+Chapter 7 shipped a flat-array \`OrderBook\` — 32 slots, linear-scan for an empty slot on insert, linear-scan for a price-match in \`Match\`. Chapter 8 measured the cost: a \`K = 10\` fill loop against a \`N = 32\` book runs ~\`O(K × N)\` and spends about 22 KCU (re-measured; §8.2) just on book bookkeeping before any settlement runs. That works *as a teaching baseline*. It does not work as a production book — the scan dominates for any realistic depth.
+
+The Hyperliquid and Serum / Phoenix answer is a **slab**: a tree over price levels (ours is a critbit, which is not self-balancing: its depth follows the bits of the prices, about log₂ N when they are spread out and up to 64 when a maker picks them adversarially; §15.7), with each leaf holding a FIFO of orders at that price. Insert is O(log N) by price level. Best-price is O(log N) — walk root toward the side you want. Pop-the-best is O(log N) in the worst case (a level empties and the leaf has to be removed; an inner node above it goes redundant and collapses with it). The §8.4 pseudocode promised this chapter; here it is.
+
+The chapter ships three new instructions, parallel to Chapter 7's \`CreateOrderBook\` / \`PlaceOrder\` / \`Match\`:
+
+1. **\`CreateSlab\`** (tag 29) — initializes a \`Slab\` account the client created in the same transaction, and the OrderNode pool's free list plus both critbit trees' free lists.
+2. **\`SlabPlaceOrder\`** (tag 30) — same payload as \`PlaceOrder\`. Runs the critbit insert, allocates an OrderNode from the pool, threads it onto the price level's FIFO.
+3. **\`SlabMatch\`** (tag 31) — same payload as \`Match\` (taker side + limit price + size + max_fills cap). Walks the best leaf on the maker side, fills against its FIFO head, removes drained levels, applies the §8.3 pagination cap.
+
+The flat-array \`OrderBook\` and the slab \`Slab\` coexist in the program. Different markets can choose different books; existing markets aren't disturbed. The chapter is about the *new* path.
+
+Three things this chapter is *not* about:
+
+- **It is not a Match-engine surgery chapter.** The slab's \`SlabMatch\` runs the same fill-loop shape as Chapter 8 — the change is in how the maker side is reached (O(log N) instead of O(N)), not in how a fill is accounted. Settlement, fees, builder splits — none of that lives here.
+- **It is not a guide to every critbit variant.** Serum's slab packs leaves and inners into the same node pool with discriminator bits; Phoenix uses a slightly different layout with a separate per-level FIFO accounting struct. Ours follows §8.4's split — one OrderNode pool, one TreeNode pool per side — because the split makes the pedagogical argument cleanest. Other layouts trade a few hundred bytes of header for slightly faster access.
+- **It is not a full benchmark.** §15.6 gives measured numbers for both books at the sizes this program allows; a study at production depth and with settlement CPIs is a follow-up.
+
+---
+
+## §15.1  The four account types
+
+From \`crates/state/src/lib.rs\`:
+
+\`\`\`rust
+pub struct OrderNode {                          // 64 bytes
+    pub order_id: u64,
+    pub owner: [u8; 32],
+    pub size: u64,
+    pub next: u16,        // next in FIFO (or in free list)
+    pub prev: u16,
+    pub _pad: [u8; 12],
+}
+
+pub struct TreeNode {                           // 32 bytes — tagged union
+    pub tag: u8,          // 0 FREE, 1 INNER, 2 LEAF
+    pub split_bit: u8,    // INNER only
+    pub next_free: u16,   // FREE only
+    pub left_child: u16,  // INNER only
+    pub right_child: u16, // INNER only
+    pub head_node: u16,   // LEAF only (FIFO head order_node idx)
+    pub tail_node: u16,   // LEAF only
+    pub order_count: u32, // LEAF only (observability)
+    pub price: u64,       // LEAF only
+    pub _pad: [u8; 8],
+}
+
+pub struct CritbitTree {                        // 8 + 256 × 32 = 8208 bytes
+    pub root: u16,                              // SLAB_NONE_INDEX if empty
+    pub free_head: u16,
+    pub _pad: [u8; 4],
+    pub nodes: [TreeNode; SLAB_TREE_CAPACITY],  // SLAB_TREE_CAPACITY = 256
+}
+
+pub struct Slab {                               // ~82 KiB total
+    pub discriminator: [u8; 8],                 // SLAB\\0\\0\\0\\0
+    pub bump: u8,
+    pub _pad0: [u8; 7],
+    pub market: [u8; 32],
+    pub next_order_id: u64,
+    pub active_count: u32,
+    pub pool_free_head: u16,
+    pub _pad1: [u8; 2],
+    pub bid_tree: CritbitTree,
+    pub ask_tree: CritbitTree,
+    pub nodes: [OrderNode; SLAB_POOL_CAPACITY], // SLAB_POOL_CAPACITY = 1024
+}
+\`\`\`
+
+Five design choices to absorb:
+
+**1. \`u16\` everywhere, never \`Option<u16>\`.** Pod safety. The sentinel \`SLAB_NONE_INDEX = u16::MAX\` stands in for "no index." Free-list terminators, empty-tree roots, and dangling FIFO endpoints all use it. With \`u16\` we can address up to 65,535 entries — \`SLAB_POOL_CAPACITY = 1024\` is well within that.
+
+**2. Tagged union via \`tag\` byte, no enum.** \`TreeNode\` could in principle be a Rust enum (\`Free\`, \`Inner { ... }\`, \`Leaf { ... }\`). It can't, because enums aren't \`Pod\`. So we lay out all the fields any variant might need, and the \`tag\` byte tells consumers which fields to read. Unused fields hold zero / \`SLAB_NONE_INDEX\`. The discipline trade is real — a stale \`head_node\` in a freshly-freed node is a latent bug — but the layout pays off in zero-copy bytemuck access.
+
+**3. Two trees per slab, not one.** Bid and ask trees are structurally identical; the only thing that differs is the "best price" walk direction (max vs min). Keeping them separate means the bid-side insert never traverses ask state and vice versa, which matters for Sealevel-style parallelism: a market with bids-only churn would still write the ask tree if they shared a root, serializing what could be independent.
+
+**4. One shared OrderNode pool.** \`Slab.nodes\` is a single array. Both trees draw FIFOs from the same pool. The alternative (per-side pool) would double the OrderNode capacity per side for the same total footprint, but it would also mean that a one-sided book (e.g., almost all bids during a one-way move) would exhaust one pool while the other sat empty. Sharing keeps the slab usable across asymmetric flow.
+
+**5. Account size = ~82 KiB.** Computed: \`64 (header) + 2 × 8208 (trees) + 1024 × 64 (pool) = 82_064\` bytes. That's well over the 10 KiB (\`MAX_PERMITTED_DATA_INCREASE\`) an account may be given from inside a program: a \`create_account\` issued by CPI is held to that limit, and only a top-level instruction may allocate up to \`MAX_PERMITTED_DATA_LENGTH = 10 MiB\`. So the program cannot allocate the slab itself. The client sends \`SystemProgram::CreateAccount\` (space \`Slab::LEN\`, owner openhl-core) as the first instruction of the transaction and \`CreateSlab\` as the second, which only initializes the account — the same split OpenBook and Phoenix use. The slab is therefore a keypair account, not a PDA. One consequence: a market can have any number of slabs, and \`SlabPlaceOrder\` / \`SlabMatch\` take no market account and don't check \`slab.market\`. The slab has no settlement path, so today this only decides which book a client reads; a production program would record the official slab's address in market state and check it. The rent is a one-time cost the creator pays at bootstrap.
+
+> **Exercise §15.1.** Compute the exact \`Slab::LEN\` from the struct layout (don't trust the comment). Verify with \`bytemuck::bytes_of(&Slab::zeroed()).len()\`. Now compute the rent in lamports at \`lamports_per_byte_year = 3_480\` and \`years = 2\` (Solana's two-year rent exemption). That's roughly what \`CreateSlab\` charges.
+
+---
+
+## §15.2  The pool + free list
+
+\`Slab.nodes\` is a flat array of 1024 OrderNodes. At any moment some are "live" (part of a FIFO at some price level), some are "free" (waiting to be allocated). Free nodes form a singly-linked stack via their \`next\` field; \`Slab.pool_free_head\` is the top of the stack. Allocation pops \`pool_free_head\`; deallocation pushes.
+
+From \`programs/openhl-core/src/lib.rs\`:
+
+\`\`\`rust
+fn slab_init_pool(slab: &mut Slab) {
+    for i in 0..SLAB_POOL_CAPACITY {
+        slab.nodes[i].next = if i + 1 < SLAB_POOL_CAPACITY {
+            (i as u16) + 1
+        } else {
+            SLAB_NONE_INDEX
+        };
+        // ... zero the other fields ...
+    }
+    slab.pool_free_head = 0;
+}
+
+fn pool_alloc_node(slab: &mut Slab) -> Result<u16, ProgramError> {
+    let head = slab.pool_free_head;
+    if head == SLAB_NONE_INDEX {
+        return Err(ProgramError::AccountDataTooSmall);
+    }
+    slab.pool_free_head = slab.nodes[head as usize].next;
+    Ok(head)
+}
+
+fn pool_free_node(slab: &mut Slab, idx: u16) {
+    let head = slab.pool_free_head;
+    slab.nodes[idx as usize].next = head;
+    // ... zero the other fields ...
+    slab.pool_free_head = idx;
+}
+\`\`\`
+
+Three details worth flagging.
+
+**The init walks the array once.** It costs \`O(N)\` at bootstrap (~1k iterations). That cost is paid in \`CreateSlab\`, which runs once per slab. Every subsequent op is O(log N) or O(1).
+
+**Free fields stay zeroed.** When a node is freed, we don't just push it on the list — we also clear \`size\`, \`order_id\`, and \`owner\`. The cost is small (a few stores), and it means a stale \`owner\` field can't leak into a future allocation by mistake. This matters because we're reusing the same memory for many orders' lifetimes.
+
+**Failure is \`AccountDataTooSmall\`.** When the pool exhausts, we return an error rather than overwriting some existing node. \`1024 nodes\` is large for a single market; if you hit it, the answer is to either (a) batch-cancel old orders to free nodes, or (b) ship a larger \`Slab\` variant. The chapter ships the conservative answer.
+
+The two per-tree pools (\`bid_tree.nodes\` and \`ask_tree.nodes\`, both \`[TreeNode; 256]\`) work identically. \`tree_init\` walks each one once; \`tree_alloc\` and \`tree_free\` follow the same pop/push pattern via the \`next_free\` field.
+
+> **Exercise §15.2.** Implement an \`available_count(slab) -> u32\` helper that walks the free list and counts. Run it before and after a sequence of inserts + cancels; the invariant \`live + free == SLAB_POOL_CAPACITY\` should hold. Free-list corruption (a node appearing twice on the list, or a cycle) is the single hardest class of slab bug — instrumenting \`available_count\` is the cheapest way to catch it.
+
+---
+
+## §15.3  Critbit insert
+
+The critbit algorithm walks a tree where each inner node tests one specific bit of the key. The bit tested at a deeper inner node is *less* significant — more significant bits are decided closer to the root.
+
+**Find or create a leaf for \`price\`.** From \`critbit_find_or_create_leaf\`:
+
+\`\`\`rust
+// (1) Empty tree → create root leaf.
+if tree.root == SLAB_NONE_INDEX {
+    let leaf_idx = tree_alloc(tree)?;
+    tree.nodes[leaf_idx] = TreeNode { tag: LEAF, price, ... };
+    tree.root = leaf_idx;
+    return Ok((leaf_idx, true));
+}
+
+// (2) Walk to any leaf to compare prices.
+let found_leaf = critbit_walk_to_leaf(tree, price);  // descend by (price >> split_bit) & 1
+let found_price = tree.nodes[found_leaf].price;
+if found_price == price {
+    return Ok((found_leaf, false));  // existing level
+}
+
+// (3) New price — splice in a new inner + new leaf.
+let diff = price ^ found_price;
+let shared_bit = 63 - diff.leading_zeros() as u8;  // highest bit where prices differ
+
+// Walk again from root looking for the spot to splice.
+let mut parent = SLAB_NONE_INDEX;
+let mut parent_side = 0u8;
+let mut cur = tree.root;
+loop {
+    let node = &tree.nodes[cur];
+    if node.tag == LEAF || node.split_bit < shared_bit { break; }
+    let bit = ((price >> node.split_bit) & 1) as u8;
+    parent = cur;
+    parent_side = bit;
+    cur = if bit == 1 { node.right_child } else { node.left_child };
+}
+
+// (4) Allocate new leaf + new inner; the new inner splits at \`shared_bit\`.
+let new_leaf_idx = tree_alloc(tree)?;
+tree.nodes[new_leaf_idx] = TreeNode { tag: LEAF, price, ... };
+let new_inner_idx = tree_alloc(tree)?;
+let price_bit = ((price >> shared_bit) & 1) as u8;
+let (left, right) = if price_bit == 1 { (cur, new_leaf_idx) } else { (new_leaf_idx, cur) };
+tree.nodes[new_inner_idx] = TreeNode { tag: INNER, split_bit: shared_bit, left_child: left, right_child: right, ... };
+
+// (5) Wire into parent.
+if parent == SLAB_NONE_INDEX {
+    tree.root = new_inner_idx;
+} else if parent_side == 1 {
+    tree.nodes[parent].right_child = new_inner_idx;
+} else {
+    tree.nodes[parent].left_child = new_inner_idx;
+}
+\`\`\`
+
+Five things to absorb.
+
+**Step 2 is "walk to *any* leaf." Not the right one.** Critbit's elegance is that walking by \`(price >> split_bit) & 1\` from root ends at *some* leaf — the one that shares the longest critical-bit prefix with \`price\`. That's the only leaf we need to compare against to find \`shared_bit\`. We don't have to enumerate; we don't have to compare against multiple leaves.
+
+**\`shared_bit = 63 - diff.leading_zeros()\`.** Standard trick: the highest set bit of \`diff\` is at position \`63 - leading_zeros\` (for \`u64\`). Since \`diff != 0\` (we ruled out the equal-prices case), \`leading_zeros\` is in \`0..=63\`.
+
+**Step 3's walk stops at the right invariant.** We splice when we hit (a) a leaf, or (b) an inner node whose \`split_bit < shared_bit\`. Both cases mean: the existing tree doesn't have an inner discriminating at \`shared_bit\` on this path, so the new inner should go here. The invariant is maintained: at any inner with \`split_bit >= shared_bit\`, both \`price\` and \`found_price\` would agree at that bit, so we can keep descending.
+
+**Step 4's \`price_bit\` decides which side the new leaf goes on.** If \`price\` has bit \`shared_bit\` set, it goes right; otherwise left. The existing subtree (\`cur\`) takes the other side. Why? Because at \`shared_bit\`, \`price\` and \`found_price\` differ — so they belong on opposite sides of the new inner.
+
+**Step 5 is the only "wiring" step.** Everything before just allocated and filled in nodes. The actual tree connection is one parent's \`left_child\` or \`right_child\` pointer (or \`tree.root\`). Easy to get wrong; easy to test for.
+
+The handler \`process_slab_place_order\` then attaches the new OrderNode (already allocated and initialized) to the leaf's FIFO. If the leaf is brand new (\`head_node == SLAB_NONE_INDEX\`), the new order becomes both head and tail. If it's existing, the new order becomes the new tail; the old tail's \`next\` and the new node's \`prev\` are linked.
+
+> **Exercise §15.3.** Insert prices in three different orders: \`[100, 200, 150]\`, \`[200, 100, 150]\`, \`[150, 100, 200]\`. Walk the resulting trees by hand (or with a debug print). All three should produce trees that yield \`[100, 150, 200]\` when iterated in ascending order — but the internal structure (which inner is the root, which sides leaves are on) will differ. That's fine: critbit is *order-independent* in its leaves, not its internal shape.
+
+---
+
+## §15.4  Best-price + match-and-pop
+
+\`critbit_find_best\`:
+
+\`\`\`rust
+fn critbit_find_best(tree: &CritbitTree, want_max: bool) -> Option<u16> {
+    if tree.root == SLAB_NONE_INDEX { return None; }
+    let mut cur = tree.root;
+    loop {
+        let node = &tree.nodes[cur];
+        if node.tag == LEAF { return Some(cur); }
+        cur = if want_max { node.right_child } else { node.left_child };
+    }
+}
+\`\`\`
+
+The whole algorithm is "walk root toward your side." For bids we want the highest price, so we always go right. For asks we want the lowest, so we always go left. The tree's invariant — right-side leaves have a 1 at \`split_bit\`, left-side have a 0 — combined with descending from highest split_bit to lowest, guarantees this monotonically arrives at the extremum.
+
+\`SlabMatch\` then runs:
+
+\`\`\`rust
+while fills < max_fills && remaining > 0 {
+    let (leaf_idx, head_idx, level_price) = slab_peek_best(slab, want_max)?;
+    if !crosses(level_price, limit_price) { break; }
+
+    let maker_size = slab.nodes[head_idx].size;
+    let fill = remaining.min(maker_size);
+
+    if fill == maker_size {
+        slab_pop_head_of_leaf(slab, maker_side, leaf_idx)?;  // may drop the leaf
+    } else {
+        slab.nodes[head_idx].size = maker_size - fill;
+    }
+
+    remaining -= fill;
+    fills += 1;
+}
+\`\`\`
+
+This is structurally the same fill-loop shape as Chapter 8's flat-book \`Match\` — taker has a \`remaining\`, walk the maker side from best, fill until either \`remaining == 0\`, the next maker doesn't cross the limit, or the \`max_fills\` pagination cap kicks in. What's different is that finding the maker is O(log N) instead of O(N), and popping the maker is O(log N) instead of O(1) (the trade-off lives in \`slab_pop_head_of_leaf\` when the level drains).
+
+The \`crosses\` predicate (inline above) is the limit-price gate:
+
+- **BID taker:** willing to buy at most \`limit_price\` → cross asks where \`level_price <= limit_price\`.
+- **ASK taker:** willing to sell at least \`limit_price\` → cross bids where \`level_price >= limit_price\`.
+
+When the gate stops crossing (the maker's price is no longer favorable to the taker), the match returns with \`remaining > 0\`. The taker can then post the unfilled portion as a maker if they want — that's a separate \`SlabPlaceOrder\` call from the same caller.
+
+> **Exercise §15.4.** Insert ten asks at prices 100, 101, 102, ..., 109. Send a BID taker with \`limit_price = 105\`, \`size = 25\`, \`max_fills = 10\`. Trace the fills: which prices are hit, in what order, how many fills does the taker take before hitting the limit gate, what's left of \`remaining\` after the match returns?
+
+---
+
+## §15.5  Critbit remove — the hard one
+
+When a level's FIFO empties (\`slab_pop_head_of_leaf\` walked the last order off), the leaf has to come out of the tree. That's not just freeing the leaf — the inner node directly above it now has only one valid child, which makes it redundant. We splice the sibling subtree up past the redundant inner.
+
+\`\`\`rust
+fn critbit_remove_leaf(tree: &mut CritbitTree, leaf_idx: u16) -> ProgramResult {
+    // (1) Edge case: leaf is the root.
+    if tree.root == leaf_idx {
+        tree_free(tree, leaf_idx);
+        tree.root = SLAB_NONE_INDEX;
+        return Ok(());
+    }
+
+    // (2) Walk by price, tracking parent + grandparent.
+    let target_price = tree.nodes[leaf_idx].price;
+    let mut grandparent = SLAB_NONE_INDEX;
+    let mut parent = SLAB_NONE_INDEX;
+    let mut gp_to_p_side = 0u8;
+    let mut parent_side = 0u8;
+    let mut cur = tree.root;
+    loop {
+        if cur == leaf_idx { break; }
+        let node = &tree.nodes[cur];
+        let bit = ((target_price >> node.split_bit) & 1) as u8;
+        grandparent = parent;
+        gp_to_p_side = parent_side;
+        parent = cur;
+        parent_side = bit;
+        cur = if bit == 1 { node.right_child } else { node.left_child };
+    }
+
+    // (3) The sibling at \`parent\` is the side \`parent_side\` did NOT take.
+    let parent_node = tree.nodes[parent];
+    let sibling = if parent_side == 1 { parent_node.left_child } else { parent_node.right_child };
+
+    // (4) Wire \`sibling\` up where \`parent\` used to live (under grandparent, or as root).
+    if grandparent == SLAB_NONE_INDEX {
+        tree.root = sibling;
+    } else if gp_to_p_side == 1 {
+        tree.nodes[grandparent].right_child = sibling;
+    } else {
+        tree.nodes[grandparent].left_child = sibling;
+    }
+
+    tree_free(tree, parent);
+    tree_free(tree, leaf_idx);
+    Ok(())
+}
+\`\`\`
+
+Four invariants making this work.
+
+**The walk is by price, not by index.** The leaf we're removing has a stable index in \`tree.nodes\`, but the *path* to it from root descends by the bit-test routine. Walking by index would require remembering parents during insert, doubling state. Walking by price is O(log N) every time, no extra bookkeeping.
+
+**Two ancestors matter.** \`parent\` is the inner directly above the leaf; that's the one being deleted along with the leaf. \`grandparent\` is the inner above the parent; *that* is the one whose child pointer needs updating to bypass the deleted parent. If parent IS the root (no grandparent), we update \`tree.root\` directly.
+
+**The sibling's subtree is preserved.** We don't recurse into it, we don't touch its nodes — we just rewire one pointer (parent's slot in grandparent) to point at the sibling. Whatever it was — a leaf, an inner, a whole subtree — moves up one level intact.
+
+**Two \`tree_free\` calls.** The leaf AND the parent. Both go back on the tree's free list. The first allocation after a remove will reuse one of them (probably the parent, since free-list pops are LIFO).
+
+The single-leaf root case in step 1 is the only "shape-different" branch. For everything else there's always a parent (the leaf isn't the root because at minimum we have an inner discriminating between this leaf and at least one other).
+
+> **Exercise §15.5.** Build a slab, insert ten levels at prices \`[100, 200, 50, 150, 250, 75, 125, 175, 225, 275]\`. Walk what the tree looks like (root, splits, leaves). Now cancel the level at 150 — trace which inner gets freed and which subtree moves up. Now cancel at 250. Now at 100. After three removes, are there any "wasted" inner nodes? (Hint: there shouldn't be — the remove always collapses the parent, by construction.)
+
+---
+
+## §15.6  The three handlers
+
+\`process_create_slab\` (tag 29) is the bootstrap. Accounts: \`slab (WRITE, SIGNER)\`, \`market\`. It validates the market, then refuses a slab that didn't sign (so only the keypair holder can pick its market), isn't writable, isn't owned by openhl-core, isn't exactly \`Slab::LEN\` bytes, isn't rent-exempt, or already carries a discriminator (no re-initializing a live book). Then it writes the discriminator + market (\`bump\` stays 0: there is no PDA), and runs \`tree_init\` on both trees plus \`slab_init_pool\` on the OrderNode pool. The init walk is the heaviest part of the instruction (~1k pool entries + 256 tree entries × 2 sides = ~1.5k iterations); subsequent ops are sub-log-N.
+
+\`process_slab_place_order\` (tag 30) reads \`[side u8][price u64 LE][size u64 LE]\` — identical to \`PlaceOrder\`'s payload. Validates the slab discriminator, copies the user's pubkey, calls \`slab_insert_order\`. Two accounts: \`user (SIGNER), slab (WRITE)\`. Worth comparing to ch.7's flat-book \`process_place_order\`: same payload, +0 accounts. The slab's added complexity is entirely inside the program; the on-the-wire instruction shape is unchanged. That matters for client-side migration: existing trading clients can swap \`PlaceOrder\` for \`SlabPlaceOrder\` by changing the tag byte and the account they pass.
+
+\`process_slab_match\` (tag 31) reads \`[taker_side u8][price u64 LE][size u64 LE][max_fills u8]\` — identical to ch.8's \`Match\`. Validates, runs the fill loop above, logs \`fills\` + \`remaining\` so the pagination cap is visible. The same \`max_fills\` semantics ch.8 introduced apply here unchanged: the slab is still bounded by CU, just at a much higher effective N.
+
+The CU shapes, measured in LiteSVM with \`fuzz/slab\`'s \`grid\` test (size-1 bids; Chapter 4 §4.5 checked that LiteSVM counts like \`solana-test-validator\`):
+
+| op | flat (ch.7/8) | slab (ch.15) |
+|---|---|---|
+| place, empty book | 2,357 | 1,788 |
+| place, full-ish book | 2,446 (31 orders) | 1,954 (1,023 orders, 128 levels); 2,008 (a new level after 126 levels) |
+| match, 10 fills | 22,250 (32 orders) | 14,553 (10 orders) to 15,818 (128 orders, one per level); 14,284 (1,024 orders at 128 levels), 13,921 (1,024 at 8 levels) |
+| match, 4 fills | 8,147 (4 orders), 8,500 (8), 9,276 (16) | 6,597 (4), 6,784 (8), 6,793 (16) |
+| cancel | 1,994 (first slot) – 2,174 (last of 32) | not built (Exercise §15.6) |
+
+An earlier draft of this table, written before measuring, said the slab costs more per place (about 3–4 KCU against 1 KCU) and that the flat book wins \`Match\` below about 8 orders. Neither held. The slab was cheaper per place; we did not break the difference down, but the flat insert scans the slots for a free one. And it was cheaper on \`Match\` at every size we tried, down to 4 orders. What does hold is the shape: 10 fills cost about the same on 10 orders as on 1,024, because each fill walks one path down a tree of price levels, not every order. That path is short for prices like these (consecutive integers); §15.7 shows how long it can be made.
+
+The cost does depend on two things the depth does not show. One is the prices' bits (§15.7). The other is how many orders share a level. When each fill empties a level, the leaf removal (§15.5) runs every time: 64 fills cost 92,122 CU on 128 orders at 128 prices, against 83,871 on 1,024 orders at 128 prices (8 per level).
+
+> **Exercise §15.6.** Add a \`SlabCancelOrder\` instruction that takes \`(order_id, side, price)\` and removes a specific order from a specific price level. Hint: the slab as built doesn't index orders by \`order_id\`, so you'll need to walk the level's FIFO to find the right one. Why is the \`price\` argument important — what does it save you over walking the whole tree?
+
+---
+
+## §15.7  Recap + verify yourself
+
+### Recap diagram
+
+\`\`\`
+A slab at a glance:
+
+  Slab {
+    discriminator: "SLAB\\0\\0\\0\\0"
+    market: <market pubkey>
+    next_order_id: u64
+    active_count: u32
+    pool_free_head: u16 ──┐
+                          │
+    bid_tree: CritbitTree {
+      root: u16 ──────────┼─── pointer into nodes[] (or NONE_INDEX)
+      free_head: u16 ─────┼─── stack of free TreeNode slots
+      nodes: [TreeNode; 256]
+              ┌──────────────────────────────┐
+              │ INNER: split_bit, l_idx, r_idx
+              │ LEAF:  price, head_node, tail_node, order_count
+              │ FREE:  next_free
+              └──────────────────────────────┘
+    }
+    ask_tree: CritbitTree { … same shape … }
+
+    nodes: [OrderNode; 1024]  ◄── shared OrderNode pool
+            ┌─────────────────────────┐
+            │ order_id, owner, size,  │
+            │ next, prev              │  (FIFO links, or free-list link)
+            └─────────────────────────┘
+  }
+
+
+Insert price 117, size 5, BID:
+  pool_alloc_node() → idx_O
+  nodes[idx_O] = OrderNode{order_id, owner, size=5, next=NONE, prev=NONE}
+  critbit_find_or_create_leaf(bid_tree, 117) → (idx_L, was_new)
+  if was_new:
+    bid_tree.nodes[idx_L].{head_node, tail_node} = idx_O
+    bid_tree.nodes[idx_L].order_count = 1
+  else:
+    old_tail = bid_tree.nodes[idx_L].tail_node
+    bid_tree.nodes[idx_L].tail_node = idx_O
+    nodes[old_tail].next = idx_O
+    nodes[idx_O].prev   = old_tail
+
+
+Match BID-taker, limit=110, size=25, max_fills=3:
+  best ask leaf via critbit_find_best(ask_tree, want_max=false)
+  pop FIFO head:
+    if head.size <= remaining: pop_head_of_leaf() (may remove leaf)
+    else:                      shrink head.size in place
+  repeat until !crosses or remaining=0 or fills==3
+\`\`\`
+
+### Three things to verify yourself
+
+1. **The pool exhausts gracefully.** Insert 1024 orders (a side's tree holds at most 128 distinct prices, so spread them over 128 or fewer levels). Try a 1025th — \`pool_alloc_node\` should fail with \`AccountDataTooSmall\` (no pool slot left), the place should fail, and \`active_count\` should stay at 1024.
+2. **A drained level removes its leaf cleanly.** Insert two orders at price 100 (same level). Cross-match both via \`SlabMatch\`. The slab dump should show 0 active orders, the bid leaf at 100 should be gone (\`describe_best\` returns \`(empty)\`), and the tree's \`free_head\` should have advanced (a leaf and its parent inner went back on the free list — except when 100 was the only level, in which case only the leaf returns and the parent didn't exist).
+3. **\`active_count\` invariant.** After any sequence of place + match + cancel, \`active_count\` should equal the actual count of \`nodes[i].size > 0\` (i.e., live orders). The slab dump prints \`active_count\` directly; counting from the pool walk takes one extra script pass. Catching a divergence here means a counter wasn't updated somewhere — a latent bug.
+
+
+### Now let a tool look for the expensive match
+
+Chapter 8 §8.6 capped the flat matcher's \`max_fills\` so a full book stays under a CU cap, and showed why that cap must shrink as the book grows. [\`fuzz/slab/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/slab) asks the same question of \`SlabMatch\`, with a cap of 100,000 CU (\`SLAB_MATCH_CU_CAP\`), on the costliest shape we could build: 128 bids at 128 prices (a side's tree holds at most 128 levels), one order per level so every fill also removes a level, and prices chosen so the best bid sits deep in the critbit. Those prices are \`u64::MAX\` and \`u64::MAX - 2^k\` for k < 63, plus 64 ordinary ones below. Every split in a critbit is on a different bit of the 64-bit key, so a path is at most 64 nodes long; these prices build one such path, with the best bids (\`u64::MAX\` and \`u64::MAX - 1\`) at its bottom and each later one hanging off it a little higher, so the first fills walk the longest paths the key allows. Set up as in Chapter 3 §3.7, then:
+
+\`\`\`bash
+cargo build-sbf --manifest-path programs/openhl-core/Cargo.toml
+cd fuzz/slab
+cargo build --release --features invariant_ch15
+cargo test --release --features invariant_ch15      # 10 fills cost the same at 32 and 1,024 orders
+timeout -s INT 60 crucible run openhl_slab_fuzz invariant_ch15 \\
+    --binary-in target/release/invariant_test --timeout 45
+\`\`\`
+
+> **Exercise §15.7.** Run it. You should see \`[FUZZ_FINDING] [cu-dos:…] ix slab_match consumed … CU (cap 100000)\` lines. As in Chapter 8, the bound is the program's to set. From the \`grid\` numbers, what is the largest \`max_fills\` that keeps every shape you can think of under 100,000? Add the check to \`process_slab_match\`, rebuild, and run again. (The program as shipped has no cap, which is why the run above reports; the caps below were measured on copies with the check added.)
+>
+> Our first answer was wrong, and the way it was wrong is the lesson. We measured contiguous prices (100, 101, …) at one order per level and found 69 fills at 99,037 CU, so we capped at 69. A reviewer pointed out that a critbit is not self-balancing: its depth follows the bits of the prices, not the number of levels. On the deep prices above, 10 fills cost 35,819 CU (against about 14,500 on contiguous prices), 32 cost 100,222, and with the cap at 69 the fuzzer reported 157,245. The makers choose those prices, so the makers set how expensive the taker's match is. The largest cap that fits the deep shape is 31 (97,678 CU); with \`if max_fills > 31\` the fuzzer found nothing in 45 seconds.
+>
+> 31 is a measurement on the deepest shape we found, not a proof. The bound it rests on is real (a path is at most as long as the key has bits), and the cap still does not depend on how many orders the pool holds, which is what Chapter 8's cap could not say. What it does depend on is that worst path, and on the price of removing a level. A match past the default budget is still possible without a cap: 128 fills on the deep shape did not fit in 200,000.
+
+---
+
+## What's not here (intentionally)
+
+This is an implementation chapter, not a comparison chapter. We didn't write:
+
+- A benchmark beyond the \`grid\` test in \`fuzz/slab\` (§15.6): production depth, settlement CPIs, and cancel on the slab.
+- A side-by-side of Serum's slab vs Phoenix's slab vs ours. Both production slabs have features ours doesn't (Serum's order book stores cancel-on-disconnect tags; Phoenix has its own market-maker reservation slots), and a fair comparison would be its own chapter.
+- A migration guide from flat books to slab books. The two account types are independent — there's no on-chain conversion. A market built on \`OrderBook\` (Chapter 7) and a market built on \`Slab\` (this chapter) can coexist on the same program.
+
+If you got this far and want more, the §8.4 pseudocode's "3-4 day exercise" framing was accurate: spend the days, write the variants, measure the results.
 `,
                 },
               ],

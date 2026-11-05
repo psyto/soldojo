@@ -39,7 +39,7 @@ export async function seedSoldojoInternalsFoundationsEN(prisma: PrismaClient) {
                   content: `# Chapter 1 — The Account Model from the Bytes Up
 
 > Status: draft (v0.1).
-> Companion code: \`crates/state/src/lib.rs\`, \`scripts/allocate-market/src/main.rs\`.
+> Companion code: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs), [\`scripts/allocate-market/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/allocate-market/src/main.rs).
 > Tested against: solana-sdk 2.3.1, solana-rent 2.2.1, solana-account 2.2.1, solana-system-interface 1.0.0.
 
 ---
@@ -437,9 +437,9 @@ Account creation (System program):
 
 ### Three things to verify yourself
 
-1. **Owner check.** After running the script, run \`solana account <market_pubkey>\`. Confirm the \`Owner\` line is \`11111111111111111111111111111111\` (System). Our script asks for this at \`main.rs:69\` and the runtime obeys.
+1. **Owner check.** After running the script, run \`solana account <market_pubkey>\`. Confirm the \`Owner\` line is \`11111111111111111111111111111111\` (System). Our script asks for this at [\`main.rs:69\`](https://github.com/psyto/openhl-solana/blob/main/scripts/allocate-market/src/main.rs#L69) and the runtime obeys.
 2. **Rent exemption math.** Run \`solana rent 256\`. The output should match what the script printed for \`rent lamports\`. Both come from the same formula at [\`solana-rent-2.2.1/src/lib.rs:93\`](#) — one via local computation, one via RPC.
-3. **Layout offsets.** Open \`crates/state/src/lib.rs:43–56\` and add up the field sizes by hand. Confirm \`quote_mint\` starts at byte 80 and \`_reserved\` ends at byte 256. Run \`cargo test -p openhl-state\` to have the compiler confirm it too — the \`market_size_is_256_bytes\` test at \`lib.rs:67–70\` would fail if any field changed size.
+3. **Layout offsets.** Open [\`crates/state/src/lib.rs:43–56\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs#L43) and add up the field sizes by hand. Confirm \`quote_mint\` starts at byte 80 and \`_reserved\` ends at byte 256. Run \`cargo test -p openhl-state\` to have the compiler confirm it too — the \`market_size_is_256_bytes\` test at [\`lib.rs:67–70\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs#L67) would fail if any field changed size.
 
 ---
 
@@ -462,7 +462,7 @@ When the script for Chapter 2 finishes, the same hex dump will start with \`4d 4
                   content: `# Chapter 2 — Writing a Native Program Without Anchor
 
 > Status: draft (v0.1).
-> Companion code: \`programs/openhl-core/src/lib.rs\`, \`scripts/init-market/src/main.rs\`.
+> Companion code: [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs), [\`scripts/init-market/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/init-market/src/main.rs).
 > Tested against: solana-program 2.3.0, solana-program-entrypoint 2.3.0, solana-account-info 2.3.0, solana-program-error 2.2.2, solana-system-interface 1.0.0.
 
 ---
@@ -643,15 +643,17 @@ Without this check, an attacker could:
 2. Write whatever bytes they want to \`data[0..256]\`.
 3. Pass that account to our \`Initialize\`.
 4. Pass through every other check (size is 256, discriminator is whatever they set it to, payload decodes fine).
-5. Our program would happily overwrite the bytes — but the *next* check of the discriminator would see whatever the attacker had set, not what we set. Worse, in later chapters when this same account is fed into \`place_order\`, we would trust its bytes implicitly.
+5. Our program would try to overwrite the bytes, and here the runtime stops it: a program may change only accounts it owns (Chapter 1), so the transaction fails with \`instruction modified data of an account it does not own\`. \`Initialize\` is safe without the check only because it *writes*. The danger is in every handler that *reads* the account and trusts its bytes: when an account like this is fed to \`PlaceOrderChecked\` (Chapter 9) or \`OpenPosition\` (Chapter 11), which read the market's \`quote_mint\` without writing the market, the runtime does not stop us from believing whatever the attacker wrote, because reading someone else's account is allowed; their own owner check is what does.
 
-Owner check is what turns "256 bytes the right shape" into "256 bytes I wrote." Skip it and you skip the security model.
+Owner check is what turns "256 bytes the right shape" into "256 bytes I wrote." Skip it in a handler that reads, and you skip the security model.
 
 The size check (\`lib.rs:99–106\`) comes second, but it's mechanical — \`bytemuck::from_bytes_mut::<Market>(buf)\` would panic if the buffer were too small, so we reject explicitly with a clean error code. The already-initialized check (\`lib.rs:111–117\`) comes third — if discriminator is non-zero, this account is already a live \`Market\` and we must not stomp it.
 
 **What Anchor hides:** Anchor's \`#[account(mut)]\` constraint and the typed \`Account<'info, T>\` wrapper perform the owner check for you. Specifically: when Anchor deserializes \`Account<'info, MyType>\`, it asserts \`account.owner == program_id\` before returning the typed view. If the check fails, your handler is never called. This is genuinely safer than asking you to remember — but it also means many Anchor developers never internalize *why* the check exists. Read your Anchor code and find the owner check. It's there. It's just invisible.
 
 > **Exercise §2.3.** Modify \`process_initialize\` to deliberately skip the owner check (comment out lines 87–94). Rebuild. Construct a transaction that passes a System-owned account (the one Chapter 1's allocator created, *without* the Assign step we'll add in §2.5) to \`Initialize\`. Run it. What happens? Why?
+>
+> You can also let a tool try it. [\`fuzz/basics/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics) has an \`Initialize\` spec, and its \`invariant_ch2\` runs [solinv](https://github.com/psyto/solinv)'s owner-skip check, which replaces the market account with a copy owned by another program. Build the program as in Chapter 3 §3.7, then in \`fuzz/basics\` run \`cargo build --release --features invariant_ch2\` and \`crucible run openhl_basics_fuzz invariant_ch2 --binary-in target/release/invariant_test --timeout 45\` (under \`timeout\`). We measured no finding with the check in place, and none with it deleted. The \`ch2_probe\` test (\`cargo test --release --features invariant_ch2 -- --ignored --nocapture ch2_probe\`) shows why: with the check, our own \`market owner … != program\` refuses the call; without it, the runtime does, for an account owned by System, by SPL Token, or by an arbitrary address alike. That is the answer to the exercise, and it is a lesson about fuzzers too: a "no" here means the runtime stood behind the check, not that the check is unneeded. Chapter 6 §6.6 shows an owner check that nothing else stands behind: \`CreateVault\` neither reads nor writes the market, only uses its address as a seed, so the runtime has nothing to refuse.
 
 ---
 
@@ -805,7 +807,7 @@ Transaction
 
 1. **Discriminator flipped.** After running \`init-market\`, the hex dump should start with \`4d 41 52 4b 45 54 00 00\` (= "MARKET\\0\\0"). Run \`init-market\` and confirm. Compare against Chapter 1's all-zero output — these eight bytes are the entire visible result of writing a Solana program.
 2. **Owner changed.** Run \`solana account <market_pubkey>\` after \`init-market\`. The \`Owner\` line should now show your deployed \`openhl-core\` program ID, not \`11111111111111111111111111111111\`. The \`Assign\` instruction did this; the \`Initialize\` instruction depended on it.
-3. **Re-run rejected.** Run \`init-market\` a second time against the same market. The transaction should fail. Trace the on-chain logs (\`solana logs --include-failed\`) and find the \`initialize: market already initialized\` message from \`lib.rs:114\`. The already-initialized check at \`lib.rs:111–117\` is what rejected you.
+3. **Re-run rejected.** Run \`init-market\` a second time against the same market. The transaction should fail. Trace the on-chain logs (\`solana logs --include-failed\`) and find the \`initialize: market already initialized\` message from [\`lib.rs:114\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs#L114). The already-initialized check at [\`lib.rs:111–117\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs#L111) is what rejected you.
 
 ---
 
@@ -828,7 +830,7 @@ When Chapter 3 finishes, the same market will live at a *predictable* address. A
                   content: `# Chapter 3 — PDAs from First Principles
 
 > Status: draft (v0.1).
-> Companion code: \`programs/openhl-core/src/lib.rs\` (the \`process_create_market\` handler), \`scripts/create-market/src/main.rs\`.
+> Companion code: [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (the \`process_create_market\` handler), [\`scripts/create-market/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/create-market/src/main.rs), [\`fuzz/basics/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics/src/main.rs) (the solinv harness for §3.7).
 > Tested against: solana-pubkey 2.4.0, solana-cpi 2.2.1, solana-system-interface 1.0.0, solana-program 2.3.0.
 
 ---
@@ -1140,8 +1142,39 @@ send_and_confirm_tx           ─────►       lamports, space, program_
 ### Three things to verify yourself
 
 1. **Deterministic address.** Run \`create-market\`, note the printed \`market PDA\`. Delete the on-chain account (or use a fresh \`solana-test-validator\`), re-run with the same \`--base-mint\`, \`--quote-mint\`, \`--program\`. The address printed should be byte-identical. Then change the order of \`--base-mint\` and \`--quote-mint\`. The address should change — seed order is part of the derivation.
-2. **Bump stored.** After running \`create-market\`, the hex dump should show a non-zero byte at offset 9 (the \`bump\` field). The client prints both the bump it derived and the bump the program wrote — they must match. Confirm with \`scripts/create-market/src/main.rs:163\`.
+2. **Bump stored.** After running \`create-market\`, the hex dump should show a non-zero byte at offset 9 (the \`bump\` field). The client prints both the bump it derived and the bump the program wrote — they must match. Confirm with [\`scripts/create-market/src/main.rs:163\`](https://github.com/psyto/openhl-solana/blob/main/scripts/create-market/src/main.rs#L163).
 3. **No private key needed.** Use \`solana account <market_pda>\` and confirm \`Owner\` is your program ID. There is no corresponding entry in \`~/.config/solana/\`, no keypair file anywhere — the address has no private key. This is what makes the PDA permanent: even if someone wanted to compromise it, there's no key to steal.
+
+
+### Now let a tool try the checks
+
+\`process_create_market\` has three checks of its own: the payer signed, slot 2 is the System program, and the market is the PDA. [solinv](https://github.com/psyto/solinv) can tell you what happens when each one is gone. It fuzzes a native program: you describe each instruction (which accounts sign, which an attacker could pass instead), and it sends the instruction with a signer flag cleared or one account swapped. If a call goes through and changes state, that is a finding.
+
+[\`fuzz/basics/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics) is the harness for Chapters 3, 4 and 6. It sets up one market with \`CreateMarket\` and installs solinv the way its README tells anyone to, by git rev. You need the Solana toolchain and the Crucible CLI (\`cargo install --locked --git https://github.com/asymmetric-research/crucible --tag v0.1.0 crucible-fuzz-cli\`):
+
+\`\`\`bash
+cargo build-sbf --manifest-path programs/openhl-core/Cargo.toml
+cd fuzz/basics
+cargo build --release --features invariant_ch3
+timeout -s INT 60 crucible run openhl_basics_fuzz invariant_ch3 \\
+    --binary-in target/release/invariant_test --timeout 45
+\`\`\`
+
+On the program as it is, no \`[FUZZ_FINDING]\` line appears. (Crucible checks \`--timeout\` only every 1000 iterations, hence the outer \`timeout\`; on macOS it is \`gtimeout\` from coreutils.) The \`CreateMarket\` spec clears the payer's signer flag, passes a market address that is not the PDA, and passes SPL Token where System belongs.
+
+> **Exercise §3.7.** Delete each of the three checks in turn, rebuild the program, run the fuzzer, and predict the result first. Here is what we measured, 45 seconds each:
+>
+> | Check deleted | Caught? | What refused the call instead |
+> |---|---|---|
+> | \`payer_ai.is_signer\` | no | the runtime: \`Cross-program invocation with unauthorized signer or writable account\` |
+> | \`system_ai.key == system_program::ID\` | no | the runtime: \`An account required by the instruction is missing\` |
+> | \`market_ai.key == expected_pda\` | no | the runtime: \`Cross-program invocation with unauthorized signer or writable account\` |
+>
+> Work out each row before reading on.
+>
+> All three are backed by the runtime, at the CPI. The payer: \`create_account\` moves the payer's lamports, so System needs the payer's signature, and a program can pass on only signatures it was given (Chapter 6 §6.2 covers this signer privilege rule). The System program: the instruction the handler builds names \`system_program::ID\` itself, so whatever the caller put in slot 2, the runtime still needs the real System program's account, and it is not there. The PDA: \`invoke_signed\` signs for the address the seeds derive (§3.3), so a different address would have to sign for itself.
+>
+> That is §3.3's point, seen from the outside: when you create a PDA, the runtime checks the seeds for you. Keep the three checks anyway, because they fail earlier and say what is wrong. The PDA check that no one does for you is at *read* time, when a later instruction is handed a market that already exists and has to decide whether to believe it. Chapter 6 §6.6 has you look for that with the same harness.
 
 ---
 
@@ -1162,7 +1195,7 @@ Chapter 4 introduces the compute budget as a real engineering concern. We add CU
                   content: `# Chapter 4 — Compute Budget and Heap Discipline
 
 > Status: draft (v0.1).
-> Companion code: \`programs/openhl-core/src/lib.rs\` (\`process_bench\` at lines 355–402), \`scripts/bench/src/main.rs\`.
+> Companion code: [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (\`process_bench\` at lines 693–739), [\`scripts/bench/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/bench/src/main.rs), [\`fuzz/basics/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics/src/main.rs) (the solinv harness for §4.7).
 > Tested against: solana-program 2.3.0, solana-program-entrypoint 2.3.0, solana-compute-budget-interface 2.2.2.
 
 ---
@@ -1329,7 +1362,7 @@ Three properties to remember:
 
 ## §4.4  Walking \`process_bench\`
 
-The handler is small — about 50 lines at \`programs/openhl-core/src/lib.rs:355–402\`. Its structure is three phases bracketed by \`sol_log_compute_units\`:
+The handler is small — about 50 lines at \`programs/openhl-core/src/lib.rs:693–739\`. Its structure is three phases bracketed by \`sol_log_compute_units\`:
 
 **Entry.** Decode the 8-byte payload (\`rounds: u32 LE\` then \`heap_bytes: u32 LE\`) and log the starting CU:
 
@@ -1364,7 +1397,7 @@ for i in 0..rounds {
 
 This is the workload that actually burns CU. \`sha256\` is a syscall on BPF (\`sol_sha256_\`), and its cost depends on the input length. Subtracting the Phase A reading from the Phase B reading gives the per-round CU cost — roughly \`(sha256 syscall base) + (per-byte cost × heap_bytes)\`.
 
-The XOR-with-counter on line \`lib.rs:392\` exists to keep the optimizer honest. Without it, every iteration would hash the same bytes, and a sufficiently aggressive optimizer could collapse the loop. Stirring \`i\` into the buffer makes every iteration's input genuinely different.
+The XOR-with-counter on line \`lib.rs:731\` exists to keep the optimizer honest. Without it, every iteration would hash the same bytes, and a sufficiently aggressive optimizer could collapse the loop. Stirring \`i\` into the buffer makes every iteration's input genuinely different.
 
 The \`_\` final reading is captured automatically by \`sol_log_compute_units\` when the function returns (in the form of the runtime's own "consumed N of M compute units" log line, emitted after the program exits).
 
@@ -1380,26 +1413,28 @@ A typical run looks like:
 bench --rounds 50 --heap-bytes 1024
 
 simulation:
-  units_consumed: 87412
+  units_consumed: 35029
   err:            (none)
 
 program logs:
   Program <openhl-core ID> invoke [1]
   Program log: bench: start (rounds=50, heap_bytes=1024)
-  Program consumption: 199772 units remaining
+  Program consumption: 199128 units remaining
   Program log: bench: after heap alloc (1024 bytes)
-  Program consumption: 199639 units remaining
+  Program consumption: 198536 units remaining
   Program log: bench: after 50 hash rounds
-  Program consumption: 112433 units remaining
-  Program <openhl-core ID> consumed 87412 of 200000 compute units
+  Program consumption: 164984 units remaining
+  Program <openhl-core ID> consumed 35029 of 200000 compute units
   Program <openhl-core ID> success
 
 on-chain signature: ...
 \`\`\`
 
-Three numbers to focus on. The CU remaining after entry (199,772) tells you the fixed cost of program startup: instruction-data decode, dispatcher, logging — about 230 CU in this build. Phase A burned (199,772 − 199,639) = 133 CU to allocate 1 KiB. Phase B burned (199,639 − 112,433) = 87,206 CU for 50 sha256 rounds of 1 KiB input — about 1,744 CU per round.
+(Measured on \`solana-test-validator\` 4.1.2. Syscall prices change between releases; an earlier draft of this chapter, on an older toolchain, measured 87,412 CU for the same call. Run it yourself and use your numbers.)
 
-From here you can extrapolate. 100 rounds: ~175K CU. 120 rounds: ~209K CU — over the default 200K limit. Run it without \`--cu-limit\` and you will see \`ProgramFailedToComplete\` with \`ComputationalBudgetExceeded\`. Add \`--cu-limit 400000\` and it succeeds again.
+Three numbers to focus on. The CU remaining after entry (199,128) tells you the fixed cost of program startup: instruction-data decode, dispatcher, the first log line — about 870 CU in this build. Phase A burned (199,128 − 198,536) = 592 CU, but most of that is the \`msg!\` and the \`sol_log_compute_units\` call themselves: with \`--heap-bytes 0\` the same phase costs 527, so allocating 1 KiB costs about 65 CU. Phase B burned (198,536 − 164,984) = 33,552 CU for 50 sha256 rounds of 1 KiB input — about 671 CU per round, counting the log call at the end of the phase.
+
+From here you can extrapolate, and then check. 100 rounds: we measured 68,047 CU. 290 rounds: 193,447. 300 rounds: over the default 200K limit. Run it without \`--cu-limit\` and you will see \`ComputationalBudgetExceeded\`. Add \`--cu-limit 400000\` and it succeeds again, at 200,197 CU.
 
 This is the whole point: measure once, predict, then either fit your work into the budget or explicitly raise the ceiling. Guessing is for projects that have not yet shipped under load.
 
@@ -1451,9 +1486,34 @@ Inside one tx:
 
 ### Three things to verify yourself
 
-1. **Default ceiling is real.** Run \`bench --rounds 150 --heap-bytes 1024\` without \`--cu-limit\`. It should fail with \`ComputationalBudgetExceeded\`. The simulation \`units_consumed\` will show a number greater than 200,000 — but the runtime stops counting once you exceed the limit, so the number may be capped.
+1. **Default ceiling is real.** Run \`bench --rounds 300 --heap-bytes 1024\` without \`--cu-limit\`. It should fail with \`ComputationalBudgetExceeded\`. The simulation \`units_consumed\` will show a number greater than 200,000 — but the runtime stops counting once you exceed the limit, so the number may be capped.
 2. **Heap ceiling is real.** Run \`bench --rounds 0 --heap-bytes 65536\`. The bump allocator at [\`solana-program-entrypoint-2.3.0/src/lib.rs:342\`](#) returns null; Rust's alloc-error handler aborts the program. The error you see is not \`ComputationalBudgetExceeded\` but a memory abort.
 3. **Compute-budget instruction must be in the same tx.** Modify \`bench\` to send the \`ComputeBudgetInstruction\` in a *separate* transaction from the bench instruction. The next bench tx still gets only the default 200,000. The compute-budget instruction's effect is scoped to its own transaction only — it does not persist across.
+
+
+### Now let a tool look for the expensive call
+
+You measured \`bench\` by choosing its arguments. A caller who wants your instruction to be expensive chooses them too. [solinv](https://github.com/psyto/solinv)'s cu-dos check asks the question from their side: you declare how many CU an instruction may use, the fuzzer varies the arguments, and any call that succeeds above your cap is a finding. [\`fuzz/basics/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics) is the harness for Chapters 3, 4 and 6; its \`Bench\` spec has a cap of 50,000 CU (\`BENCH_CU_CAP\`), and the fuzzer tries \`rounds\` below 2,000 and \`heap_bytes\` below 4,096. Set up as in Chapter 3 §3.7, then:
+
+\`\`\`bash
+cd fuzz/basics
+cargo build --release --features invariant_ch4
+cargo test --release --features invariant_ch4      # CU grows with rounds
+timeout -s INT 60 crucible run openhl_basics_fuzz invariant_ch4 \\
+    --binary-in target/release/invariant_test --timeout 45
+\`\`\`
+
+> **Exercise §4.7.** Run it. Within seconds you should see lines like
+>
+> \`\`\`
+> [FUZZ_FINDING] [cu-dos:…] ix bench consumed 186571 CU (cap 50000)
+> \`\`\`
+>
+> That is expected: \`bench\` exists to let the caller pick the cost. Now set \`BENCH_CU_CAP\` to 200,000 (the default limit) and run again. We saw no finding in 45 seconds. Why is that not a fix?
+>
+> Because cu-dos can see only calls that succeed, and every call above 200,000 already fails in the runtime. With the cap at the runtime's limit, the question "can a caller make this cost more than I planned?" turns into "can a caller make this cost more than is possible?", which is always no. The cap is your number, the CU you planned for this instruction, not the runtime's.
+>
+> In \`bench\` that cost is the point. In an instruction other people depend on it is a bug: a matcher whose cost grows with the number of orders it walks can be pushed past the limit by whoever places the orders, and then nobody's match goes through. Chapter 8 builds that matcher.
 
 ---
 
@@ -1474,7 +1534,7 @@ Chapter 5 walks the read/write set model that Sealevel uses to decide what can r
                   content: `# Chapter 5 — Sealevel Parallelism and Account Locks
 
 > Status: draft (v0.1).
-> Companion code: \`programs/openhl-core/src/lib.rs\` (\`process_create_stats\` at lines 442–501, \`process_bump_stats\` at lines 503–540), \`scripts/stats/src/main.rs\`, \`scripts/create-market/src/main.rs\`.
+> Companion code: [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs) (\`process_create_stats\` at lines 442–501, \`process_bump_stats\` at lines 503–540), [\`scripts/stats/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/stats/src/main.rs), [\`scripts/create-market/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/create-market/src/main.rs).
 > Tested against: solana-instruction 2.3.3, solana-program 2.3.0.
 
 ---

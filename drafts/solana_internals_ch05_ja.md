@@ -19,7 +19,7 @@
 # 第5章 — Sealevel 並列性とアカウントロック
 
 > 状態: ドラフト (v0.1)。
-> 教材コード: `programs/openhl-core/src/lib.rs`（`process_create_stats` 442–501 行、`process_bump_stats` 503–540 行）、`scripts/stats/src/main.rs`、`scripts/create-market/src/main.rs`。
+> 教材コード: [`programs/openhl-core/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)（`process_create_stats` 442–501 行、`process_bump_stats` 503–540 行）、[`scripts/stats/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/stats/src/main.rs)、[`scripts/create-market/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/create-market/src/main.rs)。
 > 検証対象バージョン: solana-instruction 2.3.3、solana-program 2.3.0。
 
 ---

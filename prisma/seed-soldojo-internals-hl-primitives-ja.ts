@@ -14,8 +14,8 @@ export async function seedSoldojoInternalsHlPrimitivesJA(prisma: PrismaClient) {
       description:
         "Foundations トラックの上に Hyperliquid 風パープ取引所を組み立てる。9 章: SPL Token CPI、オンチェーン CLOB、CU 圧下のマッチングエンジン、オラクル取り込み、ファンディングレート、清算、ネイティブ取引 vault、builder codes、すべてを走らせるオフチェーン keeper 層。",
       difficulty: "ADVANCED",
-      duration: 405,
-      xpReward: 1100,
+      duration: 450,
+      xpReward: 1200,
       track: "solana-internals",
       tags,
       isPublished: true,
@@ -39,7 +39,7 @@ export async function seedSoldojoInternalsHlPrimitivesJA(prisma: PrismaClient) {
                   content: `# 第6章 — Vault Deposits で歩く CPI 内部
 
 > 状態: ドラフト (v0.1)。
-> 教材コード: \`programs/openhl-core/src/lib.rs\`（\`process_create_vault\` 615–728 行、\`process_deposit\` 731–800 行）、\`scripts/create-vault/src/main.rs\`、\`scripts/deposit/src/main.rs\`。
+> 教材コード: [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)（\`process_create_vault\` 892–1001 行、\`process_deposit\` 1008–1076 行）、[\`scripts/create-vault/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/create-vault/src/main.rs)、[\`scripts/deposit/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/deposit/src/main.rs)、[\`fuzz/basics/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics/src/main.rs)（§6.6 の solinv ハーネス）。
 > 検証対象バージョン: solana-cpi 2.2.1、solana-program 2.3.0、SPL Token プログラム（TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA）。
 
 ---
@@ -115,11 +115,11 @@ pub fn invoke(instruction: &Instruction, account_infos: &[AccountInfo]) -> Progr
 
 ## §6.3  CreateVault を歩く — 2 連続 CPI
 
-CreateVault は、両方の CPI 形式が同じハンドラに現れる場所だ。\`programs/openhl-core/src/lib.rs:680–720\` から。
+CreateVault は、両方の CPI 形式が同じハンドラに現れる場所だ。\`programs/openhl-core/src/lib.rs:892–1001\` から。
 
-**PDA 派生**（668–678 行）が 2 つの pubkey を準備する: \`[VAULT_SEED, market.key, mint.key]\` の \`vault_token_account\` と、\`[VAULT_AUTH_SEED, market.key]\` の \`vault_authority\`。第 3 章と同じ find_program_address 機構。bump が返り、vault bump は下で使う。authority bump はまだ不要だ（出金を追加する後の章で、プログラムが vault authority として署名する必要が出てきたときに重要になる）。
+**PDA 派生**（932–954 行）が 2 つの pubkey を準備する: \`[VAULT_SEED, market.key, mint.key]\` の \`vault_token_account\` と、\`[VAULT_AUTH_SEED, market.key]\` の \`vault_authority\`。第 3 章と同じ find_program_address 機構。bump が返り、vault bump は下で使う。authority bump はまだ不要だ（出金を追加する後の章で、プログラムが vault authority として署名する必要が出てきたときに重要になる）。
 
-**CPI 1 — System::create_account**、689–700 行。
+**CPI 1 — System::create_account**、956–975 行。
 
 \`\`\`rust
 let create_ix = system_instruction::create_account(
@@ -145,7 +145,7 @@ invoke_signed(
 
 AccountInfo 配列に注目: \`[payer_ai, vault_ai, system_ai]\`。System プログラムが \`create_account\` で必要とするのはこの 3 つだけ（ハンドラの他のアカウント — market、mint、vault_authority、token_program — は System が必要としないので渡さない）。
 
-**CPI 2 — SPL Token InitializeAccount3**、707–720 行。
+**CPI 2 — SPL Token InitializeAccount3**、977–997 行。
 
 \`\`\`rust
 let mut init_data = Vec::with_capacity(1 + 32);
@@ -174,7 +174,7 @@ CPI 2 つ、ハンドラ 1 つ、両方の署名形式。このパターンは P
 
 ## §6.4  Deposit を歩く — ユーザは外側で署名
 
-Deposit はより単純なケースだ。\`programs/openhl-core/src/lib.rs:771–800\` から。
+Deposit はより単純なケースだ。\`programs/openhl-core/src/lib.rs:1008–1076\` から。
 
 命令データ。
 
@@ -226,7 +226,7 @@ invoke(
 
 ## §6.5  SPL Token 命令データを手で組み立てる
 
-\`spl-token\` クレートは**意図的に**インポートしなかった。代わりに 2 命令分のバイトを手で組み立てた。\`lib.rs\` の 594–598 行。
+\`spl-token\` クレートは**意図的に**インポートしなかった。代わりに 2 命令分のバイトを手で組み立てた。\`lib.rs\` の 861–864 行。
 
 \`\`\`rust
 mod spl_token_ix {
@@ -294,8 +294,53 @@ openhl-core CPI マップ:
 ### 自分で検証する 3 項目
 
 1. **\`invoke\` はシードなしの \`invoke_signed\`。** \`solana-cpi-2.2.1/src/lib.rs:137\` を開き、3 行の本体を読め。両者の違いは「PDA シードを渡したか」だけだと身体化せよ。それ以外のすべては同じシステムコール。
-2. **被呼び出しプログラムの AccountInfo。** CreateVault の両 CPI で、\`invoke[_signed]\` に渡される \`accounts\` スライスは被呼び出しプログラムの AccountInfo を含む — CPI 1 では \`system_ai\`、CPI 2 では \`token_ai\`。これを忘れるのは初期 Solana で最も頻出のミスの 1 つで、ランタイムは紛らわしい \`AccountNotFound\` 風味のエラーを返す。\`lib.rs:691, 720\` を読んで確認せよ。
+2. **被呼び出しプログラムの AccountInfo。** CreateVault の両 CPI で、\`invoke[_signed]\` に渡される \`accounts\` スライスは被呼び出しプログラムの AccountInfo を含む — CPI 1 では \`system_ai\`、CPI 2 では \`token_ai\`。これを忘れるのは初期 Solana で最も頻出のミスの 1 つで、ランタイムは紛らわしい \`AccountNotFound\` 風味のエラーを返す。[\`lib.rs:966, 997\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs#L966) を読んで確認せよ。
 3. **ユーザは一度署名し、SPL Token がそれを使う。** バリデータに対して \`deposit\` を実行せよ。ユーザ鍵ペアが外側トランザクションに署名する。SPL Token は \`is_signer = true\`（ユーザについて）の \`Transfer\` 命令を受け取る。トランスファが確定する。どこにも 2 度目の署名はない。1 署名、伝播。
+
+
+### 検査を道具に試させる
+
+\`CreateVault\` には検査が 7 つ、\`Deposit\` には 4 つある。第 3 章 §3.7 では [solinv](https://github.com/psyto/solinv) を \`CreateMarket\` に走らせ、消した検査はどれもランタイムが支えていた。この 2 つのハンドラは別のプログラムに CPI するので、検査を支えるものの候補が増え、支えるもののない検査も 1 つある。同じハーネス [\`fuzz/basics/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/basics) に両方の仕様がある。payer や user の署名フラグを外すことと、各 slot を攻撃者が渡せる物に差し替えることだ(このプログラムが所有しない「market」、「mint」としてのトークン口座、PDA ではない vault のアドレス、vault の authority としての呼び出し側自身、各プログラムの slot に別のプログラム、A の払い出し元として B のトークン口座)。第 3 章 §3.7 のとおり準備してから:
+
+\`\`\`bash
+cd fuzz/basics
+cargo build --release --features invariant_ch6
+cargo test --release --features invariant_ch6      # A は B のトークンを使えない
+timeout -s INT 60 crucible run openhl_basics_fuzz invariant_ch6 \\
+    --binary-in target/release/invariant_test --timeout 45
+\`\`\`
+
+今のプログラムでは \`[FUZZ_FINDING]\` の行は出ない。
+
+> **演習 §6.6.** 検査を 1 つずつ消し、作り直して走らせよ。走らせる前に予想すること。私たちが各 45 秒で測った結果を示す。最後の列は、差し替えた呼び出しを代わりに拒否したもので、ログから読んだ:
+>
+> | 消した検査 | 捕まったか | 代わりに呼び出しを拒否したもの |
+> |---|---|---|
+> | CreateVault: \`payer_ai.is_signer\` | いいえ | ランタイム: 権限のない署名者 |
+> | CreateVault: \`market_ai.owner == program_id\` | いいえ | 自前の vault の PDA の検査 |
+> | CreateVault: \`mint_ai.owner == SPL Token\` | いいえ | 自前の vault の PDA の検査 |
+> | CreateVault: \`system_ai.key == System\` | いいえ | ランタイム: 命令に要るアカウントがない |
+> | CreateVault: \`token_ai.key == SPL Token\` | いいえ | ランタイム: 命令に要るアカウントがない |
+> | CreateVault: \`vault_ai.key == expected_vault\` | いいえ | ランタイム: 権限のない署名者 |
+> | CreateVault: \`vault_auth_ai.key == expected_auth\` | **はい**、account-swap、slot 4 | — |
+> | Deposit: \`user_ai.is_signer\` | いいえ | ランタイム: 権限のない署名者 |
+> | Deposit: \`user_token_ai.owner == SPL Token\` | いいえ | ランタイム: 所有していないアカウントのデータを命令が変えた |
+> | Deposit: \`vault_token_ai.owner == SPL Token\` | いいえ | ランタイム: 所有していないアカウントのデータを命令が変えた |
+> | Deposit: \`token_ai.key == SPL Token\` | いいえ | ランタイム: 命令に要るアカウントがない |
+>
+> 先を読む前に、ほかに何も支えていない行を 1 つ見つけよ。
+>
+> ほとんどの行は §6.2 と §6.1 の繰り返しだ。プログラムは自分が受け取った署名しか渡せないので、payer や user の署名がなければ CPI で落ちる(§6.2)。ハンドラは内側の命令に呼び先の ID を書き込んで組む(\`SPL_TOKEN_PROGRAM_ID\`、\`system_program::ID\`)ので、slot に別のプログラムを入れても CPI の行き先は変わらず、ランタイムが本物の呼び先のアカウントを見つけられないだけだ(§6.1)。PDA ではないアドレスへの \`create_account\` には、そのアドレス自身の署名が要る。中身が同じで別のプログラムが所有するトークン口座は SPL Token を通り抜け、\`Transfer\` まで実行される。そのあとランタイムが拒否する。SPL Token が自分の所有していないアカウントを変えたからだ(第 1 章)。B の本物のトークン口座は SPL Token 自身が拒否する。A がその authority ではないからだ(\`owner does not match\`。テストで押さえてある)。
+>
+> 2 つの行は自前のコードが支えているが、それは fuzzer の差し替え方のせいでしかない。vault の PDA は market と mint から導くので、どちらか一方だけを差し替えると slot 3 が違うアドレスになる。それらから導くアカウントと一緒に組で差し替えると(\`account_swap::check_sets\`。第 12 章 §12.7 でも使う)、2 行は分かれる。mint の所有者検査を消しても、SPL Token がトークン口座を mint として認めない(\`Invalid Mint\`)。market の所有者検査を消すと呼び出しは通り、実は誰かのトークン口座である「market」のためのトークン口座が作られた。この検査は本当に仕事をしている。
+>
+> 覚えておくべきは**はい**の行だ。\`vault_authority\` は作られることがない。ただのアドレスで、\`InitializeAccount3\` が新しいトークン口座の持ち主として書き込む。CPI のどこも、それが PDA であることに頼っていない。だからプログラムが確かめなければ、呼び出し側は自分を指定でき、以後その市場の vault に入る預け入れはすべて呼び出し側が動かせるものになる。ランタイムにとってそのアドレスはただのデータなので、ランタイムの規則では捕まえられない。
+>
+> もう 2 つ試せる。1 つ目、\`fuzz/basics/src/main.rs\` で \`Deposit\` の slot 2(送り先)の差し替え候補に \`self.b_ata\` を足して、もう一度走らせよ。A はどのトークン口座にも預け入れられるので、実行のたびに報告される。これは穴か。ここではそうではない。\`Deposit\` は何も記録しないので、A が B の口座に払うのは贈り物でしかない。送り先が意味を持つ帳簿づけは第 11・12 章で加わり、そこで送り先を縛る。検出とは、プログラムが許した呼び出しのことだ。それが問題かどうかは、プログラムが何を約束したかの問いである。
+>
+> 2 つ目は、第 3 章から持ち越した、読むときの問いだ。\`CreateVault\` は market の所有者を確かめるが、アドレスは確かめない。第 2 章の \`Initialize\` は今も、呼び出し側が作った任意のアカウントに \`Market\` を作れるので、同じ組に PDA ではない 2 つ目の市場がありうる。\`--features invariant_ch3_reader\` で作って走らせよ。このハーネスはそういう市場を作り、\`CreateVault\` にそれを読ませる(3 つの slot を一緒に差し替える。market と、そこから導く 2 つのアドレス)。今のプログラムで報告が出る。テスト \`create_vault_accepts_a_market_not_at_its_pda\` でも直接確かめられる。**これは**穴か。先を読む前に考えよ。
+>
+> PDA が約束したのは、\`(base, quote)\` ごとにアドレスが 1 つ、ということだった。プログラムのほとんどはそれに頼っていない。市場に結びつくアカウント(トークン口座とその authority、板、オラクル、資金調達の状態、ポジション、trading vault、保険基金)はどれも市場自身のアドレスを seed にしているので、2 つ目の市場は別の島になる。それに \`CreateMarket\` でも、市場の authority は誰でも選べる。例外はどれも第 13 章にある。手数料の vault とその authority(quote の mint ごとに 1 つ、全市場で共有)と、builder の profile(builder ごとに 1 つ)だ。第 6〜12 章の範囲では、2 つ目の市場が別の市場のトークンに届く道は見つからなかった。手数料の vault から利用者の払った以上を取り出せるかどうかは、第 13 章 §13.6 で同じ道具を使って確かめる。答えは「できない」で、どの加算も同じトランザクションの中で払われているからだ。「その」市場を PDA を導いて見つけるクライアントは大丈夫だ。市場の形をしたアカウントなら何でも信じるクライアントは大丈夫ではない。組ごとに市場を 1 つに限りたいなら、\`CreateVault\` が市場自身の \`base_mint\`・\`quote_mint\` と保存された \`bump\` からアドレスを導き直せばよい(第 3 章の「bump の保存」)。試したところ、その検査を足すと組は拒否され(\`InvalidSeeds\`)、fuzzer は 45 秒で何も見つけなかった。
 
 ---
 
@@ -316,7 +361,7 @@ openhl-core CPI マップ:
                   content: `# 第7章 — オンチェーン CLOB データ構造
 
 > 状態: ドラフト (v0.1)。
-> 教材コード: \`crates/state/src/lib.rs\`（\`Order\` + \`OrderBook\`）、\`programs/openhl-core/src/lib.rs\`（\`process_create_order_book\` 833–891 行、\`process_place_order\` 904–1000 行、\`process_cancel_order\` 1002–1064 行）、\`scripts/book/src/main.rs\`。
+> 教材コード: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs)（\`Order\` + \`OrderBook\`）、[\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)（\`process_create_order_book\` 1091–1155 行、\`process_place_order\` 1162–1253 行、\`process_cancel_order\` 1260–1327 行）、[\`scripts/book/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/book/src/main.rs)。
 
 ---
 
@@ -369,7 +414,7 @@ market あたり 2112 バイト。bid と ask は同じスロットプールを�
 
 ではなぜこれを選ぶか。
 
-- **コストが見える。** CU ログに線形走査が現れる。学生は \`book --place\` を実行し、板が満ちるにつれて CU が下がっていく様子を観察できる。
+- **コストが見える。** CU ログに線形走査が現れる。学生は \`book --place\` を実行し、板が満ちるにつれて CU が上がっていく様子を観察できる(1 注文あたり数 CU。§7.3)。
 - **検証が易しい。** 配列上の \`for\` ループ 2 つ。崩しうる不変条件もない。ツリーの再バランスでの微妙な off-by-one もない。
 - **第 7 章にはこれで十分。** 本章はデータレイアウトとコストの形についての章だ。マッチングは第 8 章で導入し、**そこで**この誤った選択が本物の問題になる — その時点で slab へのリファクタリングが許される。
 
@@ -405,7 +450,7 @@ pub struct Order {
 - bool フィールドは 1 バイト + アラインメント維持のパディングのコストがかかる。\`size\` フィールドはすでに存在し、本物の注文は常に \`size > 0\` だ。アクティブ判定の番兵としてこのフィールドを再利用すれば、追加フィールドのコストを省ける。
 - アカウント作成時のゼロ初期化により、規約は無料で機能する: 新規確保された \`OrderBook\` のスロットはすべて、明示的なセットアップなしに「空」になる。
 
-コストは、プログラムが守るべき不変条件 1 行だ: \`size == 0\` の \`Order\` を絶対に書かない。両ハンドラとも、ペイロード中の \`size == 0\` を最初のガードで明示的に拒否する。\`process_place_order\`（lib.rs:929–932）から。
+コストは、プログラムが守るべき不変条件 1 行だ: \`size == 0\` の \`Order\` を絶対に書かない。\`place_order\` はペイロード中の \`size == 0\` を最初のガードで拒否する(\`cancel_order\` が取るのは注文の id だけで、スロットを空けるために全ゼロの \`Order\` をわざと書く)。\`process_place_order\`（lib.rs:1183–1186）から。
 
 \`\`\`rust
 if price == 0 || size == 0 {
@@ -422,11 +467,11 @@ if price == 0 || size == 0 {
 
 ## §7.3  \`place_order\` を歩く
 
-\`programs/openhl-core/src/lib.rs:904–1000\` から。ハンドラは 3 部分に分解できる。
+\`programs/openhl-core/src/lib.rs:1162–1253\` から。ハンドラは 3 部分に分解できる。
 
-**検証**（911–950 行）: ペイロードサイズ、side バイト（0 か 1）、price と size 非ゼロ、user は署名者、book の所有者が本書のプログラムと一致、book サイズが \`OrderBook::LEN\` と一致、book のディスクリミネータが一致。
+**検証**（1167–1210 行）: ペイロードサイズ、side バイト（0 か 1）、price と size 非ゼロ、user は署名者、book の所有者が本書のプログラムと一致、book サイズが \`OrderBook::LEN\` と一致、book のディスクリミネータが一致。
 
-**線形走査**、958–965 行。
+**線形走査**、1216–1222 行。
 
 \`\`\`rust
 let mut chosen_slot: Option<usize> = None;
@@ -440,28 +485,32 @@ for (i, slot) in book.slots.iter().enumerate() {
 
 インデックス 0 から走査、\`size == 0\` の最初のスロットを取り、break。最悪ケース: book が満杯。ループは 32 反復全部を回り \`None\` を返し、「book 満杯」分岐に入って \`AccountDataTooSmall\` を返す。最良ケース: スロット 0 が空（book が新規）。1 反復。
 
-CU コストの形:
+CU コストの形を測った(命令全体、LiteSVM、\`fuzz/matching\` の \`ch7_grid\` テスト。LiteSVM が \`solana-test-validator\` と同じに数えることは第 4 章 §4.5 で確かめた):
 
-- **空の book**（active_count = 0、slot 0 が空）: 1 反復。走査に約 50 CU。
-- **半分埋まった book**（active_count = 16、slots 0–15 占有）: 16 反復。約 800 CU。
-- **満杯 -1**（active_count = 31、slot 31 だけが空）: 31 反復。約 1550 CU。
-- **満杯**（active_count = 32、全スロット占有）: 32 反復 + エラーパス。約 1700 CU + エラーオーバーヘッド。
+| place の前の book | 反復 | CU |
+|---|---|---|
+| 空 | 1 | 2,357 |
+| 8 注文 | 9 | 2,374 |
+| 16 注文 | 17 | 2,417 |
+| 24 注文 | 25 | 2,433 |
+| 31 注文 | 32 | 2,446 |
+| 32 注文(満杯) | 32 + エラー | 失敗(失敗した呼び出しは測っていない) |
 
-絶対値としてはどれも小さい — 最悪ケースでも既定 200 KCU バジェットの 1% 未満だ。しかし**形**こそが教えだ: O(N) はコストがデータとともに成長することを意味し、本物の板ではその成長がバジェットを超え得る。slab なら配置が O(log N) に留まり、1024 注文でも本書の配列の N = 32 時の 16 反復より少ない CU で済む。
+走査は線形で、しかも安い。空の book から 31 注文までで 89 CU、見るスロット 1 つあたり約 3 CU だ。(以前の版は 1 スロットあたり約 50 CU、31 注文で 1,550 CU と見積もっていた。10 倍以上高すぎた。)2,357 のほとんどは命令の固定費で、入口、検証、2 つの \`sol_log_compute_units\`、\`msg!\` の行だ。だからここでの教訓は大きさより**形**だ。O(N) はコストがデータとともに増えることを意味するが、32 スロットで 1 スロット数 CU ではほとんど見えない。見えてくるのは、fill ごとに走査する第 8 章と、もっと大きな book だ。比べると、第 15 章の slab は 1,023 の注文があるところへ 1,954 CU で置ける。この配列が 16 で取る値段より安い。
 
-**書き込み**（970–987 行）: \`next_order_id\` をインクリメント、\`active_count\` をインクリメント、user の pubkey を \`owner\` にコピー、\`Order\` リテラルを構築、選んだスロットに投入。スロットが決まれば全部 O(1)。
+**書き込み**（1228–1242 行）: \`next_order_id\` をインクリメント、\`active_count\` をインクリメント、user の pubkey を \`owner\` にコピー、\`Order\` リテラルを構築、選んだスロットに投入。スロットが決まれば全部 O(1)。
 
-952 行（走査前）と 988 行（書き込み後）の CU ブラケットがあれば、バリデータログからコストを読める。2 つの \`sol_log_compute_units\` を呼んで差を取れば、この命令の「走査 + 書き込み」が実際に消費した CU が出る。
+1203 行（走査前）と 1250 行（書き込み後）の CU ブラケットがあれば、バリデータログからコストを読める。2 つの \`sol_log_compute_units\` を呼んで差を取れば、その間で消費された CU が出る。走査と書き込みに加え、その範囲のデータ借用、ディスクリミネータの検査、ログも含む。
 
-> **演習 §7.3.** book にいろんな N（たとえば 0、8、16、24、31）の注文を事前投入し、その後新しい注文を 1 つ置け。各 N について 2 つのログ呼び出しの間で消費された CU を記録せよ。プロットせよ。N に対しておおむね線形なはずだ。
+> **演習 §7.3.** book にいろんな N（たとえば 0、8、16、24、31）の注文を事前投入し、その後新しい注文を 1 つ置け。各 N について 2 つのログ呼び出しの間で消費された CU を記録せよ。プロットせよ。N に対して線形で、傾きは 1 注文あたり数 CU のはずだ。上の表と比べよ。
 
 ---
 
 ## §7.4  \`cancel_order\` を歩く
 
-\`process_cancel_order\`（1002–1064 行）は構造的には \`place_order\` と同じだ — 線形走査、次に変更 — がマッチキーと変更内容が異なる。
+\`process_cancel_order\`（1260–1327 行）は構造的には \`place_order\` と同じだ — 線形走査、次に変更 — がマッチキーと変更内容が異なる。
 
-**走査**、1037–1043 行。
+**走査**、1295–1301 行。
 
 \`\`\`rust
 let mut found: Option<usize> = None;
@@ -475,7 +524,7 @@ for (i, slot) in book.slots.iter().enumerate() {
 
 \`slot.size != 0\` で空スロットを飛ばす、\`slot.order_id == order_id\` で ID 選択。最悪ケースは「注文が最後のスロットにある」または「見つからない」 — どちらも O(N) を払う。
 
-**認可チェック**、1050–1053 行。
+**認可チェック**、1307–1311 行。
 
 \`\`\`rust
 if book.slots[slot_idx].owner != *user_ai.key.as_ref() {
@@ -486,7 +535,7 @@ if book.slots[slot_idx].owner != *user_ai.key.as_ref() {
 
 注文を置いた本人だけがキャンセルできる。スロットの \`owner\` フィールドがキャンセル認可の仕組みだ。これはスロット単位のチェックで、book 単位ではない — 「オペレータが何でもキャンセルできる」パスは存在しない。これはオープン CLOB として適切だが、vault 管理戦略では別になる。
 
-**ゼロ化**、1057 行。
+**ゼロ化**、1315 行。
 
 \`\`\`rust
 book.slots[slot_idx] = <Order as bytemuck::Zeroable>::zeroed();
@@ -494,7 +543,7 @@ book.slots[slot_idx] = <Order as bytemuck::Zeroable>::zeroed();
 
 \`Order::zeroed()\` は全ゼロの \`Order\` を返す。\`<Order as bytemuck::Zeroable>::zeroed()\` の修飾構文が必要なのは、\`Order::zeroed\` が固有メソッドとしてスコープに入っていないからだ — \`bytemuck::Zeroable\` トレイトから来る。書き込まれた後、スロットの \`size\` は 0、次の \`place_order\` が空スロット走査でこの位置を見つけて利用可能だと認識する。
 
-CU コストは \`place_order\` と対称: 最良ケースは「スロット 0 で一致」（1 反復）、最悪ケースは「見つからない」（N 反復 + エラー）。1029 行と 1059 行のブラケットで計測できる。
+CU コストは \`place_order\` と対称: 最良ケースは「スロット 0 で一致」（1 反復）、最悪ケースは「見つからない」（N 反復 + エラー）。満杯の book で、最初のスロットの注文は 1,994 CU、最後のスロットの注文は 2,177 で、見るスロット 1 つあたり約 6 CU だった(「見つからない」経路は失敗し、失敗した呼び出しは測っていない)。1284 行と 1324 行のブラケットで計測できる。
 
 > **演習 §7.4.** 注文を 10 個置き、order_id 5 をキャンセルせよ。その後さらに 1 個置け。新しい注文はどのスロットに着地するか。各操作の前後で \`book\`（フラグなし）のダンプ出力からスロット配分を辿れ。
 
@@ -506,17 +555,17 @@ CU コストは \`place_order\` と対称: 最良ケースは「スロット 0 �
 
 1. taker ごとに線形走査 → taker あたり O(N)
 2. マッチ試行ごとに、すべての maker を線形走査 → maker チェックあたり O(N)
-3. M 個の taker が K 個の maker と交差するとき、正しいスロットを見つけるためだけのコストは O(M × N) で、トークン移動の前段階だ
+3. M 個の taker が K 個の maker と交差するとき、正しいスロットを見つけるためだけのコストは O(M × K × N) で、トークン移動の前段階だ
 
-ORDER_CAPACITY = 32、M = 10、K = 5 で、マッチ命令あたり約 1600 配列走査になる。純粋な走査だけで約 80,000 CU。既定バジェットは 200,000。
+ORDER_CAPACITY = 32、M = 10、K = 5 で、マッチ命令あたり約 1600 配列走査になる。以前の版は、上の 1 スロット 50 CU を使って、純粋な走査だけで約 80,000 CU と見積もっていた。測った 1 スロット数 CU なら数千だ。fill ごとに book を走査する第 8 章のマッチャは、満杯の book に対して 5 fill で 12,662 CU、10 fill で 22,250 CU だった(すべて込み)。既定バジェットは 200,000。
 
-第 8 章で実際にトークンを動かす必要があるとき（SPL Token への CPI、それ自体がトランスファあたり約 3,000 CU）、既定バジェットに収まらない。次のいずれかが必要になる。
+だから 32 スロットでのフラットな book の問題は、この命令のバジェットではない。book が大きくなるとどうなるかだ。fill ごとに全スロットを走査するのでコストは O(fills × N) で、第 8 章 §8.2 は 128 スロットの book でバジェットが尽きるのを示す。fill ごとにトークンを動かす(トランスファごとに SPL Token への CPI)と、それはもっと早く来る。次のいずれかが必要になる。
 
 - slab にリファクタリングする — 本番向け答え
 - \`ComputeBudgetInstruction::set_compute_unit_limit\` で CU 上限を上げる — 絆創膏
 - 命令あたりのマッチを N 交差に制限し、マッチャを複数回呼ぶようにする — 回避策
 
-第 8 章ではこの 3 つを探索し、実際にスケールするのは slab だけだと説明する。今のところ、フラット配列は正しく、遅く、その遅さが目に見える。その可視性こそが、リファクタリングが何を買うかを理解する前提条件だ。
+第 8 章ではこの 3 つを探索し、実際にスケールするのは slab だけだと説明する; 第 15 章が slab の実装を出荷する。今のところ、フラット配列は正しく、遅く、その遅さが目に見える。その可視性こそが、リファクタリングが何を買うかを理解する前提条件だ。
 
 **Anchor が隠していること:** Anchor の \`#[account(zero_copy)]\` 属性は型付きフィールドアクセスで bytemuck キャストアカウントを利用可能にする。正しいデータ構造を選ぶことについては何もしない — その判断はフレームワークに関わらず常にあなたのものだ。素朴な \`Vec<Order>\` book レイアウトの Anchor プログラムは、本書のものと同じ速さで CU バジェットを溶かす。
 
@@ -559,6 +608,13 @@ cancel_order(order_id):
 2. **空スロット規約。** 5 注文置き、order 3 をキャンセルし、6 つ目を置け。6 つ目の注文はスロット index 5 ではなく、スロット index 2（キャンセルで空いた）に着地するはずだ。「最初の空スロットが勝つ」規則がキャンセルで開いた穴を埋める。
 3. **Pod レイアウト不変条件は強制される。** \`cargo test -p openhl-state\` は 3 つの Order/OrderBook レイアウトテストを走らせる。\`ORDER_CAPACITY\` を 33 に変更し再コンパイルせよ。\`order_book_size_matches_layout\` テストは \`2112 → 2176\` を示すはずだ。安定した予測可能なバイト数こそ、bytemuck がこの構造体で機能する理由だ。
 
+
+### fuzzer に確かめられること、確かめられないこと
+
+\`place_order\` と \`cancel_order\` の検査は、2 つのアカウント(署名者と book)と 1 つの規則についてのものだ。注文を取り消せるのはその注文の持ち主だけ(§7.4)。この規則は [solinv](https://github.com/psyto/solinv) 風のアカウントの差し替えでは届かない。取り消す注文はアカウントではなく、命令データの中の id で指定されるからだ。そこでテストで押さえる。[\`fuzz/matching/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/matching) の \`cancel_refuses_another_users_order\` は、別の人に maker の注文を取り消させ、\`caller is not the order owner\` を期待する。持ち主の検査を消して作り直すと、このテストが落ちる(確かめた)。fuzzer が見つけるもの、つまりアカウントどうしの結びつけは第 3・6・12 章が示す。値がアカウントのフィールドにあるとき、こういう規則をガードとして書く方法は第 13 章 §13.6 が示す。
+
+§7.3 と §7.4 の数値も同じハーネスから出ている。第 3 章 §3.7 のとおりプログラムを作ってから、\`fuzz/matching\` で \`cargo test --release --features invariant_ch8 -- --ignored --nocapture ch7_grid\`。
+
 ---
 
 ## 第 8 章への導線
@@ -578,33 +634,27 @@ cancel_order(order_id):
                   content: `# 第8章 — CU 圧の下のマッチングエンジン
 
 > 状態: ドラフト (v0.1)。
-> 教材コード: \`programs/openhl-core/src/lib.rs\`（\`process_match\` 1116–1228 行）、\`scripts/match/src/main.rs\`。
+> 教材コード: [\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)（\`process_match\` 1365–1493 行）、[\`scripts/match/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/match/src/main.rs)、[\`fuzz/matching/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/matching/src/main.rs)（§8.6 の solinv ハーネス）。
 > 第 7 章の \`OrderBook\` データ構造の上に立つ。
 
 ---
 
-## §8.0  はじめに — スコープに関する正直なメモ
+## §8.0  はじめに — 本章が教えるもの
 
-第 7 章の導線では、フラット配列ベースラインに対して計測する形で本章に動作する slab 実装を約束していた。実装と数週間付き合った結果、別のスコープ判断を下した: 本章はフラット book 上のマッチャを歩き、その CU コスト形状を正確に計測し、CU 枯渇に対する 3 つの現実的対応（バジェット引き上げ、\`max_fills\` でのページング、slab へのリファクタ）を列挙し、slab を**徹底的に擬似コード化した**設計として提示する — ただし slab は実装しない。理由は次のとおり。
-
-1. **本章の教育上の仕事はコスト形状だ。** 「fill ループ内の線形走査は O(K × N) で、それが問題」を、教材例は証明する必要がある。動く slab を加えると、その焦点が 2 つの並行実装の間に薄まり、読者は両方を同時に頭に保持しなければならなくなる。
-2. **本物の slab 実装は独自の章に値する。** ノードプールとフリーリスト、価格レベルの上の critbit ツリー、レベルごとの FIFO キュー。どれも使い捨てではなく — それらを 1 章の半分に押し込めば、3 つすべてを下手に教えることになる。
-3. **\`max_fills\` ページング付きのフラットマッチャは真に有用だ**、低スループット / 教育用デプロイなら。ページング対応を組み込んだ形できれいに出荷するのは、誠実な工学だ。
+第 7 章は slab 実装をここに hook していた; その約束は独自の章（第 15 章）に移った、slab がそれに値するほど大きく育ったからだ。本章は第 7 章が出荷したフラット配列 book に対するマッチングの **CU コスト形状**についての章だ — 正確に計測され、CU 枯渇への 3 つの対応（バジェット引き上げ、\`max_fills\` でのページング、slab へのリファクタ）が命名され、コスト付けられる。§8.4 の slab 擬似コードは第 15 章のコードが実装する設計仕様だ。
 
 そこで本章では次を行う。
 
 1. フラット book 上の \`Match\` アルゴリズムを歩く。
 2. 実ログから CU コスト形状を読み、O(fills × N) であることを示す。
 3. CU 圧への 3 つの対応（バジェット引き上げ、ページング、slab リファクタ）を実演し、それぞれのコストを説明する。
-4. 自分で実装したくなったら書ける詳細水準で、slab の擬似コード + 図を提供する。
-
-完全な slab 実装は将来の章（あるいはあなた自身の宿題）に移す。導線は縮小される、工学的内容は縮小されない。
+4. slab の擬似コード + 図を設計仕様として提供する; 第 15 章が実装を出荷する。
 
 ---
 
 ## §8.1  フラット book 上の Match アルゴリズム
 
-\`programs/openhl-core/src/lib.rs:1116–1228\` から。ハンドラはペイロードの 4 フィールドを取る。
+\`programs/openhl-core/src/lib.rs:1365–1493\` から。ハンドラはペイロードの 4 フィールドを取る。
 
 \`\`\`text
 [side u8][limit_price u64 LE][size u64 LE][max_fills u8]
@@ -612,7 +662,7 @@ cancel_order(order_id):
 
 \`side\` は**taker** 側だ（bid の taker は ask に対して買う、ask の taker は bid に対して売る）。\`limit_price\` は taker が受け入れる最悪価格。\`size\` は取りたい総 base 単位。\`max_fills\` は 1 命令あたりに交差する resting maker 注文数の上限 — ページングつまみだ。
 
-マッチングループ、1175–1217 行。
+マッチングループ、1424–1483 行。
 
 \`\`\`rust
 let mut fills_done: u8 = 0;
@@ -664,28 +714,25 @@ fill ごとに 5 ステップ。吸収すべき点は 2 つ。
 
 半分埋まった book（resting maker 16、すべて bid、taker は ask でそれに対してマッチ）に対して、\`--max-fills\` を 1 から 16 まで変化させてマッチャを実行する。
 
-| max_fills | sim units_consumed | fill あたり限界 |
-|-----------|--------------------|-----------------|
-|   1       |    約 5,000        |   約 3,500     |
-|   2       |    約 8,500        |   約 3,500     |
-|   4       |    約16,000        |   約 3,750     |
-|   8       |    約30,500        |   約 3,600     |
-|  16       |    約58,500        |   約 3,500     |
+| max_fills | units consumed | fill あたり限界 |
+|-----------|----------------|----------------|
+|   1       |    4,254       |   —            |
+|   2       |    5,950       |   1,696        |
+|   4       |    9,276       |   1,663        |
+|   8       |   15,637       |   1,590        |
+|  16       |   27,220       |   1,448        |
 
-fill あたりの限界コストは 16 maker book でほぼ一定、約 3.5 KCU。内訳:
+(\`fuzz/matching\` の \`grid\` テストで測った。実際のプログラムを LiteSVM で走らせる。LiteSVM と \`solana-test-validator\` 4.1.2 が同じ数を数えることは第 4 章 §4.5 で確かめた。この表の以前の版は古いツールチェーンのもので、fill あたり約 3,500 CU だった。自分で測ること。)
 
-- fill あたり約 1,000 CU — 線形走査（16 スロット × 約 60 CU）
-- fill あたり約 1,200 CU — maker 変更 + スロットゼロ化
-- fill あたり約 1,000 CU — fill を記録する \`msg!\` ログ行
-- fill あたり約 300 CU — ループ家事と \`Order\` 書き込み
+fill あたりの限界コストはほぼ一定で、16 maker の book で約 1.5 KCU。一部は線形走査で、fill ごとに空でも埋まっていても 32 スロットすべてを見る。一部は maker の書き込みと、fill ごとに出す \`msg!\` の行だ。それ以上は分けて測っていない。大事なのは、それがどう増えるかだ。
 
-book サイズを倍にすれば走査部分が倍になり、残りは定数のまま。ORDER_CAPACITY = 32 で全スロット活性なら fill あたり限界は約 5 KCU。256 スロット（より現実的な book）では約 20 KCU になり、10 fill 交差は走査だけで 200 KCU 消費して既定バジェットを使い切ってしまう。
+book とともに増えるが、この大きさではゆっくりだ。8、16、24、32 maker に対する 4 fill は 8,500、9,276、9,980、10,680 CU で、maker が 1 増えるごとに fill あたり約 22 CU。32 スロットの book には 32 maker までしか入らないので、ここで 1 回の \`Match\` がする fill は最大 32 で、\`max_fills = 32\` なら 57,696 CU。それより多く求めると、何も見つからない走査がもう 1 回加わり、それが最悪の場合になる。\`max_fills = 255\` で 58,148 CU、既定の 200K に十分収まる。バジェットが壊れるのを見るには book を大きくする。\`ORDER_CAPACITY = 128\`(\`crates/state\` にある)では、128 maker に対する 1 fill が 7,565 CU、16 fill が 80,533 なので、最初の 1 fill のあとは 1 fill ごとに約 4,900 増える。64 maker に対する 64 fill は 194,916、128 maker に対する 64 fill はもう収まらない。
 
-これが本章が可視化するためにある CU コスト形状だ。フラットマッチャの fill あたりコストは book サイズに比例して成長する。命令あたり総コストは \`O(fills × N)\`。両因子とも押し上げたくなるつまみだ（呼び出しあたり fill 数を増やす、book を大きくする）。十分に押し上げればバジェットが壊れる。
+これが本章が可視化するためにある CU コスト形状だ。フラットマッチャの fill あたりコストは book サイズに比例して成長する。命令あたり総コストは \`O(fills × N)\`。両因子とも押し上げたくなるつまみだ（呼び出しあたり fill 数を増やす、book を大きくする）。十分に押し上げればバジェットが壊れる。32 スロットでは、その「十分」は book が行ける先より遠い。
 
 **SDK が隠していること:** Anchor のプログラムログにも同じ「consumed N of M compute units」行が含まれる。ユーザコードからではなくランタイムから来るからだ。しかし Anchor は \`units_consumed\` を型付きフィールドとしてどこにも公開しない — 本書のようにシミュレーション結果から \`sim.value.units_consumed\` で読む。
 
-> **演習 §8.2.** book を 30/32 容量にし、\`--max-fills 30\` でマッチャを実行せよ。シミュレーションは 200,000 近辺かそれ以上の units_consumed を報告するはずだ。次に \`--cu-limit 400000\` を加えて再実行する。オンチェーン確定は成功するか。\`--cu-limit 1400000\`（ネットワーク最大）でも成功しなくなるのはどの \`max_fills\` か。
+> **演習 §8.2.** book を 30/32 容量にし、\`--max-fills 30\` でマッチャを実行せよ。満杯の book で測ると 54,935 CU で、既定に余裕で収まる。次に \`crates/state/src/lib.rs\` で \`ORDER_CAPACITY = 128\` にしてプログラムを作り直し、book を 128 maker で満たして \`--max-fills 64\` で実行する。\`ComputationalBudgetExceeded\` で失敗するはずだ。\`--cu-limit 400000\` を加えて再実行する。オンチェーン確定は成功するか。\`--cu-limit 1400000\`（ネットワーク最大）でも成功しなくなるのは \`max_fills\` がいくつのときか。
 
 ---
 
@@ -748,13 +795,13 @@ remaining > 0 かつ fills_done < max_fills の間:
     fills_done += 1
 \`\`\`
 
-fill あたりコストは \`O(log N)\`、\`O(N)\` ではない。N = 1024 なら fill あたり約 10 vs 約 1000 検査。現実的な book でマッチャがバジェットに収まる。
+価格がばらけていれば、fill あたりコストは \`O(N)\` ではなく \`O(log N)\`。N = 1024 なら fill あたり約 10 vs 約 1000 検査。ただし critbit は自己平衡しない。深さは価格のビットに従い、キーの 64 ビットまで深くなりうるので、価格を選べる maker はそこまで深くできる(第 15 章 §15.7 で測る)。現実的な book ならマッチャはバジェットに収まり、敵対的な book でも \`max_fills\` の上限がそこに留める。
 
 **コスト:** 大きな実装労力。正しい critbit + ノードプール + FIFO は約 1,500 行の慎重な Rust で、強い不変条件を伴う（各ノードはツリー+キューに住むかフリーリストにあるかのいずれか、各レベルは ≥1 注文を持つかツリーから消えているかのいずれか）。監査コストはそれに比例して高い。全体が \`bytemuck::Pod\` 適合だが慎重さを要する: ツリーノードはポインタではなくプール内のインデックスを持つ。
 
 **これが正解になるとき:** 非自明な流動性を持つ本番 CLOB。Phoenix と Serum はどちらも理由あってこの設計を使う。
 
-slab 実装は将来の章（あるいは独自実装）に残す。下記の擬似コードがあれば書ける。
+slab 実装は第 15 章に住み、下記の設計仕様から生まれたコードを歩く。
 
 ---
 
@@ -764,7 +811,7 @@ slab 実装は将来の章（あるいは独自実装）に残す。下記の擬
 
 \`\`\`rust
 const POOL_CAPACITY: usize = 1024;
-const TREE_CAPACITY: usize = 256;   // 一意な価格レベル数
+const TREE_CAPACITY: usize = 256;   // 木のノード数: 片側の価格水準は約 128(葉 + 内部ノード)
 
 #[repr(C, Pod)]
 struct Slab {
@@ -822,7 +869,7 @@ struct TreeNode {
 4. **critbit、red-black ではない。** critbit ツリーは再バランス規則がより単純で、回転ロジックが要らない。Serum は critbit、Phoenix も critbit。パターンは踏み固められている。
 5. **side ごとに 1 ツリー。** bid と ask は「ベスト」の意味論が異なる（max vs min）。2 ツリーにすれば比較子をツリーコードに通す必要がない。
 
-slab 実装は、初めてなら 3-4 日の演習だ。1 日目はプール + フリーリスト。2 日目は critbit の insert/remove。3 日目はマッチャへの配線。4 日目はエッジケース（book 満杯、レベル満杯、all-or-nothing fill）のテスト。
+slab 実装は、初めてなら 3-4 日の演習だ。1 日目はプール + フリーリスト。2 日目は critbit の insert/remove。3 日目はマッチャへの配線。4 日目はエッジケース（book 満杯、レベル満杯、all-or-nothing fill）のテスト。第 15 章がその結果の実装を歩く。
 
 > **演習 §8.4.** プール + フリーリスト部分を組み立てよ。\`Pool<OrderNode, 1024>\` を書け、\`alloc() -> Option<u16>\` と \`free(idx: u16)\` メソッド付きで。10,000 個のランダムな alloc/free ペアで、プールが常に正しい \`available_count\` を持つことを検証せよ。これが最も正しく書きにくい単一部分だ — \`free_head\` の不変条件は崩しやすい。
 
@@ -842,7 +889,7 @@ slab 実装は、初めてなら 3-4 日の演習だ。1 日目はプール + �
 - 大きな taker をアトミックに処理するマッチャ。
 - fill あたりレイテンシが効く HFT 風ユースケース。
 
-そのためには slab を実装する。§8.4 の擬似コードが設計仕様だ。
+そのためには slab を出荷する。§8.4 の擬似コードが設計仕様で、第 15 章がその実装だ。
 
 ---
 
@@ -854,15 +901,17 @@ slab 実装は、初めてなら 3-4 日の演習だ。1 日目はプール + �
 フラット book 上の Match（本章）:
 
   fill ごと:    O(N) 走査 + O(1) 書き込み     → O(K × N) 総計
-  ORDER_CAPACITY=32 book で K=16:           約 60 KCU
-  失敗モード:    約 30 fill を超えると CU 枯渇
+  ORDER_CAPACITY=32 book で K=16:           約 27 KCU(16 maker)、33 KCU(32)
+  失敗モード:    32 スロットではなし(最悪の 32 fill + 空振りの走査 1 回で約 58 KCU)。
+                 128 スロットでは約 40 fill を超えると CU 枯渇
 
 
-Slab 上の Match（将来の章、上で擬似コード化）:
+Slab 上の Match（第 15 章、上で擬似コード化）:
 
   fill ごと:    O(log N) ツリーウォーク + O(1) FIFO 進行  →  O(K × log N) 総計
-  約 1024 注文の book で K=16:              約 30 KCU
-  失敗モード:    プール枯渇（別 place_order 拒否で扱う）
+  1,024 注文の slab で K=16:               22 KCU(実測、§15.6)
+  失敗モード:    プール枯渇（別 place_order 拒否で扱う）。
+                 深い価格キーの上での長いマッチの CU(§15.7)
 
 
 CU 圧への 3 つの対応:
@@ -882,9 +931,33 @@ CU 圧への 3 つの対応:
 
 ### 自分で検証する 3 項目
 
-1. **コストは乗算的に成長する。** book に 8、16、24 の活性 maker を事前投入せよ。それぞれに対し \`match-cli\` を \`--max-fills 4\`（定数）で実行する。\`units_consumed\` を記録する。数値はおおよそ 4 × N に追随し、N だけや 4 だけにはならないはずだ。
-2. **ページングは正しい小計を持つ。** 満杯 32 maker book と 10 単位 taker に対し \`--max-fills 16\` でマッチャを実行する。\`units_consumed\` と post-state の \`active_count\` を記録する。次に同じマッチング作業を \`--max-fills 8\` の 2 呼び出しに分けて行う。両呼び出しの \`units_consumed\` 合計は 1 回の 16 呼び出しの数値に非常に近いはずだ（2 つの \`process_match\` セットアップオーバーヘッドのぶんだけわずかに高い）。
-3. **バジェット引き上げは本物。** 詰め込まれた 32 maker book に対し意図的に大きすぎるマッチ（例: 25 fills）を \`--cu-limit\` なしで実行する。失敗するはずだ。\`--cu-limit 500000\` を加える。成功するはずだ。\`sim.value.units_consumed\` が既定 200,000 と 500,000 の間にあることを確認せよ。
+1. **コストは乗算的に成長する。** book に 8、16、24 の活性 maker を事前投入せよ。それぞれに対し \`match-cli\` を \`--max-fills 4\`（定数）で実行する。\`units_consumed\` を記録する。N とともに増えるが、この大きさでは fill ごとの固定部分が支配的だ。私たちの測定では 8,500、9,276、9,980。\`O(K × N)\` の項はある(maker が 1 増えるごとに fill あたり約 22 CU)が、効いてくるにはもっと大きな N が要る(§8.2)。
+2. **ページングは正しい小計を持つ。** 満杯 32 maker book と 10 単位 taker に対し \`--max-fills 16\` でマッチャを実行する。\`units_consumed\` と post-state の \`active_count\` を記録する。次に同じマッチング作業を \`--max-fills 8\` の 2 呼び出しに分けて行う。両呼び出しの \`units_consumed\` 合計は 1 回の 16 呼び出しの数値に非常に近いはずだ（2 つの \`process_match\` セットアップオーバーヘッドのぶんだけわずかに高い）。taker を 16 すべてを取れる大きさにすると、1 呼び出しで 33,020、2 呼び出しで 18,476 + 17,072 だった。
+3. **バジェット引き上げは本物。** 32 スロットの book には、既定のバジェットに収まらないほど大きなマッチが入らない。詰め込まれた 32 maker book に対する 25 fill は 47,645 だった。\`ORDER_CAPACITY\` を 128 に上げ(演習 §8.2 のとおり)、book を満たし、64 fill を \`--cu-limit\` なしで実行する。失敗するはずだ。\`--cu-limit 500000\` を加える。成功するはずだ。\`sim.value.units_consumed\` が既定 200,000 と 500,000 の間にあることを確認せよ。
+
+
+### 高くつくマッチを道具に探させる
+
+第 4 章 §4.7 では、呼び出し側がわざと値段を選ぶ \`Bench\` に [solinv](https://github.com/psyto/solinv) の cu-dos を走らせた。\`Match\` は他の人が頼る命令で、その値段を選ぶのは 2 者だ。taker が \`max_fills\` を選び、maker が book をどれだけ埋めるかを選ぶ。[\`fuzz/matching/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/matching) は book を 32 の買い注文で満たし(入る最大数。cu-dos は試すたびに book を元に戻す)、taker が 1〜255 の任意の \`max_fills\` を選べるようにして、1 回の \`Match\` に 50,000 CU の上限(\`MATCH_CU_CAP\`)を宣言する。第 3 章 §3.7 のとおり準備してから:
+
+\`\`\`bash
+cargo build-sbf --manifest-path programs/openhl-core/Cargo.toml
+cd fuzz/matching
+cargo build --release --features invariant_ch8
+cargo test --release --features invariant_ch8      # コストは book とともに増える
+timeout -s INT 60 crucible run openhl_matching_fuzz invariant_ch8 \\
+    --binary-in target/release/invariant_test --timeout 45
+\`\`\`
+
+> **演習 §8.6.** 走らせよ。数秒で次のような行が出るはずだ:
+>
+> \`\`\`
+> [FUZZ_FINDING] [cu-dos:…] ix match consumed 58148 CU (cap 50000)
+> \`\`\`
+>
+> taker が、満杯の book で上限が許す以上の fill を求めた。58,148 は §8.2 の満杯の book での最悪の場合だ。第 4 章の教訓は、上限をランタイムの限界まで上げても何も直らない、だった。ここには本当の直し方がある。最悪の場合に上限があるからだ。book は 32 スロットで、1 回の呼び出しがどれだけ働くかはプログラムが決める。§8.2 の数値から、満杯の book で 50,000 に収まる \`max_fills\` はいくつまでか。その答えで \`process_match\` に \`if max_fills > N { return Err(...) }\` を足し、作り直してもう一度走らせよ。
+>
+> 答えは測定にある。満杯の book で 26 fill は 49,147、27 fill は 50,627 なので、収まる最大は 26 だ。一部だけ埋まった book では同じ上限でもコストが低い(27 maker に 28 を求めて 48,011)。maker がなくなれば fill が止まるからで、どの上限でも満杯の book が最悪の場合になる。私たちは次のツールチェーンの値段に備えて余裕をとり 24 を使った。fuzzer は 45 秒で何も見つけず、上限から予想したとおりだった。これは §8.3 の選択肢 (2)、ページングを必須にしたものだ。もっと fill がほしい taker は呼び出しを増やす。これが成り立つのは book が 32 スロットのままの間だけだ。128 スロットでは最初の 1 fill が 7,565 CU、以後 1 fill ごとに約 4,900 なので、同じ上限で 1 呼び出しが約 119,000 になりうる。\`ORDER_CAPACITY\` を上げるたびに上限を下げなければならない。この結びつきが、選択肢 (3)、slab(第 15 章)を選ぶ理由だ。slab の fill あたりコストは N ではなく log N で増える(§8.4)。
 
 ---
 
@@ -905,8 +978,10 @@ market、vault、マッチャを手にした。**まだ持っていない**の�
                   content: `# 第9章 — オラクル取り込み: Pyth 内部
 
 > 状態: ドラフト (v0.1)。
-> 教材コード: \`crates/state/src/lib.rs\`（\`Oracle\`）、\`programs/openhl-core/src/lib.rs\`（\`process_create_oracle\` 1302–1373 行、\`process_set_oracle_price\` 1375–1427 行、\`process_place_order_checked\` 1429–1535 行）、\`scripts/oracle/src/main.rs\`。
+> 教材コード: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs)（\`Oracle\`、加えて §9.5 のための Pyth v1 と v2 のレイアウト定数）、[\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)（\`process_create_oracle\`、\`process_set_oracle_price\`、\`process_place_order_checked\`、\`process_place_order_checked_pyth\`、\`process_place_order_checked_pyth_v2\`、ヘルパ \`read_fresh_oracle\` / \`read_fresh_pyth_v1_oracle\` / \`read_fresh_pyth_v2_oracle\`）、[\`scripts/oracle/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/oracle/src/main.rs)、[\`programs/openhl-core/tests/pyth_binding.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/tests/pyth_binding.rs)（§9.5 のフィード固定のテスト）。
 > 参照対象: Pyth Network mainnet プログラム（\`FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH\`）、Switchboard On-Demand。
+>
+> 部品化に伴い、この章で読むロジックは [\`crates/oracle/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/oracle/src/lib.rs)(\`openhl-oracle\`)に移り、プログラムはそれを呼び出す。以下に引用するコードは分割前の \`programs/openhl-core/src/lib.rs\` の版で、行番号は追従していない。
 
 ---
 
@@ -979,7 +1054,7 @@ pub struct Oracle {
 
 ## §9.2  オラクルを書く — \`SetOraclePrice\`
 
-章で staleness シナリオを試すには、既知の瞬間にオラクルを書く手段が要る。\`programs/openhl-core/src/lib.rs:1375–1427\` から。
+章で staleness シナリオを試すには、既知の瞬間にオラクルを書く手段が要る。\`programs/openhl-core/src/lib.rs:1513–1571\` から。
 
 \`\`\`rust
 fn process_set_oracle_price(
@@ -1021,11 +1096,16 @@ fn process_set_oracle_price(
 
 ## §9.3  オラクルを読む — 基礎チェックとしての staleness
 
-読み手パターンは \`process_place_order_checked\`（1429–1535 行）にある。中核ブロックは 1473–1490 行。
+読み手パターンは小さなヘルパ \`read_fresh_oracle\`（lib.rs:1965–1987）に住み、\`process_place_order_checked\` から呼ばれる。第 11 章で追加する 3 つのポジションハンドラからも再利用するため、ガントレットは 4 度コピーされる代わりに 1 箇所に保たれる:
 
 \`\`\`rust
-let mark: u64;
-{
+fn read_fresh_oracle(
+    oracle_ai: &AccountInfo,
+    program_id: &Pubkey,
+) -> Result<u64, ProgramError> {
+    if oracle_ai.owner != program_id || oracle_ai.data_len() != Oracle::LEN {
+        return Err(ProgramError::InvalidAccountData);
+    }
     let oracle_data = oracle_ai.try_borrow_data()?;
     let oracle: &Oracle = bytemuck::from_bytes(&oracle_data[..Oracle::LEN]);
     if oracle.discriminator != ORACLE_DISCRIMINATOR {
@@ -1034,32 +1114,28 @@ let mark: u64;
     if oracle.price <= 0 {
         return Err(ProgramError::InvalidAccountData);
     }
-
     let clock = Clock::get()?;
     let age = clock.slot.saturating_sub(oracle.publish_slot);
     if age > MAX_ORACLE_STALENESS_SLOTS {
-        msg!(
-            "place_order_checked: oracle stale ({} slots, max {})",
-            age,
-            MAX_ORACLE_STALENESS_SLOTS
-        );
+        msg!("oracle stale ({} slots, max {})", age, MAX_ORACLE_STALENESS_SLOTS);
         return Err(ProgramError::InvalidAccountData);
     }
-
-    mark = oracle.price as u64;
+    Ok(oracle.price as u64)
 }
 \`\`\`
+
+\`process_place_order_checked\` はこれを \`let mark = read_fresh_oracle(oracle_ai, program_id)?;\` として呼び、\`mark\` に対してサニティバンドを走らせる。
 
 価格を信用する前に 4 つのチェック。
 
 1. **Discriminator チェック**（\`oracle.discriminator != ORACLE_DISCRIMINATOR\`）: 初期化されていないオラクルアカウントを拒否する。本物の Pyth では magic 定数 + version 一致がこれにあたる。
 2. **価格正値チェック**（\`oracle.price <= 0\`）: 非正価格のオラクル状態を拒否する。本物の Pyth は時折 \`0\` を「今は良い価格がない」シグナルとして publish する — 読み手はそれを扱わねばならない。
 3. **Staleness チェック**（\`age > MAX_ORACLE_STALENESS_SLOTS\`）: 25 slot（約 10 秒）より古い価格を拒否する。これが本章の中心だ。鮮度をチェックできない価格は信用できない価格だ — publisher を止められる攻撃者（あるいは単にネットワーク障害を利用する者）が、それを盲信するプログラムを古い価格でゲームできるからだ。
-4. **所有者チェック**（1463 行、\`oracle_ai.owner != program_id\`）: 異なるプログラム由来のアカウントを拒否する。本物の Pyth では \`oracle_ai.owner == &pyth_program::ID\`。
+4. **所有者チェック**（1969 行、\`oracle_ai.owner != program_id\`）: 異なるプログラム由来のアカウントを拒否する。本物の Pyth では \`oracle_ai.owner == &pyth_program::ID\`。
 
-\`lib.rs:153\` の \`MAX_ORACLE_STALENESS_SLOTS = 25\`。選び方はワークロードによる: 25 slot は現行ターゲットスロット時間で約 10 秒。高ボラペア（BTC、ETH の荒れた日）なら、もっと tight に — おそらく 10〜15 slot。ステーブルコインペアならもっと wide で許せる。定数は理想的には market ごとに調整できるよう \`Market\` 構造体に持つべきだが、本書は簡潔さのためグローバルに置く。
+\`lib.rs:205\` の \`MAX_ORACLE_STALENESS_SLOTS = 25\`。選び方はワークロードによる: 25 slot は現行ターゲットスロット時間で約 10 秒。高ボラペア（BTC、ETH の荒れた日）なら、もっと tight に — おそらく 10〜15 slot。ステーブルコインペアならもっと wide で許せる。定数は理想的には market ごとに調整できるよう \`Market\` 構造体に持つべきだが、本書は簡潔さのためグローバルに置く。
 
-借用はサブブロック（\`{ ... }\`）でスコープし、book を変更する前にドロップする。これが重要なのは、オラクルと book の両方が \`AccountInfo\` として渡され、ランタイムは同じアカウントメモリの 2 つの可変借用が共存しないことを要求するからだ。本書のオラクルと book は別アカウントだとしても、借用をタイトにスコープするパターンは良い衛生だ — ハンドラが大きくなったときの微妙な aliasing バグを防ぐ。
+\`read_fresh_oracle\` 内の借用は自然にヘルパ本体にスコープされる — 関数が返ったときにドロップし、呼び出し側が book を変更する前に解放される。これが重要なのは、オラクルと book の両方が \`AccountInfo\` として渡され、ランタイムは同じアカウントメモリの 2 つの可変借用が共存しないことを要求するからだ。本書のオラクルと book は別アカウントだとしても、借用をタイトにスコープするパターンは良い衛生だ — ハンドラが大きくなったときの微妙な aliasing バグを防ぐ。
 
 **SDK が隠していること:** \`pyth-sdk-solana::load_price_feed_from_account_info\` は discriminator チェック、所有者チェック、型付き \`PriceFeed\` へのデシリアライズを行う。staleness チェックは**行わない** — それは常にあなたの仕事だ。明示的な staleness ゲートなしに Pyth を使うプログラムは、DeFi における最大のオラクルバグ群の 1 つに属して出荷される。
 
@@ -1071,7 +1147,7 @@ let mark: u64;
 
 staleness チェック済みの価格はもう安全に読める。最初のリスク制御として使うこと: オラクル mark から大きく外れる limit 価格の \`place_order\` 呼び出しを拒否する。
 
-\`process_place_order_checked\` 1493–1506 行。
+\`process_place_order_checked\` 1658–1671 行。
 
 \`\`\`rust
 let band = mark.saturating_mul(SANITY_BAND_BPS) / 10_000;
@@ -1089,7 +1165,7 @@ if price < low || price > high {
 }
 \`\`\`
 
-\`SANITY_BAND_BPS = 2000\`（lib.rs:159）で ±20%。\`mark = 100\` なら、価格 50 の注文は拒否される（\`low = 80\` 未満）、95 の注文は受け入れ、121 の注文は拒否。意図的に wide なバンド: tight なバンドは通常ボラの間に正当ユーザを失敗させる頻度を上げるし、章は**パターン**についての章であって calibration ではない。
+\`SANITY_BAND_BPS = 2000\`（lib.rs:211）で ±20%。\`mark = 100\` なら、価格 50 の注文は拒否される（\`low = 80\` 未満）、95 の注文は受け入れ、121 の注文は拒否。意図的に wide なバンド: tight なバンドは通常ボラの間に正当ユーザを失敗させる頻度を上げるし、章は**パターン**についての章であって calibration ではない。
 
 本番バンドは market ごとに調整される。
 
@@ -1105,51 +1181,173 @@ if price < low || price > high {
 
 ---
 
-## §9.5  本番 Pyth — 本物の形、1 ページで
+## §9.5  本番 Pyth v1 — bytes-up で実装
 
-本書の \`Oracle\` を本物の Pyth 価格アカウントに置き換えるなら、変更は局所的で小さい。
+モック \`Oracle\` は章が既知のスロットでパブリッシュを止められるように作られている。本番では、パブリッシャが独立に populate する Pyth アカウントから読む。マイグレーションは局所的 — 同じ staleness ガントレット、同じサニティバンド、違うパーサ — で、本章はそれを peer 命令 \`PlaceOrderCheckedPyth\`（タグ 32）として出荷し、2 つのパスを並べて比較できるようにする。Pyth v1 のレイアウトは bytes-up でパースできるほどよく定義されている — \`pyth-sdk-solana\` 依存なし。第 1 章の bytes-up 姿勢がそのまま通る。
 
-\`\`\`rust
-// 1. 所有者チェックが変わる
-// 前:  if oracle_ai.owner != program_id { ... }
-// 後:  if oracle_ai.owner != &pyth_program::ID { ... }
+### Pyth v1 PriceAccount のレイアウト
 
-// 2. レイアウトが変わる
-// 前:  let oracle: &Oracle = bytemuck::from_bytes(&oracle_data[..Oracle::LEN]);
-// 後:  let price_feed = pyth_sdk_solana::load_price_feed_from_account_info(oracle_ai)?;
+すべての Pyth v1 price アカウントはマジック定数 + バージョン + アカウント型識別子で始まり、EMA 簿記のヘッダ、最後に本当に信用する集約 \`agg\` ブロックがある。本書が読む 6 フィールド:
 
-// 3. フィールドアクセスが変わる
-// 前:  oracle.price, oracle.conf, oracle.publish_slot
-// 後:  price_feed.get_price_no_older_than(&clock, MAX_ORACLE_STALENESS_SLOTS)?
-//         .price    (i64)
-//         .conf     (u64)
-//         .expo     (i32)
-// 注: pyth_sdk_solana::PriceFeed::get_price_no_older_than は本書が手で
-// やっている staleness チェックをすでに行う。SDK をインポートするなら
-// 使うこと。どちらにせよ何をしているかは理解すること。
-
-// 4. フォールバックパターン — Switchboard または副 Pyth フィード
-// 通常 2 つのオラクルアカウントを配線し、staleness + conf 境界を通る
-// 最初のものを優先する:
-//
-//   let primary = try_read(&primary_oracle_ai);
-//   let secondary = try_read(&secondary_oracle_ai);
-//   let mark = match (primary, secondary) {
-//       (Ok(p), _) => p,
-//       (Err(_), Ok(s)) => s,
-//       (Err(_), Err(_)) => return Err(NoFreshPrice),
-//   };
+\`\`\`text
+offset | size | field                       | チェックする内容
+-------+------+-----------------------------+---------------------------------
+   0   |  4   | magic (u32)                 | == 0xa1b2c3d4
+   4   |  4   | ver   (u32)                 | == 2 (Pyth v1)
+   8   |  4   | atype (u32)                 | == 3 (PriceAccount)
+  20   |  4   | expo  (i32)                 | ログのみ; 適用しない（下記参照）
+ 208   |  8   | agg.price (i64)             | > 0
+ 216   |  8   | agg.conf  (u64)             | ログ
+ 224   |  4   | agg.status (u32)            | == 1 (Trading)
+ 232   |  8   | agg.pub_slot (u64)          | clock.slot - pub_slot <= MAX_ORACLE_STALENESS_SLOTS
 \`\`\`
 
-構造的パターンは本書のものと同一だ。パースするバイトが違う。auth モデル（オラクルを誰が書けるか）は完全に反転する: Pyth の場合、あなたは何も書かない — 読むだけだ。
+（\`agg\` はそのスロットでのパブリッシャネットワークの集約価格。Pyth は最大 32 パブリッシャを持ち、オンチェーン集約は毎スロット走る; \`agg.status\` がそれらが同意したかを反映する。）
 
-**Switchboard フォールバック**は章の最後のリスクエンジニアリングポイントが着地する場所だ。単一オラクルは単一障害点。Pyth は停止したことがある。Switchboard も停止したことがある。両方同時に（稀に）起きたこともある。下方を守るプログラムは**両方**を信頼し、どちらも fresh でなければ動作を拒否する。配線は機械的だ。
+オフセットは \`crates/state/src/lib.rs\` から \`PYTH_V1_OFFSET_*\` 定数としてエクスポートされる。完全な ~3 KiB の \`PriceAccount\` を Pod 構造体としてミラーするのは意図的に避ける — バイトの大半は本書が読まない publisher ごとの \`comp[]\` エントリだ。6 オフセットをハードコードするのはコードバイトが少なく、監査しやすく、本章の「バイトレイアウトが**契約**」のスタンスに一致する。
+
+### \`read_fresh_pyth_v1_oracle\`
+
+ヘルパ、骨格で:
+
+\`\`\`rust
+fn read_fresh_pyth_v1_oracle(oracle_ai: &AccountInfo) -> Result<u64, ProgramError> {
+    let data = oracle_ai.try_borrow_data()?;
+    if data.len() < PYTH_V1_MIN_LEN { return Err(InvalidAccountData); }
+
+    // (1) ヘッダ ガントレット。
+    if u32::from_le_bytes(data[0..4]) != PYTH_V1_MAGIC      { return Err(...); }
+    if u32::from_le_bytes(data[4..8]) != PYTH_V1_VERSION    { return Err(...); }
+    if u32::from_le_bytes(data[8..12]) != PYTH_V1_ACCOUNT_TYPE_PRICE { return Err(...); }
+
+    // (2) 集約ステータス。
+    let status = u32::from_le_bytes(data[PYTH_V1_OFFSET_AGG_STATUS..]);
+    if status != PYTH_V1_STATUS_TRADING { return Err(InvalidAccountData); }
+
+    // (3) Staleness — agg.pub_slot vs Clock.slot。
+    let pub_slot = u64::from_le_bytes(data[PYTH_V1_OFFSET_AGG_PUB_SLOT..]);
+    let age = Clock::get()?.slot.saturating_sub(pub_slot);
+    if age > MAX_ORACLE_STALENESS_SLOTS { return Err(InvalidAccountData); }
+
+    // (4) 価格を読み、観測性のため expo/conf をログ。
+    let price_i = i64::from_le_bytes(data[PYTH_V1_OFFSET_AGG_PRICE..]);
+    if price_i <= 0 { return Err(InvalidAccountData); }
+    Ok(price_i as u64)
+}
+\`\`\`
+
+チェック順序はモックパスをミラーする: 構造検証が先（magic / version / atype）、次にステータスチェック（本書モックの discriminator+initialization チェックの Pyth 類似）、次に staleness、最後に価格サニティ。どの失敗も \`InvalidAccountData\` を返すので、呼び出し側は stale なまたは非 Trading な Pyth フィードをモックの stale 処理と同じように扱える。
+
+フラグすべき設計判断 4 つ:
+
+**1. リーダーはバイトを確かめ、ハンドラはどのアカウントかを確かめる。** モックパスは \`oracle_ai.owner == program_id\` を要求するが、ここのリーダーには所有者の検査がない。この章の最初の版は、検査は要らないと書いていた。「magic+version+atype ガントレットがすでにアカウントが Pyth v1 PriceAccount であることを構造的に保証する」からだ、と。保証しない。誰でも自分が所有するアカウントを作り、magic、version、account type、Trading の status、好きな価格を書き込んで渡せる。\`programs/openhl-core/tests/pyth_binding.rs\` のテスト \`pyth_v1_reads_only_the_pinned_price_account\` はまさにそれをやり、呼び出し側が選んだ価格に対して注文が通った。Pyth プログラム ID をハードコードすると mainnet 対 devnet の選択を最初から強いる(mainnet は \`FsJ3...epH\`、devnet は \`gSbE...92s\`)ので、代わりに市場が両方を保存する。市場の authority が \`SetPythFeeds\`(タグ 34)で設定する、期待する Pyth アカウントの**pubkey**(\`Market.pyth_v1_price_account\`)と、それを所有しなければならないプログラム(\`Market.pyth_v1_program\`)だ。\`PlaceOrderCheckedPyth\` は呼び出しのたびに両方を確かめ、何も固定されていない間は無条件に拒否する。アドレスだけでは足りない。そのアドレスのアカウントが閉じられ、別の誰かに作り直されることがありうる。テストの \`recreated\` の場合が、所有者の検査がそれを拒否するのを示す。アドレスを固定すれば、資産を取り違える問題も片づく。別の組の本物のフィードは別のアドレスだからだ。それでもプログラムが信じているのは authority の設定だ。間違ったアカウントと所有者を固定すれば、それを読む。
+
+**2. \`expo\` は読みログするが適用しない。** Pyth 価格は \`(mantissa, expo)\` ペアで来る — 本物の価格は \`mantissa × 10^expo\`。USD ペアでは \`expo\` は典型的に \`-8\`。モック側に expo はない（本書 \`Oracle.price\` は market が使うスケールでの u64）ので、本章で 2 パスを相互運用可能に保つため、mantissa を価格として扱い \`expo\` を観測性のためにログする。本番デプロイは正規化する: 単一サポート \`expo\` を固定し他を拒否するか、その場でプログラムの固定小数点規約に翻訳するか。これがマイグレーションで本物のバグを書く可能性が最も高い場所; 本章はそれを呼び出して TODO を自分で置けるようにする。
+
+**3. status == Trading でも \`price <= 0\` は拒否する。** Pyth は時々 0 を publish する — 集約が非負だが degenerate な publisher ネットワークのコーナーケース。モックパスも同じく拒否する; Pyth パスも合わせる。
+
+**4. \`agg.status != Trading\` はハード拒否、フォールバックではない。** Switchboard フォールバック付きの本物の本番リーダーは、ここでエラーを返さずに他のオラクルを試すだろう。本章はフォールバックを出荷しない、教材例が v1 単一オラクルマイグレーションだからだ; フォールバックパターン（try-A-then-B 不一致許容付き）は上に乗せるのは簡単 — §9.5 の closing ノートが配置する。
+
+### \`PlaceOrderCheckedPyth\`（タグ 32）
+
+ピア命令。\`PlaceOrderChecked\` と同じペイロード（\`[side u8][price u64 LE][size u64 LE]\`）、同じ 8 先頭アカウント、2 変更を除く:
+
+- スロット 2 は Pyth v1 PriceAccount、モック \`Oracle\` ではない（market から oracle PDA クロスチェックはドロップ; Pyth アカウントは PDA 導出対象ではない）。
+- オラクル側ガントレットは \`read_fresh_oracle\` ではなく \`read_fresh_pyth_v1_oracle\` を呼び、その前にハンドラは、スロット 2 が市場の固定した \`pyth_v1_price_account\` であることを求める(上の設計判断 1)。
+
+下流すべて — サニティバンド、手数料エスクロー、book write — はモックパスと同一。両ハンドラは同じ \`SANITY_BAND_BPS\`、\`PROTOCOL_FEE_BPS\`、末尾の同じ \`spl_token_transfer_user_signed\` Transfer を共有する。マイグレーションの surface は §9.5 が約束したとおり: 局所的。
+
+### Pyth v2 — 同じ章、違うアーキテクチャ
+
+\`read_fresh_pyth_v1_oracle\` の「v1」が重要。Pyth の v1 モデル — パブリッシャが毎スロット静的 PriceAccount に書き、リーダーがそれをパース — は廃止されつつあり、v2 の **プルオラクル** アーキテクチャに置き換わる。Perp DEX にとって重要な洞察は、v2 アーキテクチャが 2 つの層にきれいに分かれることだ:
+
+1. **Pyth の \`pyth-solana-receiver\` プログラム**が暗号作業をする。Wormhole VAA（Verified Action Approval — Wormhole の guardian set の 2/3 以上が署名したペイロード）に包まれた Pyth update メッセージを受け取り、Solana の secp256k1 precompile で guardian 署名を検証し、bundled update の Merkle proof があれば検証し、検証済み価格を \`PriceUpdateV2\` アカウントに書く。
+2. **コンシューマ**（あなた、perp DEX）がその \`PriceUpdateV2\` アカウントを読む。VAA 検証なし。Guardian set 管理なし。あなたのホット パスに暗号なし。
+
+その 2 層を混同したら（本セクションの初期ドラフトはした）、v2 はあなたの側に ~2000 行の暗号コードが必要だと結論するだろう。そうではない。Wormhole 作業は Pyth のプログラムに住み、それは共有インフラだ; perp DEX で出荷するのは構造的に v1 リーダーと同じ、ただし異なるアカウント レイアウトに対するもの。
+
+\`PlaceOrderCheckedPythV2\`（タグ 33）がコンシューマ側を出荷する。リーダーの前に、ハンドラが 2 つの検査をする。リーダーにはできない検査だ。アカウントは市場が固定した receiver プログラムが所有していなければならず(\`Market.pyth_v2_receiver\`。その ID はクラスタごとに違うので、定数ではなくデータにする)、その \`feed_id\` は \`Market.pyth_v2_feed_id\` と等しくなければならない。1 つ目がなければ、誰でも自分のプログラムから、discriminator まで含めて \`PriceUpdateV2\` の形のアカウントを書ける。2 つ目がなければ、別の資産の本物の更新が通る。ハンドラはさらに、更新が完全に検証されていること(\`VerificationLevel::Full\`)を求める。Partial の更新は Wormhole の定足数より少ない guardian の署名で確かめられたもので、Pyth 自身の SDK も価格としては拒否する。\`pyth_v2_reads_only_the_pinned_receiver_and_feed\` は 3 つすべてを試し、署名 0 と 13 の Partial の更新も含む。リーダー:
+
+\`\`\`rust
+fn read_fresh_pyth_v2_oracle(oracle_ai: &AccountInfo) -> Result<u64, ProgramError> {
+    let data = oracle_ai.try_borrow_data()?;
+    if data.len() < PYTH_V2_MIN_LEN { return Err(InvalidAccountData); }
+
+    // (1) Anchor account discriminator。PriceUpdateV2 は Anchor の
+    // sha256("account:PriceUpdateV2")[..8] 規約を使う。
+    if data[0..8] != PYTH_V2_PRICE_UPDATE_DISCRIMINATOR { return Err(...); }
+
+    // (2) VerificationLevel — ログのみ。本番は Full を要求するかも。
+    let level_tag = data[PYTH_V2_OFFSET_VERIFICATION_LEVEL];
+    // Partial { num_signatures }  | Full
+
+    // (3) Staleness — posted_slot に対して、receiver が update を書いた
+    // Solana slot。
+    let posted_slot = u64::from_le_bytes(data[PYTH_V2_OFFSET_POSTED_SLOT..]);
+    if Clock::get()?.slot.saturating_sub(posted_slot) > MAX_ORACLE_STALENESS_SLOTS {
+        return Err(InvalidAccountData);
+    }
+
+    // (4) 価格 + exponent / conf / publish_time をログ。
+    let price_i = i64::from_le_bytes(data[PYTH_V2_OFFSET_PRICE..]);
+    if price_i <= 0 { return Err(InvalidAccountData); }
+    Ok(price_i as u64)
+}
+\`\`\`
+
+PriceUpdateV2 のオンチェーン レイアウト、オフセットでパース（Anchor が Pyth の構造体を borsh シリアライズする）:
+
+\`\`\`text
+offset | size | field                            | 何に使うか
+-------+------+----------------------------------+---------------------------------------
+   0   |  8   | anchor_discriminator             | == [34,241,35,99,157,126,244,205]
+   8   | 32   | write_authority (Pubkey)         | （確かめない — このアカウントを更新・クローズできる者）
+  40   |  1   | verification_level tag           | ログ; 0=Partial、1=Full
+  41   |  1   | verification_level.num_signatures| ログ（tag==Partial のときのみ）
+  42   | 32   | price_message.feed_id            | == \`Market.pyth_v2_feed_id\`(ハンドラが確かめる)
+  74   |  8   | price_message.price (i64)        | > 0; u64 mark として返す
+  82   |  8   | price_message.conf  (u64)        | ログ
+  90   |  4   | price_message.exponent (i32)     | ログ; 本番は 10^expo で正規化
+  94   |  8   | price_message.publish_time (i64) | ログ; 情報用（Pyth の Unix timestamp）
+ 102   |  8   | price_message.prev_publish_time  | 未使用
+ 110   |  8   | price_message.ema_price          | 未使用（章は spot 価格を使う）
+ 118   |  8   | price_message.ema_conf           | 未使用
+ 126   |  8   | posted_slot (u64)                | Staleness ガントレット
+ 134                                                — 終わり
+\`\`\`
+
+オフセットは \`crates/state/src/lib.rs\` から \`PYTH_V2_OFFSET_*\` としてエクスポートされる。これは **Partial** の更新のオフセットだ。Borsh は \`VerificationLevel::Full\` を 2 バイトでなく 1 バイトで書くため、Full の更新では \`price_message\` 以降の全フィールドが 1 バイト前にずれる。上に引用した分割前の読み手は固定オフセットを使っており Full を誤読していた。現在は \`openhl_oracle::pyth_v2::parse\` が両方を扱う。v1 と同様、完全な Pod 構造体をミラーしない — 6 フィールド読み込み、Anchor 依存なし、バイト レイアウトが**契約**だ。
+
+### 2 命令 トランザクション パターン
+
+v2 リーダーが前提とするアーキテクチャの一片: トレード命令が走るとき \`PriceUpdateV2\` アカウントが*fresh*でなければならない。実際にはコンシューマ トランザクションは receiver の \`post_update_v2\` 命令を最初の命令として、トレード命令を 2 番目として含めることでこれを行う:
+
+\`\`\`text
+tx = [
+  pyth-solana-receiver::post_update_v2(vaa_data, update_data, …),  // VAA 検証、アカウント書き込み
+  openhl::place_order_checked_pyth_v2(side, price, size),          // 今書かれたアカウントを読む
+]
+\`\`\`
+
+\`post_update_v2\` は per-(feed_id, write_authority) \`PriceUpdateV2\` PDA を書き、\`place_order_checked_pyth_v2\` がそれを読む。クライアントは Pyth の price-update service（パブリッシャ署名を VAA に集約する HTTP エンドポイント）から最新 VAA を fetch し、最初の命令にバンドルし、staleness ガントレットがすべてを同期させる。本書のハンドラから receiver へのオンチェーン CPI はない: アカウント経由で通信し、直接ではない。
+
+これはまた、本書の v2 ハンドラが「post」命令や Wormhole アカウントを取らない理由でもある: コンシューマ トランザクションが配線、プログラムは単に読む。
+
+### 真に繰り延べられているもの
+
+コンシューマ側が出荷された今、残るのは**自前の Wormhole スタイル receiver を走らせること**だ。Wormhole チェーンに公式 Pyth receiver がないところから Pyth updates を読みたい場合、あるいは receiver が公開しない追加メッセージ型（ガバナンス updates、mapping changes）を検証したい場合に有用だ。それ自体が独自章だ — 保存された guardian set に対する secp256k1 署名復元、リプレイ保護、bundled updates の Merkle proof 検証。ここの perp DEX コンシューマ パスはそのどれも必要としない。
+
+### Switchboard フォールバック
+
+単一オラクルは単一障害点。Pyth は停止したことがある。Switchboard も停止したことがある。両方同時に（稀に）起きたこともある。下方を守るプログラムは**両方**を信頼し、どちらも fresh でなければ動作を拒否する。配線は機械的だ:
 
 1. トランザクションの \`AccountMeta\` 配列に両オラクルアカウントを含める。
-2. ハンドラがそれぞれを読み、完全な検証パターン（discriminator + 所有者 + 価格正値 + staleness）を行う。
+2. ハンドラがそれぞれを読み、完全な検証パターン（discriminator/magic + status + 価格正値 + staleness）を行う。
 3. どちらかが通れば使う。両方失敗なら呼び出し拒否。
 
 これを行うプログラムは典型的に、両方が fresh のときは 2 つを**比較**もする — ある許容（例: 50 bp）を超えて不一致なら呼び出し拒否。Pyth と Switchboard の 50 bp 不一致は通常どちらかが誤っており、ユーザに安い方を選ぶだけのプログラムはゲームされてきた。
+
+> **演習 §9.5.** 本物の Pyth v1 mainnet PriceAccount を選べ（SOL/USD は執筆時点で \`H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG\` — Pyth の price-feed-ids ページで検証せよ）。ローカル validator の \`clone\` 機能を使ってそのアカウントをテストクラスタにミラーし、市場の authority の署名で \`SetPythFeeds\` によりそれを市場に固定してから、それに対して \`PlaceOrderCheckedPyth\` を invoke せよ。次に、設計判断 1 が述べる攻撃を試せ。アカウントのバイトを自分が所有するアカウントに写して、そちらを渡す。\`oracle is not the market's pinned Pyth v1 feed\` で失敗するはずだ。ログされた \`expo\` を SOL/USD product と比較せよ（\`-8\` のはず）。Staleness ガントレットをアカウントの古いスロットをアーカイブから再生して確認せよ。
 
 ---
 
@@ -1194,7 +1392,7 @@ if price < low || price > high {
 
 ### 自分で検証する 3 項目
 
-1. **Discriminator チェックは重要。** market PDA を作り、\`place_order_checked\` のオラクルスロットに market PDA を渡すトランザクションを組み立てよ。\`lib.rs:1477\` の discriminator チェックが \`UninitializedAccount\` で失敗するはずだ。このチェックがないと、コードは \`bytemuck::from_bytes\` でゴミデータに当てて意味のない \`price\` を使う。
+1. **Discriminator チェックは重要。** market PDA を作り、\`place_order_checked\` のオラクルスロットに market PDA を渡すトランザクションを組み立てよ。\`read_fresh_oracle\` の [\`lib.rs:1974\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs#L1974) の discriminator チェックが \`UninitializedAccount\` で失敗するはずだ。このチェックがないと、コードは \`bytemuck::from_bytes\` でゴミデータに当てて意味のない \`price\` を使う。
 2. **Staleness はセキュリティゲート。** オラクルを設定し、30+ slot 待ち、バンド内の任意の価格で注文を試みよ。\`oracle stale\` で失敗するはずだ。これが最も忘れられがちなチェックで、実戦で最多のオラクル exploit を生んできたチェックでもある。
 3. **バンドの境界は厳密。** \`SANITY_BAND_BPS = 2000\`、\`mark = 100\` で、ちょうど 80 の注文は**受け入れ**られるはずだ（チェックは \`< low\`、\`<= low\` ではない）。ちょうど 79 の注文は拒否されるはずだ。両方を実行して確認せよ。\`<=\` と \`<\` の slip エッジケースは 1 bp、tight なバンドや高価格では差のドル額が無視できなくなる。
 
@@ -1217,7 +1415,9 @@ if price < low || price > high {
                   content: `# 第10章 — ファンディングレートの仕組み
 
 > 状態: ドラフト (v0.1)。
-> 教材コード: \`crates/state/src/lib.rs\`（\`FundingState\`）、\`programs/openhl-core/src/lib.rs\`（\`process_create_funding_state\` 1605–1680 行、\`process_update_funding\` 1682–1758 行）、\`scripts/funding/src/main.rs\`。
+> 教材コード: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs)（\`FundingState\`）、[\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)（\`process_create_funding_state\` 2162–2232 行、\`process_update_funding\` 2239–2317 行）、[\`scripts/funding/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/funding/src/main.rs)。
+>
+> 部品化に伴い、この章で読むロジックは [\`crates/funding/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/funding/src/lib.rs)(\`openhl-funding\`)に移り、プログラムはそれを呼び出す。以下に引用するコードは分割前の \`programs/openhl-core/src/lib.rs\` の版で、行番号は追従していない。
 
 ---
 
@@ -1312,7 +1512,7 @@ load-bearing なフィールドは 3 つ。
 
 ## §10.3  \`UpdateFunding\` を歩く
 
-\`programs/openhl-core/src/lib.rs:1682–1758\` の \`process_update_funding\` が唯一の変更子。検証を除いた本体:
+\`programs/openhl-core/src/lib.rs:2239–2317\` の \`process_update_funding\` が唯一の変更子。検証を除いた本体:
 
 \`\`\`rust
 let new_rate = new_rate_raw
@@ -1486,7 +1686,7 @@ Sealevel スケジューリングへの影響:
 ### 自分で検証する 3 項目
 
 1. **蓄積子は区分線形。** UpdateFunding 呼び出しを既知の秒数間隔で異なるレートで 3 回走らせよ。各呼び出し後の累積指数は \`prior_index + prior_rate × elapsed_seconds\` と正確に一致するはずだ（1e9 スケーリングの整数除算内で）。
-2. **クランプが強制される。** \`--rate 5000000\`（キャップを大きく超える）を試せ。\`lib.rs:1703–1705\` のクランプが \`MAX_FUNDING_RATE_PER_SEC_ABS = 1_000_000\` に縮め、\`clamped to\` ログ行が見えるはずだ。
+2. **クランプが強制される。** \`--rate 5000000\`（キャップを大きく超える）を試せ。[\`lib.rs:2260–2262\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs#L2260) のクランプが \`MAX_FUNDING_RATE_PER_SEC_ABS = 1_000_000\` に縮め、\`clamped to\` ログ行が見えるはずだ。
 3. **slot vs 時間の区別が重要。** \`UpdateFunding --rate 100\` を走らせ、即座に別の \`UpdateFunding --rate 200\`（同じ slot）を走らせよ。2 回目は \`elapsed=0s\` を報告し、指数は進まないはずだ。10 秒待って 3 回目を \`--rate 0\` で走らせる — 今度は \`elapsed≈10\` が見え、指数は \`200 × 10\` だけ進むはずだ。
 
 ---
@@ -1508,7 +1708,9 @@ market、vault、マッチャ、オラクル、ファンディング蓄積子を
                   content: `# 第11章 — ポジション ライフサイクルと清算エンジン
 
 > 状態: ドラフト (v0.1)。
-> 教材コード: \`crates/state/src/lib.rs\`（\`Position\`）、\`programs/openhl-core/src/lib.rs\`（ヘルパ + \`process_open_position\` 1881–1993 行、\`process_close_position\` 1995–2061 行、\`process_liquidate\` 2063–2152 行）、\`scripts/position/src/main.rs\`。
+> 教材コード: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs)（\`Position\`、\`InsuranceFund\`）、[\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)（ヘルパ + \`process_open_position\`、\`process_close_position\`、\`process_liquidate\`、\`process_create_insurance_fund\`、\`process_insurance_fund_deposit\`）、[\`scripts/position/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/position/src/main.rs)、[\`fuzz/positions/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/positions/src/main.rs)（§11.7 の solinv ハーネス）。
+>
+> 部品化に伴い、この章で読むロジックは [\`crates/margin/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/margin/src/lib.rs)(\`openhl-margin\`)に移り、プログラムはそれを呼び出す。以下に引用するコードは分割前の \`programs/openhl-core/src/lib.rs\` の版で、行番号は追従していない。
 
 ---
 
@@ -1520,11 +1722,11 @@ market、vault、マッチャ、オラクル、ファンディング蓄積子を
 
 1. **\`OpenPosition\`** — (user, market) ごとの Position PDA を作成し、entry 価格をオラクルから読み、後の決済のために累積ファンディング指数をスナップショットし、初期証拠金要件を検証し、**担保をエスクロー**する。ユーザの quote トークンアカウントから market vault（第 6 章で組み立てた (market, mint) ごとの vault）へ SPL Token Transfer を CPI する。
 2. **\`ClosePosition\`** — 所有者の退出。第 10 章のスナップショット パターンでファンディングを決済し、実現 PnL = \`size × (mark - entry)\` を計算し、**実現額を vault からユーザに戻す** — vault authority PDA が署名する SPL Token CPI（\`invoke_signed\` を \`[b"vault_auth", market]\` シードで）— その上で position をゼロ化する。
-3. **\`Liquidate\`** — 誰でも他者の水没ポジションに対して行える退出。equity を計算し、維持証拠金と比較し、ポジションが下回っていれば現行マークで強制クローズする。**ハンドラ内で 2 つの SPL Token CPI を走らせる**: vault → 清算者にペナルティ bounty、vault → ポジション所有者に残額。両方とも vault authority PDA が署名する。
+3. **\`Liquidate\`** — 誰でも他者の水没ポジションに対して行える退出。equity を計算し、維持証拠金と比較し、ポジションが下回っていれば現行マークで強制クローズする。**ハンドラ内で 4 つの SPL Token CPI を走らせる**: vault → 清算者（ペナルティの清算者側スライス）、vault → 保険基金（基金側スライス）、vault → ポジション所有者（残額）、そして水没時の fund → vault（不足分の drain）。すべて vault authority PDA が署名する。
 
 担保は本物の perp DEX が置く場所 — プログラムの vault トークンアカウント、SPL Token 所有、\`invoke_signed\` 経由でしか動かせない PDA が制御 — に住む。ポジション レコードは**簿記**（size、entry 価格、snapshot index）を持つ。vault は**お金**を持つ。両者は同期を保つ、すべての状態遷移が簿記と CPI を同じハンドラ内でアトミックに更新するからだ。
 
-本章に残るスコープ正直性ノートは 1 つ: **保険基金**。ポジションが水没でクローズしたとき（\`equity < 0\`）、預けられた担保はすでに vault に座っている — そして本プログラムは現状その残余を損失吸収に任せる。本番では各清算ペナルティの一部を \`InsuranceFund\` アカウントに回し、水没クローズで不足分が発生したら基金から引き出し、基金が空になって初めて LP プールに社会化する。§11.6 で論じるが実装はしない。それ自体が後続章のテーマだ。
+本章は §11.6 の **保険基金** も出荷する: market ごとの \`InsuranceFund\` PDA + 専用トークン アカウント。各清算ペナルティの設定可能な一部（\`INSURANCE_FUND_PENALTY_SHARE_BPS = 5000\`、すなわち半分）を受け取り、水没クローズの不足分をカバーするために drain する。基金のトークン アカウントはポジション vault と authority 共有（\`[b"vault_auth", market]\`）なので、新たな signer PDA は導入されない。\`CreateInsuranceFund\` で market ごとに 1 回ブートストラップし、\`InsuranceFundDeposit\` で誰でも上乗せできる。
 
 ---
 
@@ -1555,7 +1757,7 @@ load-bearing なフィールド 6 つ、加えて discriminator + bump + padding
 
 **\`entry_price: u64\`** は \`OpenPosition\` 時にオラクルから刻印したマーク価格。価格 PnL の参照点: \`(mark - entry) × size\`。部分クローズのための走行 entry 価格は維持しない。本章の \`ClosePosition\` は all-or-nothing。部分クローズには各部分での \`entry_price\` をサイズ加重平均にリセットする必要がある — 有用な拡張だがスコープ外。
 
-**\`collateral: u64\`** は quote 通貨の証拠金額。ポジション オープン中は厳密に正、水没クローズや清算でゼロまで減少しうる。負にはなれない — 担保を超える損失は保険基金（あるいはスコープ繰り延べ版では単に失われる）に社会化される。
+**\`collateral: u64\`** は quote 通貨の証拠金額。ポジション オープン中は厳密に正、水没クローズや清算でゼロまで減少しうる。負にはなれない — 担保を超える損失は market ごとの保険基金が（残高の範囲で）吸収する（§11.6）。基金が空になった後の残りの不足分は取引の相手方が被る — autodeleverage はこの章では実装しない（それ自体がアーキテクチャ問題で、§11.6 が今も延期する唯一の保険基金パートだ）。
 
 **\`funding_snapshot_index: i64\`** は最終タッチ（open、close、liquidate）時の累積ファンディング指数。第 10 章のポジションごとの決済パターンが、これをファンディング会計に必要な唯一のフィールドにする — \`funding_now\` と \`funding_snapshot_index\` の差にサイズを掛けたものが、スナップショット以降に蓄積したファンディング PnL だ。
 
@@ -1567,7 +1769,7 @@ PDA 派生は \`user\` と \`market\` の両方をシードに使う: \`[b"posit
 
 ## §11.2  equity、notional、証拠金式
 
-ハンドラを歩く前に式を固定する。\`programs/openhl-core/src/lib.rs:1814–1834\` から。
+ハンドラを歩く前に式を固定する。\`programs/openhl-core/src/lib.rs:2329–2342\` から。
 
 \`\`\`rust
 fn compute_equity(position: &Position, mark: u64, funding_index_now: i64) -> i128 {
@@ -1614,7 +1816,7 @@ IM（10%）と MM（5%）のギャップが**維持バッファ**だ — 清算�
 
 \`programs/openhl-core/src/lib.rs\` の \`process_open_position\`。ハンドラは 6 部分に分解できる: 検証、オラクル/ファンディング読み、初期証拠金チェック、ポジション PDA 確保、**担保エスクロー CPI**、ポジション状態書き込み。
 
-**検証**: ペイロード サイズ、非ゼロ size と担保、user は signer、market は本書のプログラム所有、system プログラムは System プログラム、**token プログラムは SPL Token、user_token_account は SPL Token 所有、vault_token_account は \`[VAULT_SEED, market, mint]\` の派生 PDA と一致**（escrow 側の新しいチェック）。ポジション PDA 派生:
+**検証**: ペイロード サイズ、非ゼロ size と担保、user は signer、market は本書のプログラムが所有する Market アカウントで、**その \`quote_mint\` が渡された mint と一致**(ポジションは mint を記録せず、ClosePosition と Liquidate は quote mint の vault から払うので、これがないと価値のない mint を担保に入れて本物の quote トークンで清算できてしまう)、system プログラムは System プログラム、**token プログラムは SPL Token、user_token_account は SPL Token 所有、vault_token_account は \`[VAULT_SEED, market, mint]\` の派生 PDA と一致**（escrow 側の新しいチェック）。ポジション PDA 派生:
 
 \`\`\`rust
 let (expected, bump) = Pubkey::find_program_address(
@@ -1626,16 +1828,19 @@ if position_ai.key != &expected {
 }
 \`\`\`
 
-**外部入力を読む**（1922–1923 行）:
+**外部入力を読む**（2911–2912 行）:
 
 \`\`\`rust
+verify_market_oracle_and_funding(oracle_ai, funding_ai, market_ai.key, program_id)?;
 let mark = read_fresh_oracle(oracle_ai, program_id)?;
 let funding_snapshot = read_funding_index(funding_ai, program_id)?;
 \`\`\`
 
-\`read_fresh_oracle\`（1838–1858 行）は第 9 章の staleness ガントレットをヘルパに分離した — 同じチェック（owner + discriminator + price>0 + Clock に対する age）、3 つのポジション ハンドラで再利用。\`read_funding_index\`（1860–1869 行）はファンディング指数をスナップショットする簡単な読み。
+\`read_fresh_oracle\`（2353–2372 行）は第 9 章の staleness ガントレットをヘルパに分離した — 同じチェック（owner + discriminator + price>0 + Clock に対する age）、3 つのポジション ハンドラで再利用。\`read_funding_index\`（2597–2607 行）はファンディング指数をスナップショットする簡単な読み。
 
-**初期証拠金チェック**（1932–1942 行）:
+どちらのヘルパも、渡されたオラクルやファンディング状態が**誰の**ものかを問わない。どの市場のオラクルもこのプログラムが所有し、同じ discriminator を持つからだ。そこで 3 つのポジション ハンドラはどれも、まず \`verify_market_oracle_and_funding\` を呼ぶ。2 つのアカウントがこの市場の PDA、つまり \`[ORACLE_SEED, market]\` と \`[FUNDING_SEED, market]\` であることを求める。\`PlaceOrderChecked\` がオラクルについてすでに使っていた導き方と同じだ(第 9 章)。この章の最初の版は、3 つのハンドラすべてでこれを書き忘れていた。同じ quote の mint に市場が 2 つあり、一方が 100、もう一方が 200 のとき、利用者は 1 つ目でロングを開き、2 つ目の市場のオラクルを指定して閉じた。200 を入れて、1 つ目の市場のトークン口座(全員の担保が入っている)から 1,200 を持ち出した。清算者も同じやり方で健全なショートを清算できた。第 9 章の publisher の検査(演習 §9.2)は役に立たない。どちらの価格も正直で、ただ市場が違うだけだからだ。fuzzer がこれをどう見つけたかは §11.7 で示す。(第 9 章の Pyth を使う 2 つの注文の命令は \`[ORACLE_SEED, market]\` を使えない。Pyth のアカウントはこのプログラムの PDA ではないからだ。代わりに、市場が \`SetPythFeeds\` で固定したフィードを確かめる。§9.5。)
+
+**初期証拠金チェック**（2915–2926 行）:
 
 \`\`\`rust
 let notional_val = notional(size, mark);
@@ -1686,9 +1891,9 @@ position.funding_snapshot_index = funding_snapshot;
 
 ## §11.4  \`ClosePosition\` を歩く
 
-\`process_close_position\`。オープンより単純な部分（PDA 作成なし）と複雑な部分が両方ある: vault authority PDA が \`invoke_signed\` で署名する outbound SPL Token CPI が加わる。
+\`process_close_position\`。オープンより単純な部分（PDA 作成なし）と複雑な部分が両方ある: vault authority PDA が \`invoke_signed\` で署名する outbound SPL Token CPI が 2 つ — ユーザへのペイアウトと（水没クローズ時の）保険基金からの不足分 drain — 加わる。ハンドラは 12 アカウントを取り、最後の 2 つは保険基金の state とトークン アカウント（§11.6）。
 
-**検証 + 所有者チェック**（2007–2024 行）:
+**検証 + 所有者チェック**（3052–3062 行）:
 
 \`\`\`rust
 if position.user != *user_ai.key.as_ref() {
@@ -1699,7 +1904,7 @@ if position.user != *user_ai.key.as_ref() {
 
 ポジションの所有者だけが自発的にクローズできる。Liquidate（§11.5）が他の誰でも通れる経路。user チェックは PDA 派生ではなくポジション内に保存した \`user\` フィールドを使う — 同じ情報、読みやすい。
 
-**外部入力を読み equity を計算**（2026–2040 行）:
+**外部入力を読み equity を計算**（3040–3072 行）:
 
 \`\`\`rust
 let mark = read_fresh_oracle(oracle_ai, program_id)?;
@@ -1746,7 +1951,7 @@ spl_token_transfer_vault_signed(
 
 vault authority は \`[VAULT_AUTH_SEED, market]\` の PDA なので、プログラムが署名する: \`invoke_signed\` を \`[VAULT_AUTH_SEED, market_key, &[bump]]\` で。vault トークン アカウントが \`payout\` 単位を失い、ユーザのトークン アカウントが受け取る。\`payout == 0\`（水没クローズ）ならヘルパは CPI をスキップ — ゼロ転送に CU を燃やす意味がない。
 
-**水没クローズは担保を失うが、損失を相手方に渡さない。** equity = -50（損失が担保を超える）でクローズするポジションは \`payout = 0\` をユーザに送る。しかし元々預けた 100 単位はまだ vault に座っており、もはやポジション レコードと結びついていない。その残余が、取引の相手方への暗黙のサブシディだ。本番では InsuranceFund がこれらの残余 + 各清算ペナルティの一部から不足分を適切にカバーする。§11.6 を見よ。
+**水没クローズは保険基金を drain する。** equity = -50 でクローズするポジションは \`payout = 0\` をユーザに送り、加えてハンドラは \`min(50, fund.balance)\` を保険基金のトークン アカウントから vault へ drain する。drain は「残余が暗黙のうちに相手方にサブシディする代わりに、プロトコルが不足分をカバーした」の簿記側だ — 基金が枯渇したときの cap 動作も含めた完全な設計は §11.6 を見よ。
 
 > **演習 §11.4.** entry = 100、サイズ = 5、担保 = 100 でポジションをオープンする。オラクルをマーク = 80 に動かす。クローズ。期待される equity は \`100 + 5 × (80 - 100) = 0\`。クローズ後のユーザの quote トークン残高は、オープン前と変わらないことを確認せよ（payout = 0 — 預けた 100 は vault に入ってそこに留まる）。
 
@@ -1754,7 +1959,7 @@ vault authority は \`[VAULT_AUTH_SEED, market]\` の PDA なので、プログ�
 
 ## §11.5  \`Liquidate\` を歩く
 
-\`process_liquidate\`。クローズとの重要な違い: **誰でも呼べる**。ハンドラは**2 つの**outbound SPL Token CPI を走らせる — vault → 清算者にペナルティ bounty、vault → ポジション所有者に残額 — 両方とも vault authority PDA が署名する。
+\`process_liquidate\`。クローズとの重要な違い: **誰でも呼べる**。ハンドラは**4 つの** outbound SPL Token CPI を走らせる — vault → 清算者（ペナルティの清算者側スライス）、vault → 保険基金（基金側スライス）、vault → ポジション所有者（残額）、そして equity < 0 のときの fund → vault（不足分の drain） — すべて同じ vault authority PDA が署名する。ハンドラは 13 アカウントを取り、最後の 2 つは保険基金の state とトークン アカウント（§11.6）。
 
 **検証**: **清算者**は signer でなければならないが、プログラムは清算者がポジションの user と一致するかをチェック**しない**。誰でも誰のポジションに対しても liquidate を呼べる。escrow 側の追加チェック: token_program は SPL Token、\`owner_token\` と \`liquidator_token\` は両方とも SPL Token 所有、vault_token は派生 PDA と一致、vault_authority は派生 PDA と一致（bump は下の 2 つの invoke_signed 呼び出しのために捕捉）。
 
@@ -1766,7 +1971,7 @@ if !liquidator_ai.is_signer { return Err(...); }
 
 この無許可性が清算エンジンの中心。システムは小さな bounty（清算ペナルティ）を、最初に水没ポジションに気づいて清算 tx を提出した誰かに支払う。これなしには、清算はプロトコル チームが集中清算 bot を走らせることに依存する — 動くがアップタイム リスクが入る。
 
-**ヘルス チェック**（2098–2111 行）:
+**ヘルス チェック**（3233–3253 行）:
 
 \`\`\`rust
 let equity = compute_equity(position, mark, funding_now);
@@ -1784,7 +1989,7 @@ if equity >= maint_required {
 
 \`equity >= maintenance_margin\` ならポジションは健全で呼び出しは拒否される。清算者は無意味に tx 手数料を払った — 健全ポジションに対する liquidate のスパム呼び出しを小さく抑制する。（本番プロトコルは時にこういうとき tx 手数料を返金するか、清算者が提出前にオフチェーン ヘルス チェックをやることを期待する。）
 
-**ペナルティ適用 + 強制クローズ + 2 つの CPI**:
+**ペナルティ適用（清算者と基金で分割）+ 強制クローズ + 4 つの CPI**:
 
 \`\`\`rust
 // 借用スコープ内（ポジション データ参照が CPI 前にドロップするように）:
@@ -1794,22 +1999,31 @@ let equity_positive = if equity < 0 { 0 } else { equity };
 let penalty = raw_penalty.min(equity_positive);           // 利用可能 equity で上限
 let owner_remainder = (equity_positive - penalty).max(0);
 
-penalty_amount = penalty as u64;
-owner_amount = owner_remainder as u64;
+// INSURANCE_FUND_PENALTY_SHARE_BPS でペナルティを分割（= 5000 → 50/50）。
+let fund_slice = penalty * INSURANCE_FUND_PENALTY_SHARE_BPS / 10_000;
+let liquidator_slice = penalty - fund_slice;
 
 position.collateral = 0;
 position.size = 0;
 position.entry_price = 0;
 position.funding_snapshot_index = funding_now;
+// ─── 借用終了 ───
 
-// ─── 借用スコープ外 ───
-// CPI 1: vault → 清算者
-spl_token_transfer_vault_signed(vault_token_ai, liquidator_token_ai, ..., penalty_amount)?;
-// CPI 2: vault → ポジション所有者
-spl_token_transfer_vault_signed(vault_token_ai, owner_token_ai, ..., owner_amount)?;
+// 基金 state の更新（独自の借用スコープ）:
+//   fund.balance         += fund_slice;
+//   fund.total_deposits  += fund_slice;
+//   shortfall_drain      = if equity < 0 { min(-equity, fund.balance) } else { 0 };
+//   fund.balance         -= shortfall_drain;
+//   fund.total_drawdowns += shortfall_drain;
+
+// その後 4 つの Token Transfer、すべて vault_authority シードで invoke_signed:
+spl_token_transfer_vault_signed(vault_token_ai, liquidator_token_ai, ..., liquidator_slice)?;
+spl_token_transfer_vault_signed(vault_token_ai, fund_token_ai,       ..., fund_slice)?;
+spl_token_transfer_vault_signed(vault_token_ai, owner_token_ai,      ..., owner_remainder)?;
+spl_token_transfer_vault_signed(fund_token_ai,  vault_token_ai,      ..., shortfall_drain)?;
 \`\`\`
 
-ペナルティは生き残った equity で上限を取る（残 equity が 10 単位のポジションから 50 単位の bounty を払うことはできない）。2 つの CPI は順次、両方とも同じ vault-authority シードで \`invoke_signed\`。両方が成功してポジションが完全に巻き戻るか、トランザクション全体が revert する — アトミシティが帳簿を整合させる。
+ペナルティは生き残った equity で上限を取る（残 equity が 10 単位のポジションから 50 単位の bounty を払うことはできない）。4 つの CPI は順次、すべて同じ vault-authority シードで \`invoke_signed\`。すべてが成功してポジションと基金 state が完全に巻き戻るか、トランザクション全体が revert する。不足分の drain は equity < 0 のパスでのみ非ゼロで発火する。健全な清算ではゼロ額 Transfer をヘルパが短絡する。
 
 ペナルティは 2 つの目的を持つ。
 
@@ -1826,25 +2040,90 @@ Liquidate ハンドラはポジションが**なぜ**水没したかを検証**�
 
 ---
 
-## §11.6  欠けたピース — 保険基金
+## §11.6  保険基金 — ペナルティ分割と不足分 drain
 
-本章が今もなお実装しないこと 1 つ、本番での役割を明示しておく。
+素のエスクロー パスには 1 つの正直性問題が残る: ポジションが水没（\`equity < 0\`）でクローズすると、ユーザの預けた担保はすでに vault にあり、ユーザは 0 を受け取り、残余が暗黙のうちに相手方にサブシディする。「プロトコルがこの損失を吸収した」の会計はどこにもなく、vault がいつもより静かなだけだ。保険基金がこの簿記を直すピースだ。
 
-**保険基金。** market ごとの別 \`InsuranceFund\` アカウントが、水没クローズの不足分をカバーする quote 通貨プールを持つ。パターン:
+### State
 
-\`\`\`text
-ClosePosition / Liquidate が equity < 0 を計算したとき:
-    shortfall = -equity
-    if insurance_fund.balance >= shortfall:
-        insurance_fund.balance -= shortfall
-        # 相手方は補填され、人生は続く
-    else:
-        # 自動レバ削減か社会化損失 — より大きなアーキテクチャ問題
+market ごとに 2 つの PDA:
+
+\`\`\`rust
+// crates/state/src/lib.rs
+pub struct InsuranceFund {
+    pub discriminator: [u8; 8],   // INSFUND\\0
+    pub bump: u8,
+    pub _pad0: [u8; 7],
+    pub market: [u8; 32],
+    pub mint: [u8; 32],           // quote_mint（market.quote_mint と一致）
+    pub balance: u64,             // トークン アカウント残高をミラー
+    pub total_deposits: u64,      // 観測性
+    pub total_drawdowns: u64,     // 観測性
+    pub _reserved: [u8; 32],
+}
 \`\`\`
 
-保険基金は清算ペナルティの一部（例: 50% 清算者、50% 保険基金）、取引手数料、ときに立ち上げ時の取引所エクイティで資金供給される。保険基金なしには、担保不足のすべての損失ポジションが、相手方 — 通常 LP プールか板の残り — に隠れた損失を課す。
+\`\`\`text
+fund state PDA  : [b"insurance_fund",       market]       — プログラム所有
+fund token PDA  : [b"insurance_fund_token", market, mint] — SPL Token 所有、
+                                                            authority = vault_authority
+                                                            （Liquidate がすでに
+                                                             署名している PDA と同じ）
+\`\`\`
 
-本書の現行のエスクロー版ハンドラでは、水没クローズの残余は vault に留まる — 物理的には、ユーザの当初預け入れがまだそこにあるが、アクティブなポジションには結びついていない。その残余が暗黙のうちに相手方にサブシディしている。保険基金はこの残余を適切に経路化する: 引き出し時に各清算ペナルティの一部を基金に回し、水没クローズで vault に残余が出るたびに基金から引き出す。会計はそれ自体が小さな章だ（本トラックに加えるなら 15 章目）— 数学は単純、配線は \`Liquidate\` と \`ClosePosition\` を触り、新規 \`InsuranceFund\` PDA が唯一の state 追加だ。
+\`vault_authority\` を再利用する判断が実装を小さく保つ。ポジション vault と基金 vault は別のトークン アカウントだが、1 つの signer PDA を共有する — \`Liquidate\` は新たな authority surface を導入せずに \`vault → fund\` や \`fund → vault\` Transfer に署名する方法をすでに知っている。オンチェーン \`balance\` カウンタは SPL Token アカウントの lamport 側残高と冗長だが、スクリプトと indexer に SPL Token バイトをパースせず安価に走行合計へアクセスさせ、章の「自分で検証」テストがそれに直接 assert することを許す。
+
+### ペナルティ分割
+
+\`Liquidate\` はペナルティを清算者と基金で分割するようになった:
+
+\`\`\`rust
+let fund_slice = penalty * INSURANCE_FUND_PENALTY_SHARE_BPS / 10_000;  // = penalty / 2
+let liquidator_slice = penalty - fund_slice;
+\`\`\`
+
+\`INSURANCE_FUND_PENALTY_SHARE_BPS = 5000\` で、ペナルティの半分が基金への入金として、残りが清算者の bounty として行く。Liquidate ごとに Token Transfer が 2 つから 3 つに増える — vault → 清算者（清算者スライス）、vault → 基金（基金スライス）、vault → 所有者（残額）。
+
+健全な清算（equity > 0、マージン だけ水没のポジション）では、清算者は CU と tx 手数料コストに見合う額を依然受け取る。\`LIQUIDATION_PENALTY_BPS = 100\` と 50/50 分割で、清算者の実効 bounty は notional の 1% から 0.5% に下がる。本章の値ではこれで構わない。本番チューニングは典型的ポジション サイズ、清算者インフラ コスト、プロトコルが基金をどれだけ積極的に成長させたいかの関数だ。
+
+### 不足分 drain
+
+\`ClosePosition\` と \`Liquidate\` の両方が、ハンドラ末尾で同じ drain ロジックを走らせる:
+
+\`\`\`rust
+let shortfall_drain = if equity < 0 {
+    let shortfall = (-equity).min(u64::MAX as i128) as u64;
+    shortfall.min(fund.balance)        // 基金残高以上の drain はしない
+} else {
+    0
+};
+fund.balance -= shortfall_drain;
+fund.total_drawdowns += shortfall_drain;
+// ... その後: SPL Token Transfer fund_token → vault_token (shortfall_drain)
+\`\`\`
+
+Transfer は vault へ行き、ユーザには行かない。ユーザは依然として \`payout = if equity < 0 { 0 } else { equity }\` を受け取る。drain はプロトコルの簿記用だ — vault が黙って吸収するはずの損失を基金がカバーしたことを表す。Transfer は \`vault_authority\` が署名するので、同じ \`invoke_signed\` 呼び出しパスが両方に再利用される。
+
+\`fund.balance < shortfall\` のとき drain は \`fund.balance\` で頭打ちになる。カバーされなかった残りは**社会化損失**だ: 残余として vault に留まり、暗黙のうちに取引の相手方に落ちる。本番取引所はこれを **autodeleverage**（最も収益性の高い相手方ポジションを損失が完全に吸収されるまで強制クローズする）か **明示的社会化**（同方向のすべてのオープン ポジションを mark down する）で解く。本章は「残余として留まることを許し、cap を文書化する」というシンプルなパスを出荷する — autodeleverage はそれ自体がアーキテクチャ問題だ。
+
+### CreateInsuranceFund + InsuranceFundDeposit
+
+\`CreateInsuranceFund\` は 1 回限りのブートストラップ、market ごとに 1 回走らせる。第 6 章の \`CreateVault\` をミラーする — state アカウントとトークン アカウント両方に PDA 署名付き System \`create_account\`、加えて fund-token の所有者を \`vault_authority\` に設定する \`InitializeAccount3\` CPI。
+
+\`InsuranceFundDeposit\` は permissionless。quote トークンを持つ誰もが基金に credit できる — 最も一般的にはプロトコル チームの初期 seed だが、実際には寄付や管理者のトップアップも有効な用途だ。ハンドラは標準の「借用スコープ内でカウンタ更新、借用解放、末尾で Transfer」パターンで走り、\`total_deposits\` が \`balance\` と並んで進む。
+
+### ClosePosition / Liquidate への 2 アカウント追加
+
+両ハンドラのアカウント リストの末尾に 2 つ加わった:
+
+\`\`\`
+N-2.  [WRITE]  insurance_fund        — InsuranceFund state PDA
+N-1.  [WRITE]  insurance_fund_token  — 基金の SPL トークン アカウント
+\`\`\`
+
+\`ClosePosition\` は今や 12 アカウント、\`Liquidate\` は 13 アカウント。fund-state の書き込み可は カウンタ更新用、fund-token の書き込み可はペナルティ credit Transfer と（水没クローズ時の）不足分 drain 用。
+
+> **演習 §11.6.** ポジションをオープンし、equity が \`maint\` を割るまでオラクルを逆方向に押す、ただし equity が負になる**前**に止める。Liquidate。ダンプで観察: 基金の \`total_deposits\` が \`fund_slice\` ぶん増えるはずだ。次に、同じ market で fresh なポジションをオープンし、オラクルをさらに押して equity をゼロ未満にする。再び Liquidate — \`total_drawdowns\` が \`min(-equity, fund.balance)\` ぶん増えるはずだ。基金が不足分を吸収できなくなるのはいつで、そのとき何を出荷するか?
 
 ---
 
@@ -1894,6 +2173,54 @@ ClosePosition / Liquidate が equity < 0 を計算したとき:
 2. **ファンディング蓄積で答えが反転しうる。** 担保ちょうど MM でポジションをオープン。オラクルに触れない。\`funding --update --rate 100\` で逆方向にファンディングを蓄積させ、1 分待ち、\`funding --update --rate 100\`。ダンプでポジションの計算済み equity をチェック — 価格は動いていなくてもファンディング PnL が equity を MM 以下に引きずる。\`Liquidate\` が成功する。
 3. **クローズは担保を返すが、清算は返さない。** IM でオープン、即座にクローズ（価格動かず、ファンディングなし）。\`position.collateral\` ≈ オリジナル。再び IM でオープン、MM まで落ちて別の鍵ペアに清算される。清算後の \`position.collateral\` = equity − ペナルティ ≈ かなり少ない。ペナルティが「綺麗に退出する」vs「清算される」の差。
 
+
+### 書き忘れた検査を道具に探させる
+
+[\`fuzz/positions/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/positions) は、3 つのポジション ハンドラのための [solinv](https://github.com/psyto/solinv) のハーネスである。2 つの市場が quote の mint Q を共有し、それぞれにオラクル、ファンディング状態、トークン口座、保険基金がある。\`m\` は 100、\`n\` は 200。\`m\` では A がロング、B がショートを持ち、どちらも健全だ。E は 110 で開いたロングを持ち、100 では維持証拠金を下回るが、まだ残りを受け取る権利がある。C はまだポジションを持たない。\`n\` では D がロングを持つので、\`n\` のトークン口座にはトークンがある。仕様は C のポジションを開き、A のを閉じ、B と E のを清算し、\`n\` のオラクルとファンディング状態、別の利用者のポジション、\`n\` のトークン口座と保険基金、呼び出し側が持たないトークン口座を差し替える。2 つの組は \`n\` のアカウントを全部一緒に差し替える。第 3 章 §3.7 のとおり準備してから:
+
+\`\`\`bash
+cargo build-sbf --manifest-path programs/openhl-core/Cargo.toml
+cd fuzz/positions
+cargo build --release --features invariant_ch11
+cargo test --release --features invariant_ch11
+timeout -s INT 60 crucible run openhl_positions_fuzz invariant_ch11 \\
+    --binary-in target/release/invariant_test --timeout 45
+\`\`\`
+
+今のプログラムでは \`[FUZZ_FINDING]\` の行は出ない。\`verify_market_oracle_and_funding\` を入れる前のプログラムでは、最初の実行で数秒のうちにこう報告された:
+
+\`\`\`
+[FUZZ_FINDING] [account-swap:…] ix open_position succeeded with account 3 swapped … (different context, same shape)
+\`\`\`
+
+slot 3 はオラクルだ。Crucible は最初の検出で 1 回の実行を止めるので、Close と Liquidate には順番が回ってこなかった。その 2 つはテスト \`close_refuses_another_markets_oracle\` と \`liquidate_refuses_another_markets_oracle\` で押さえてある。
+
+> **演習 §11.7.** 検査を 1 つずつ消し、作り直して走らせよ。先に予想すること。私たちが各 45 秒で測った結果を示す。「いいえ」の行の最後の列は、差し替えた呼び出しを代わりに拒否したもので、ログから読んだ(\`probe\` テストが出力する):
+>
+> | 消した検査 | 捕まったか | どう捕まったか、または代わりに拒否したもの |
+> |---|---|---|
+> | Open: \`user_ai.is_signer\` | いいえ | ランタイム: 権限のない署名者(担保の転送に利用者の署名が要る) |
+> | Open: \`market_ai.owner == program_id\` | いいえ | 次の自前の検査: \`market is not a Market account\` |
+> | Open: \`verify_vault_token_account\` | **はい**、account-swap、slot 7 | 担保が \`n\` の口座に預けられ、\`m\` に記録された |
+> | Open: ポジションの PDA | いいえ | ランタイム: 権限のない署名者(別のアドレスへの \`create_account\` にはそのアドレスの署名が要る) |
+> | Open: \`verify_market_oracle_and_funding\` | **はい**、account-swap、slot 3 | 建値が \`n\` のオラクルから来た |
+> | Open: 初期証拠金の検査 | いいえ | ハーネスのどこにも証拠金の規則がない。\`open_below_initial_margin_is_refused\` が落ちる |
+> | Close: \`user_ai.is_signer\` | **はい**、signer-skip | 誰でも A のポジションを閉じられた |
+> | Close: \`position.user == user\` | **はい**、account-swap、slot 1 | A が B のポジションを閉じた |
+> | Close: \`position.market == market\` | **はい**(組で) | \`m\` のポジションが \`n\` のアカウント一式に対して閉じられた |
+> | Close: \`verify_vault_token_account\` | いいえ | SPL Token: \`owner does not match\`(\`m\` の authority は \`n\` の口座に署名できない) |
+> | Close: \`verify_market_oracle_and_funding\` | **はい**、account-swap、slot 2 | \`n\` の価格で閉じた。\`close_refuses_another_markets_oracle\` が落ちる |
+> | Close: \`fund.market == market\` | **はい**、account-swap、slot 10 | \`m\` のポジションに \`n\` の保険基金が受け入れられた(A の決済は利益だったので基金からは引き出されていない。検出は受け入れたこと) |
+> | Liquidate: \`liquidator_ai.is_signer\` | **はい**、signer-skip | — ただし下を見よ |
+> | Liquidate: \`position.market == market\` | **はい**(組で) | Close と同じ |
+> | Liquidate: 所有者のトークン口座 | **はい**、account-swap、slot 6 | E の残りが清算者に払われた |
+> | Liquidate: \`is_liquidatable\` | いいえ | ハーネスのどこにも、清算してよい条件がない。\`healthy_position_is_not_liquidatable\` が落ちる |
+> | Liquidate: \`verify_market_oracle_and_funding\` | **はい**、account-swap、slot 2 | B の健全なショートが \`n\` の価格で清算された。\`liquidate_refuses_another_markets_oracle\` が落ちる |
+>
+> 3 つの行は見直す価値がある。清算者の署名の行は、穴ではない検出だ。清算は誰でもでき(§11.5)、ペナルティは呼び出し側が指定したトークン口座に入り、誰が署名したかに頼るものはほかにない。だからこの検査を外しても、もともと許されていなかった人は誰も入ってこない。証拠金の 2 行は、fuzzer には見えない穴だ。担保の足りないポジションを開くことも、健全なポジションを清算することも、アカウントはすべて正しい呼び出しである。それを捕まえるのは、規則を書いたテストだけだ。アカウントを差し替える fuzzer が見つけるのは**結びつけ**の抜けで、数についての規則は誰かが書き下す必要がある(第 13 章 §13.6 が手数料についてそれをする)。
+>
+> ハーネスを書く途中の罠が 2 つあり、どちらも行を間違った理由で「いいえ」にした。最初の清算の対象は B で、\`m\` の価格では健全だったので、B の清算の差し替えはどれも、確かめたいアカウントにたどり着く前に健全性の検査で落ちた。100 で清算できる E でそれは直ったが、今度は E のペナルティ後の残りが 0 で、それを清算者に回しても何も動かなかった。今の E の担保は 130 だ。もう 1 つ、所有者の口座についての最初の変異は、\`||\` でつながった条件の頭に \`false &&\` を付けたので、優先順位のせいで検査の残りがそのまま残った。どの場合も、実際にどの検査が呼び出しを拒否したかは、probe のログの行が示していた。
+
 ---
 
 ## 第 12 章への導線
@@ -1913,7 +2240,9 @@ ClosePosition / Liquidate が equity < 0 を計算したとき:
                   content: `# 第12章 — ネイティブ Vault プログラム（プール取引）
 
 > 状態: ドラフト (v0.1)。
-> 教材コード: \`crates/state/src/lib.rs\`（\`TradingVault\`、\`VaultShare\`）、\`programs/openhl-core/src/lib.rs\`（\`process_create_trading_vault\` 2195–2280 行、\`process_vault_deposit\` 2282–2413 行、\`process_vault_withdraw\` 2415–2500 行、\`process_vault_update_nav\` 2502–2544 行）、\`scripts/vault/src/main.rs\`。
+> 教材コード: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs)（\`TradingVault\`、\`VaultShare\`）、[\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)（\`process_create_trading_vault\` 3444–3563 行、\`process_vault_deposit\` 3578–3737 行、\`process_vault_withdraw\` 3751–3902 行、\`process_vault_update_nav\` 3909–3949 行）、[\`scripts/vault/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/vault/src/main.rs)、[\`fuzz/vault/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/vault/src/main.rs)（§12.7 の solinv ハーネス）。
+>
+> 部品化に伴い、この章で読むロジックは [\`crates/vault/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/vault/src/lib.rs)(\`openhl-vault\`)に移り、プログラムはそれを呼び出す。以下に引用するコードは分割前の \`programs/openhl-core/src/lib.rs\` の版で、行番号は追従していない。
 
 ---
 
@@ -1928,7 +2257,7 @@ ClosePosition / Liquidate が equity < 0 を計算したとき:
 
 trading vault は perp DEX を、ユーザが直接取引する venue から、**基金**もホストする venue に変える概念的プリミティブだ。ポジションを自分で管理したくないユーザは vault に預金できる。vault のマネージャが戦略を走らせる。預金者はリターンを共有する。これは Solana 上のすべての yield vault の構造 — Drift の spot vault、Kamino の leveraged vault、Jupiter の perps vault、その他もろもろ。
 
-本章は vault の会計半分を組み立てる — shares、deposits、withdrawals、NAV 更新。マネージャの取引半分は組み立てない（第 11 章の \`OpenPosition\` を vault の PDA をポジション所有者として呼ぶ薄いラッパ命令になる）。share 会計が整えば追加は機械的だ。本章は設計を説明し、実装を宿題ピースとして残す。
+本章は vault の会計半分を組み立てる — shares、deposits、withdrawals、NAV 更新。トークンは実際に動く。deposit は預金者の口座から、trading vault 専用のトークン口座へ移す。この口座は \`[TRADING_VAULT_TOKEN_SEED, vault]\` の PDA で、\`CreateTradingVault\` が vault と一緒に作る。withdraw は trading vault の PDA 自身が \`invoke_signed\` で署名して戻す。(この章の最初の版は、第 6 章が作り第 11 章がポジションの証拠金に使う (market, mint) ごとの口座を、市場の全 vault で共有していた。その代償は §12.5 で示す。)マネージャの取引半分は組み立てない（第 11 章の \`OpenPosition\` を vault の PDA をポジション所有者として呼び、vault の口座から市場の口座へ証拠金を移す薄いラッパ命令になる）。share 会計が整えば追加は機械的だ。本章は設計を説明し、実装を宿題ピースとして残す。
 
 本章が実際に扱うこと:
 
@@ -2001,7 +2330,7 @@ their_value = their_shares × total_assets / total_shares
 
 deposit は**すべての既存預金者**についてこの不変条件を保たねばならない: deposit 前の価値 = deposit 後の価値。withdrawal も同じ: 残りの預金者の価値は不変。NAV 更新は全員の価値を同じ比率で変える。
 
-**Deposit。** \`programs/openhl-core/src/lib.rs:2327–2335\` の \`process_vault_deposit\` から:
+**Deposit。** \`programs/openhl-core/src/lib.rs:3564–3572\` の \`process_vault_deposit\` から:
 
 \`\`\`rust
 let shares_to_mint: u64 = if vault.total_shares == 0 || vault.total_assets == 0 {
@@ -2038,7 +2367,7 @@ new_NAV_per_share = new_total_assets / new_total_shares
 
 share あたり NAV は不変。不変条件は保たれる。
 
-**Withdrawal。** \`lib.rs:2452–2459\` の \`process_vault_withdraw\` から:
+**Withdrawal。** \`lib.rs:3729–3736\` の \`process_vault_withdraw\` から:
 
 \`\`\`rust
 let assets_to_return: u64 = {
@@ -2071,7 +2400,7 @@ new_NAV_per_share = (total_assets - shares_burned × total_assets / total_shares
 
 withdrawal も不変条件を保つ。
 
-**NAV 更新。** \`lib.rs:2535–2536\` の \`process_vault_update_nav\` から:
+**NAV 更新。** \`lib.rs:3830–3831\` の \`process_vault_update_nav\` から:
 
 \`\`\`rust
 let prev = vault.total_assets;
@@ -2094,11 +2423,11 @@ vault.total_assets = new_total_assets;
 
 \`process_vault_deposit\` は 4 つのハンドラの中で最も複雑だ、最初の deposit で VaultShare PDA を条件付きで作成し、*かつ*末尾で SPL Token Transfer CPI を走らせるからだ。5 フェーズで分解:
 
-**検証**: ペイロード サイズ、非ゼロ deposit、預金者は signer、vault は正しい所有者 + サイズ、system プログラムは正しい、**token プログラムは SPL Token、預金者のトークン アカウントは SPL Token 所有、vault_token_account は \`[VAULT_SEED, market, mint]\` で派生される PDA と一致する**。渡される mint と market アカウントは vault に保存されたものと一致しなければならない — 下の借用スコープ内で \`vault.mint != mint_ai.key\` / \`vault.market != market_ai.key\` チェックが捕捉する。share PDA 派生は以前と変わらず。
+**検証**: ペイロード サイズ、非ゼロ deposit、預金者は signer、vault は正しい所有者 + サイズ、system プログラムは正しい、**token プログラムは SPL Token、預金者のトークン アカウントは SPL Token 所有、vault_token はこの vault 自身の口座、つまり \`[TRADING_VAULT_TOKEN_SEED, vault]\` の PDA である**。渡される mint と market アカウントは vault に保存されたものと一致しなければならない — 下の借用スコープ内で \`vault.mint != mint_ai.key\` / \`vault.market != market_ai.key\` チェックが捕捉する。share PDA 派生は以前と変わらず。
 
 **vault 状態を読み mint する shares を計算**: vault データを借用、渡された market/mint を vault.market/vault.mint と相互チェック、最初の deposit（1:1）vs 以降（pro-rata）で分岐。
 
-**vault 集約を更新**（2344–2353 行）:
+**vault 集約を更新**（3580–3587 行）:
 
 \`\`\`rust
 vault.total_shares = vault.total_shares.checked_add(shares_to_mint)?;
@@ -2108,7 +2437,7 @@ drop(vault_data);
 
 \`checked_add\`（\`saturating_add\` ではない）: 加算がオーバーフローしうるなら、静かにキャップする代わりに deposit を拒否する。\`u64::MAX\` shares を超えて deposit を受け入れる vault は別の問題を抱えている。明示的な \`drop(vault_data)\` が share アカウントに触れる前に可変借用を解放する — share 作成が vault アカウント チェックパスを CPI で逆戻りしうるので必要だ。
 
-**share アカウントの条件付き create-or-update**（2355–2403 行）:
+**share アカウントの条件付き create-or-update**（3591–3636 行）:
 
 \`\`\`rust
 let share_exists = share_ai.owner == program_id && share_ai.data_len() == VaultShare::LEN;
@@ -2140,7 +2469,7 @@ spl_token_transfer_user_signed(
 )?;
 \`\`\`
 
-第 11 章と同じヘルパ。預金者が外側トランザクションに署名する。署名は標準の signer 特権延長パターン（第 6 章 §6.2）で SPL Token に流れる。\`assets\` 単位が \`depositor_token\` から \`vault_token\`（(market, mint) ごとの vault PDA — 第 11 章のポジション担保を保持する同じ vault アカウント）へ移る。
+第 11 章と同じヘルパ。預金者が外側トランザクションに署名する。署名は標準の signer 特権延長パターン（第 6 章 §6.2）で SPL Token に流れる。\`assets\` 単位が \`depositor_token\` から \`vault_token\`、つまりこの vault 専用のトークン口座へ移る。中には他の vault の預け入れもポジションの証拠金も入っていない。
 
 **順序が肝心。** CPI は share + 集約更新の*後*に置かれる。転送が失敗（\`InsufficientFunds\`、アカウント凍結等）すれば、Solana はトランザクション全体をリバートする — share 作成、share フィールド更新、vault 集約インクリメントを含めて。だから失敗したエスクローは預金者に mint された share を残さず、vault 状態変更も残さない。原子性保証が、明示的なロールバックコードなしで自然なエラー処理を正しくする。
 
@@ -2150,7 +2479,7 @@ spl_token_transfer_user_signed(
 
 ## §12.4  \`VaultWithdraw\` を歩く
 
-deposit より単純、作成するものがないから — ただし vault からトークンを払い出す、つまり vault-authority PDA で署名される \`invoke_signed\` CPI が発生する。\`process_vault_withdraw\`:
+deposit より単純、作成するものがないから — ただし vault からトークンを払い出す、つまり trading vault の PDA で署名される \`invoke_signed\` CPI が発生する。\`process_vault_withdraw\`:
 
 **返す assets を計算** — §12.2 で扱った deposit 式の逆。
 
@@ -2164,6 +2493,17 @@ if share.owner != *owner_ai.key.as_ref() {
 \`\`\`
 
 share の記録された所有者だけが burn できる。これは share **単位**の認可で、vault 全体ではない — UpdateNAV のマネージャ チェックと異なる。この設計には「vault 管理者が任意の share を強制清算できる」経路はない（本物の本番 vault はコンプライアンス上の理由で追加するかもしれない）。
+
+**share をこの vault に結びつける**（所有者チェックの直前）:
+
+\`\`\`rust
+if share.vault != *vault_ai.key.as_ref() {
+    msg!("vault_withdraw: share belongs to another vault");
+    return Err(ProgramError::InvalidAccountData);
+}
+\`\`\`
+
+deposit にはこの行は要らない。share の PDA を \`[VAULT_SHARE_SEED, vault, depositor]\` から導き直すので、別の vault の share は seed の照合で落ちる。withdraw は導き直さない。この章の最初の版はこの比較を書き忘れていた。害がなさそうに見えるが、vault ごとに share の値段は違う。誰も嘘をつかなくても違う。好調な月のあと vault X の share が 1、vault Y の share が 2 なら、X の share を Y に対して burn した人は、入れた額の 2 倍を Y のトークン口座、つまり Y の預金者のお金から受け取る。マネージャが嘘をつけば、さらに悪くなる。再現テストでは、自分の vault を 100,000 トークンで開いて NAV を 1 と申告し、さらに 2 トークン入れて新しい share を 200,000 受け取り、それを別の vault に対して burn した。検査がないと、相手の vault の 200,000 トークン全部を持ち出せた。この穴を見つけたのはレビュアーではなく solinv である。§12.7 では同じやり方で見つけてもらう。
 
 **残高十分性チェック**:
 
@@ -2189,41 +2529,41 @@ share.cost_basis = share.cost_basis.saturating_sub(basis_reduction);
 
 **集約を更新** — \`total_shares -= shares_to_burn\`、\`total_assets -= assets_to_return\`。両方とも防御的に \`saturating_sub\`、事前チェックを考えれば underflow するはずがないが。
 
-**vault から assets を払い出す**、最後のステップ — これが新しいエスクロー CPI:
+**vault から assets を払い出す**、最後のステップ — これがエスクロー CPI:
 
 \`\`\`rust
-spl_token_transfer_vault_signed(
-    vault_token_ai,
-    owner_token_ai,
-    vault_authority_ai,
-    market_ai.key,
-    vault_auth_bump,
-    token_ai,
-    assets_to_return,
+let ix = Instruction {
+    program_id: SPL_TOKEN_PROGRAM_ID,
+    accounts: vec![
+        AccountMeta::new(*vault_token_ai.key, false),
+        AccountMeta::new(*owner_token_ai.key, false),
+        AccountMeta::new_readonly(*vault_ai.key, true),
+    ],
+    data, // [TRANSFER][assets_to_return u64 LE]
+};
+// (\`if assets_to_return > 0\` の中: 払い出しが 0 なら CPI を飛ばす)
+invoke_signed(
+    &ix,
+    &[vault_token_ai.clone(), owner_token_ai.clone(), vault_ai.clone(), token_ai.clone()],
+    &[&[TRADING_VAULT_SEED, vault_market.as_ref(), vault_manager.as_ref(), &[vault_bump]]],
 )?;
 \`\`\`
 
-deposit 側との力学的な違いがひとつ、肝心:**authority がユーザではなく PDA**だ。預金者の外側トランザクション署名は SPL Token にとって意味がない、なぜなら debit されるトークン アカウント（\`vault_token\`）は \`vault_authority\` 所有 — *プログラム*が制御する PDA だから。だからプログラムが vault_authority に代わって内側 CPI に署名する、\`invoke_signed\` 経由で:
+deposit 側との力学的な違いがひとつ、肝心:**authority がユーザではなく PDA**だ。預金者の外側トランザクション署名は SPL Token にとって意味がない、なぜなら debit されるトークン アカウント（\`vault_token\`）が従うのは trading vault の PDA だから。これを整えたのは \`CreateTradingVault\` である。\`vault_token\` を \`[TRADING_VAULT_TOKEN_SEED, vault]\` に作り、vault のアドレスを持ち主として \`InitializeAccount3\` を実行した。だからプログラムは vault として、vault 自身の seed で内側 CPI に署名する。seed は \`[TRADING_VAULT_SEED, market, manager, bump]\` で、どれも \`CreateTradingVault\` が \`TradingVault\` アカウントに保存したものを読む。
 
-\`\`\`rust
-let market_key_bytes = market_key.to_bytes();
-let signer_seeds: &[&[u8]] = &[VAULT_AUTH_SEED, market_key_bytes.as_ref(), &[vault_auth_bump]];
-invoke_signed(&ix, &[source, dest, vault_authority, token_program], &[signer_seeds])?;
-\`\`\`
+細かい点が 2 つある。1 つ目、\`vault_market\`・\`vault_manager\`・\`vault_bump\` は借用スコープの中で写し取り、借用は CPI の前に終わる。vault のアカウントは署名者として SPL Token に渡され、呼び出し側がまだデータを借用しているアカウントの CPI をランタイムは拒否する。2 つ目、vault が署名できるのは自分のトークン口座だけだ。呼び出し側が \`vault_token\` に別の vault のトークン口座を渡すと、まずプログラムが拒否する(\`[TRADING_VAULT_TOKEN_SEED, vault]\` の照合)。仮にそれがなくても SPL Token が拒否する。この vault はその口座の authority ではないからだ。
 
-seeds — \`[VAULT_AUTH_SEED, market, bump]\` — は第 6 章 §6.2 で \`create_market\` が派生したもの、\`process_create_market\` が Market アカウントに \`vault_auth_bump\` として記録したものに正確に一致する。bump は呼び出し側から渡される（ハンドラが market から読み込む）、再計算する代わりに、CU 削減と署名 seeds が記録された派生と正確に一致するためだ。
-
-seeds が \`vault_authority_ai.key\` に等しいアドレスの有効な PDA を形成しなければ、ランタイムは signed CPI を \`ProgramError::InvalidSeeds\` で拒否する。だから悪意ある呼び出し側が偽の vault_authority を渡すことはできない — プログラムが署名できる唯一無二の PDA だけが受け入れられる。
+さらに SPL Token は残高を確かめる。\`assets_to_return\` が \`vault_token\` の残高より多ければ転送は失敗し、withdraw 全体が戻る。\`total_assets\` が何と言っていようと、vault は持っていないトークンを払い出せない。
 
 **ここでも順序が肝心。** CPI は最後。トークン転送が失敗（vault_token 凍結、dest クローズ等）すれば、share-burn と集約-デクリメントもリバートする。だから失敗した払い出しは預金者の shares を無傷で残し、vault も変更しない。
 
-> **演習 §12.4.** §12.2 の演習の vault で、預金者 A に全 shares を引き出させる。3 つを前後でダンプせよ: (1) 預金者 A の share アカウント、(2) vault 集約状態、(3) vault トークン アカウント残高。A が受け取るトークンが、預金者 B の主張可能価値が残り shares に対して含意するものと一致する（つまり B の価値が変わっていない）ことを確認せよ。
+> **演習 §12.4.** §12.2 の演習の vault で、預金者 A に全 shares を引き出させる。3 つを前後でダンプせよ: (1) 預金者 A の share アカウント、(2) vault 集約状態、(3) vault トークン アカウント残高。A が受け取るトークンが、預金者 B の主張可能価値が残り shares に対して含意するものと一致する（つまり B の価値が変わっていない）ことを確認せよ。そのあと (3) をもう一度見よ。A は 200 を受け取り、口座には 200 あった。B はまだ 100 を受け取れるはずなのに、口座は空だ。NAV が 100 から 200 になったのはマネージャの申告によるもので、トークンが入ってきたからではない。§12.5 はこの差の話である。
 
 ---
 
 ## §12.5  マネージャ信用問題 — \`VaultUpdateNAV\`
 
-2502–2544 行の \`process_vault_update_nav\` は短いが、ここに vault モデル全体の信用前提が住む:
+3800–3840 行の \`process_vault_update_nav\` は短いが、ここに vault モデル全体の信用前提が住む:
 
 \`\`\`rust
 if vault.manager != *manager_ai.key.as_ref() {
@@ -2236,6 +2576,10 @@ vault.total_assets = new_total_assets;
 \`\`\`
 
 マネージャは \`total_assets\` を任意の数値に更新するトランザクションに署名する。この数値がマネージャの実際の取引 PnL を反映していることをオンチェーンで検証する仕組みはない。**預金者はマネージャを信用する**。
+
+この章の最初の版は、それより悪かった。**市場の全員が、全部のマネージャを**信用していた。しかも \`CreateTradingVault\` を使えば誰でもマネージャになれる。withdraw は (market, mint) ごとのトークン口座から払い出し、その口座には他の vault の預け入れも、全ポジションの証拠金も入っていたので、vault の払い出しを、その vault が持っている額で止めるものは何もなかった。自分の vault に 100,000 入れ、NAV を 300,000 と申告して withdraw すると、他人の 200,000 を含む 300,000 が出てきた。抜けていた検査はない。渡したアカウントはどれも正しいものだった。直したのは設計である。今は vault ごとに自分のトークン口座があり(§12.0)、withdraw はそこからしか払わない。\`fuzz/vault\` のテスト \`manager_cannot_withdraw_more_than_its_vault_holds\` は同じ手順を今のコードで実行する。300,000 の withdraw は SPL Token で失敗する。vault の口座には 100,000 しかないからだ。もう一方の vault の 200,000 には手がつかない。
+
+だから信用の範囲は上の段落が言うとおりに戻り、それより広くはない。vault の預金者は、その vault のマネージャを信用する。マネージャは今も嘘の NAV を申告でき、それはその vault の預金者どうしの間でお金を動かす(水増しされた NAV で先に引き出した人が、他の人の当てにしていたトークンを持っていく。演習 §12.4 のとおり)。下の 3 パターンはその話である。
 
 本番でこれを硬化する 3 つのパターン:
 
@@ -2323,6 +2667,51 @@ Vault ライフサイクル:
 2. **NAV 更新が全員の価値を一律に変える。** 上の状態から \`vault --update-nav --total-assets 600\`（3× 価値）を走らせる。A の \`claimable_assets = A.shares × total_assets / total_shares = 100 × 600 / 300 = 200\`。B と C も同じ。3 預金者全員が 3× ゲインを比例的に共有する。
 3. **非 1:1 NAV での withdrawal。** 上から（各預金者が各々 200 assets 価値の 100 shares を持つ）、A に全 100 shares を withdraw させる。200 assets を受け取る。vault は今 \`total_shares = 200, total_assets = 400\`。B と C はそれぞれまだ 100 shares 所有（vault の 50%）、各々 200 assets 価値 — A の退出で不変。
 
+### 書き忘れた検査を道具に探させる
+
+上の 3 項目は計算を確かめる。アカウントの検査、つまり §12.3 と §12.4 にある、呼び出し側が**どの**アカウントを渡してよいかを決める \`if ... { return Err(...) }\` の行は、どれも確かめない。§12.4 の \`share.vault\` の行のように、そういう検査を 1 つ忘れても、書こうと思いつくテストはどれも落ちない。[solinv](https://github.com/psyto/solinv) は、ネイティブのプログラムに対してまさにこれを fuzz する。攻撃者が代わりに渡せるアカウント(他の預金者の share、別の vault、vault が持っていないトークン口座)を教えると、各命令でそのうち 1 つを差し替えて送る(組を宣言すれば、複数を一緒に差し替える)。差し替えた呼び出しが成功して状態が変われば、それが検出である。
+
+\`fuzz/vault/\` がこの章のためのハーネスである。1 つの市場に vault を 3 つ用意し、それぞれが自分のトークン口座を持つ。A と B が shares を持つ K の vault、A 自身の vault、屑の mint で作った C の vault だ。solinv は、README が誰にでも勧めている入れ方(git の rev)で入れてある。Solana のツールチェーンと Crucible CLI(\`cargo install --locked --git https://github.com/asymmetric-research/crucible --tag v0.1.0 crucible-fuzz-cli\`)が要る:
+
+\`\`\`bash
+cargo build-sbf --manifest-path programs/openhl-core/Cargo.toml
+cd fuzz/vault
+cargo build --release --features invariant_vault
+cargo test --release --features invariant_vault        # §12.4 の攻撃が拒否される
+timeout -s INT 90 crucible run openhl_vault_fuzz invariant_vault \\
+    --binary-in target/release/invariant_test --timeout 90
+\`\`\`
+
+今のプログラムでは \`[FUZZ_FINDING]\` の行は出ない。(Crucible は \`--timeout\` を 1000 回に 1 度しか見ないので、外側に \`timeout\` をつけている。macOS では coreutils の \`gtimeout\`。)
+
+> **演習 §12.7.** \`process_vault_withdraw\` から \`share.vault\` の検査を消し、プログラムを作り直して(最初のコマンド)、fuzzer をもう一度走らせよ。数秒で次が出るはずだ:
+>
+> \`\`\`
+> [FUZZ_FINDING] [account-swap:…] ix vault_withdraw succeeded with account 1 swapped from <K's vault> to <A's vault> (different context, same shape)
+> \`\`\`
+>
+> \`cargo test\` も落ち、A がいくら持ち出したかが出る。検査を戻したら、ほかの検査も 1 つずつ消し、走らせる前に結果を予想せよ。私たちが各 60 秒で測った結果:
+>
+> | 消した検査 | 捕まったか |
+> |---|---|
+> | withdraw: \`owner.is_signer\` | はい、signer-skip、slot 0 |
+> | withdraw: \`share.vault == vault\` | はい、account-swap、slot 1 |
+> | withdraw: \`share.owner == owner\` | はい、account-swap、slot 2 |
+> | deposit: share の PDA の導き直し | はい、account-swap、slot 1 |
+> | deposit: \`verify_trading_vault_token\` | はい、account-swap、slot 7 |
+> | deposit: \`depositor.is_signer\` | いいえ |
+> | withdraw: \`vault.owner == program_id\` | いいえ |
+> | withdraw: \`share.owner == program_id\` | いいえ |
+> | withdraw: \`verify_trading_vault_token\` | いいえ。下の 2 つの slot の組でも出ない |
+>
+> 先を読む前に、「いいえ」の 4 行がなぜ「いいえ」なのかを考えよ。
+>
+> 4 つとも、別の仕組みが裏で支えている。これらは攻撃を試しておらず、通り道が見つからなかっただけだ。2 つの所有者チェックは、ランタイム自身が支えている(第 1 章)。withdraw は両方のアカウントに書き込み、プログラムは自分が所有していないアカウントを変えられないので、すり替えたアカウントは次の CPI か命令の最後で落ちる。deposit の署名チェックは、ランタイムの署名の規則が支えている(第 6 章 §6.2)。deposit が呼ぶ SPL Token の \`Transfer\` は預金者を署名者として扱うが、プログラムは自分が受け取った署名しか渡せないので、SPL Token が動く前に CPI が落ちる(\`Cross-program invocation with unauthorized signer\`)。この 3 つも、早く、分かりやすいエラーで落ちるので、検査として残す価値はある。
+>
+> 4 つ目は SPL Token の authority の照合が支えている。vault は自分としてしか署名せず、各 vault のトークン口座はその vault にしか従わないので、払い出し元に別の vault のトークン口座を指定すると \`OwnerMismatch\` で落ちる。最初からそうだったわけではない。この章の最初の版では、市場のトークン口座はすべて 1 つの \`vault_authority\` の PDA(\`[VAULT_AUTH_SEED, market]\`)に従っており、この行は本物の穴だった。C は屑の mint で vault を開き、屑を 300,000 入れ、払い出し元に本物の mint のトークン口座を、送り先に C 自身の本物の mint の口座を指定して引き出し、屑 300,000 を本物 300,000 に換えた。これは**2 つ**のアカウントを同時に変える必要がある。solinv のふつうの account-swap は 1 度に 1 つの slot しか変えないので、最初の表はこの行を「いいえ」とし、害はないと書いていた。攻撃を見つけたのはレビュアーである。ハーネスは今もこの組を宣言しており(\`check_sets\`: C の屑の引き出しで、送り先と払い出し元を一緒に差し替える。払い出し元は今は K のトークン口座)、テスト \`withdraw_refuses_the_token_account_of_another_vault\` でも押さえてある。このテストがわざと K の残高より少ない 100,000 を求めているのには理由がある。K の口座の残高より多い 300,000 を求めると、SPL Token は authority を見る前に残高で拒否する。するとプログラムの照合を消しても出るのは「insufficient funds」で、この行を SPL Token が支えているかどうかは分からない。100,000 なら \`OwnerMismatch\` が出る。拒否から何かを結論するときは、**どの**拒否なのかを確かめよ。そして fuzzer の「いいえ」は、あなたが書いた差し替えでは通り道が見つからなかったという意味でしかない。通り道がないという意味ではない。
+>
+> このハーネスが扱わないもの: §12.5 のマネージャが申告する NAV。嘘の NAV を申告するマネージャは、自分が渡してよいアカウントしか渡さないので、アカウントを差し替える fuzzer には差し替える物がない。市場全体に及ぶ形のこの穴は、9 つの検査がすべてそろっていても開いていた。塞いだのは 1 行ではなく設計の変更(vault ごとのトークン口座)である。残っているもの、つまりマネージャが自分の vault の預金者に嘘をつくことも、fuzzer からは同じく見えない。こういう穴を見つけるには、行を消すのではなく設計を読む必要がある。
+
 ---
 
 ## 第 13 章への導線
@@ -2342,7 +2731,9 @@ Vault ライフサイクル:
                   content: `# 第13章 — プロトコル プリミティブとしての Builder Codes
 
 > 状態: ドラフト (v0.1)。
-> 教材コード: \`crates/state/src/lib.rs\`（\`BuilderProfile\`）、\`programs/openhl-core/src/lib.rs\`（\`process_register_builder\` 2604–2670 行、\`process_place_order_with_builder\` 2680–2817 行、\`process_claim_builder_fees\` 2819–2860 行）、\`scripts/builder/src/main.rs\`。
+> 教材コード: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs)（\`BuilderProfile\`）、[\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)（\`process_register_builder\`、\`process_place_order_with_builder\`、\`process_claim_builder_fees\`、\`process_create_fee_vault\`）、[\`scripts/builder/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/builder/src/main.rs)、[\`fuzz/fees/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/fees/src/main.rs)（§13.6 の solinv ハーネス）。
+>
+> 部品化に伴い、この章で読むロジックは [\`crates/fees/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/fees/src/lib.rs)(\`openhl-fees\`)に移り、プログラムはそれを呼び出す。以下に引用するコードは分割前の \`programs/openhl-core/src/lib.rs\` の版で、行番号は追従していない。
 
 ---
 
@@ -2357,13 +2748,16 @@ builder code は次のものでは**ない**:
 - **紹介コード (Referral codes)。** 紹介コードは新規ユーザを紹介した人に報酬を与える。通常、サインアップごとに 1 回、あるいは紹介相手の手数料の長い尾を比率で永遠に支払う。Builder codes は**取引**ごとに支払い、誰が誰を紹介したかは追跡しない — ルーティングに報い、紹介に報いるのではない。
 - **メーカー/テイカー リベート。** メーカー リベートはユーザ（指値注文を出した人）に自分の手数料の一部を戻す。Builder codes はユーザの手数料の一部を**第三者**（フロントエンド）に支払う。ユーザはどちらにせよ同じ総手数料を払う。違うのは分配を誰が受け取るかだ。
 
-本章は 3 つの命令を出荷する。
+本章は 3 つの取引命令と 1 つのブートストラップを出荷する。
 
 1. **\`RegisterBuilder\`** — 各 builder が、累積手数料と自己宣言した最大シェアを保持する builder ごとの \`BuilderProfile\` PDA を作る。プログラムが credit するアカウントが必要なので登録が必要。アカウントなし、手数料なし。
-2. **\`PlaceOrderWithBuilder\`** — 4 つ目のアカウントとして builder profile を取る取引命令バリアント。プロトコル手数料を計算し、builder のシェアを profile の \`accumulated_fees\` に分割し、\`PlaceOrderChecked\` と同じ place-order パスを走らせる。
-3. **\`ClaimBuilderFees\`** — builder の引き出し呼び出し。アキュムレータをゼロ化して額をログに残す。第 11 章・第 12 章 — 実際の SPL Token エスクローを追加した — とは異なり、本章は手数料分割についてはトークンを動かす手前で意図的に止める。§13.5 が、なぜ builder 手数料エスクローはポジションや vault のエスクローとは別種の設計問題なのか、本番実装がどのような形になるかを説明する。
+2. **\`PlaceOrderWithBuilder\`** — 最後のアカウントとして builder profile を取る取引命令バリアント。プロトコル手数料を計算して per-(quote_mint) fee vault にエスクローし、builder のシェアを profile の \`accumulated_fees\` に分割し、\`PlaceOrderChecked\` と同じ place-order パスを走らせる。
+3. **\`ClaimBuilderFees\`** — builder の引き出し呼び出し。アキュムレータをゼロ化し、PDA 署名付きで fee vault から builder のトークン アカウントへ claim 額の SPL Token Transfer を行う。
+4. **\`CreateFeeVault\`** — quote mint ごとの 1 回限りのブートストラップ。place-order バリアント実行前にクラスタごと 1 回走らせる。per-(quote_mint) fee_vault トークン アカウントを \`[b"fee_vault_auth", quote_mint]\` PDA が所有する形で確保する。第 6 章の \`CreateVault\` のミラー。
 
-本章の知的内容は 3 部構成だ。§13.4 のアトミシティ論（なぜ手数料分割は取引命令の中で起き、別の「取引ごとに claim」呼び出しではないか）、§13.2 のキャップ積み重ねパターン（自己宣言キャップとプロトコル レベル キャップがどう相互作用し、builder が侵害されても手数料漏れを境界付けるか）、そして §13.5 の本番エスクロー設計議論（なぜ builder 手数料は第 11 章・第 12 章の二者間移動より構造的に難しいエスクロー問題なのか）。
+本章は \`PlaceOrderChecked\` も拡張して同じプロトコル手数料をエスクローする。理由は §13.5b の設計選択 #2 — 対称性だ。builder パスだけが手数料をエスクローすると、builder 経由の取引が経由なし取引より実質的に高くつく。本番デプロイは最初からこれを両方のバリアントで普遍的なプロトコル手数料として扱って解決する。
+
+本章の知的内容は 3 部構成だ。§13.4 のアトミシティ論（なぜ手数料分割は取引命令の中で起き、別の「取引ごとに claim」呼び出しではないか）、§13.2 のキャップ積み重ねパターン（自己宣言キャップとプロトコル レベル キャップがどう相互作用し、builder が侵害されても手数料漏れを境界付けるか）、そして §13.5b の本番エスクロー設計議論（なぜ builder 手数料は第 11 章・第 12 章の二者間移動と構造的に異なるか — fee-vault 実装の背後にある 4 つの設計選択）。
 
 ---
 
@@ -2382,11 +2776,11 @@ pub struct BuilderProfile {
     pub max_fee_share_bps: u64,     // 自己キャップ、登録時にクランプ
     pub accumulated_fees: u64,      // claim 対象
     pub total_volume: u64,          // 統計: この builder 経由でルートされた base size
-    pub _reserved: [u8; 32],
+    pub fee_mint: [u8; 32],         // set at registration; fees are earned and claimed only in it
 }
 \`\`\`
 
-104 バイト。意味のあるフィールド 4 つ:
+104 バイト。設計を担うフィールド 4 つ(\`fee_mint\` は下の制約で扱う):
 
 **\`builder\`** はフロントエンド / アグリゲータの pubkey。PDA 派生での唯一のシードに使う: \`[BUILDER_PROFILE_SEED, builder.key]\`。これですべての Solana pubkey は高々 1 つの builder profile を持ち、pubkey を知っている誰もが派生できる。Profile は openhl-core 所有（本プログラムだけが \`accumulated_fees\` を変更できる）だが、誰でも公開フィールド（\`builder\`、\`total_volume\`）を**読み**、builder の主張するルーティング量を検証できる。
 
@@ -2399,7 +2793,7 @@ pub struct BuilderProfile {
 注目すべき設計制約 2 つ:
 
 - **Builder あたり 1 profile。** PDA 派生が (builder pubkey) → (profile pubkey) マッピングを全単射にする。Builder は market ごとに異なる手数料分割の 2 profile を持てない。A/B テストしたいなら 2 つの異なる builder ウォレットを使う。
-- **Quote 単位での手数料蓄積。** \`accumulated_fees\` はプロトコル手数料が取られる quote 通貨で計上される。複数 quote 通貨（USDC と USDT）なら、設計は (builder, mint) ごとの profile が必要、builder ごとだけではなく。ここは意図的に単一 quote に保つ、プログラムの残りも単一 quote なので。
+- **Quote 単位での手数料蓄積。** \`accumulated_fees\` はプロトコル手数料が取られる quote 通貨で計上される。複数 quote 通貨（USDC と USDT）なら、設計は (builder, mint) ごとの profile が必要、builder ごとだけではなく。ここは意図的に単一 quote に保つ、プログラムの残りも単一 quote なので。プログラムはこれを強制する。誰でも任意の quote mint で market を作れるので、builder が \`RegisterBuilder\`(アカウント 3、builder が署名)で \`fee_mint\` を決め、別の mint で quote された market での \`PlaceOrderWithBuilder\` は拒否し、\`ClaimBuilderFees\` は \`fee_mint\` の fee vault からしか払わない。この固定がないと、価値のない mint で quote された market で稼いだ手数料を、同じ数量だけ USDC の fee vault から claim できてしまう(\`tests/builder_fee_mint.rs\`)。最初の credit ではなく登録時に決めるのは、\`PlaceOrderWithBuilder\` に署名するのはトレーダーで builder ではないからだ。最初の credit で固定すると、誰でも他人の profile を価値のない mint に固定できてしまう。
 
 > **演習 §13.1.** あるフロントエンドが \`max_fee_share_bps = 3000\` で登録する。3 つの取引が経由する: notional 1000、2500、700。\`PROTOCOL_FEE_BPS = 10\`（0.1%）で、3 取引すべての後の \`accumulated_fees\` 合計は?
 
@@ -2413,7 +2807,7 @@ Builder code は 2 つの手数料シェア キャップが要る、1 つでは�
 
 **Builder 自己キャップ (\`BuilderProfile.max_fee_share_bps\`)** — この**特定の** builder が留保する最大 fraction。登録時に自己宣言、ユーザに見える。
 
-任意の取引での実効シェアは \`min(builder.max_fee_share_bps, PROTOCOL_BUILDER_SHARE_CAP_BPS)\`。\`programs/openhl-core/src/lib.rs:2742–2748\` から:
+任意の取引での実効シェアは \`min(builder.max_fee_share_bps, PROTOCOL_BUILDER_SHARE_CAP_BPS)\`。\`programs/openhl-core/src/lib.rs:4044–4049\` から:
 
 \`\`\`rust
 share_bps = profile.max_fee_share_bps;
@@ -2440,17 +2834,20 @@ if share_bps > PROTOCOL_BUILDER_SHARE_CAP_BPS {
 
 ## §13.3  \`PlaceOrderWithBuilder\` を歩く
 
-\`programs/openhl-core/src/lib.rs:2680–2817\` の \`process_place_order_with_builder\`。ハンドラは \`PlaceOrderChecked\` の厳格な上位集合 — 同じチェック、同じ place ロジック — に手数料分割ブロックを検証と注文書き込みの間に挿入。
+\`programs/openhl-core/src/lib.rs\` の \`process_place_order_with_builder\`。ハンドラは \`PlaceOrderChecked\` の厳格な上位集合 — 同じ 8 つの先頭アカウント（\`user\`、\`book\`、\`oracle\`、\`market\`、\`mint\`、\`user_token\`、\`fee_vault_token\`、\`token_program\`）、末尾に追加の \`builder_profile\` アカウント 1 つ、同じ手数料計算、同じ place ロジックに、builder credit ステップを加える。
 
-**検証 + サニティ バンド**（2693–2724 行）: \`PlaceOrderChecked\` と同一、\`accounts\` に追加の \`builder_profile_ai\` スロットを除いて。オラクル staleness チェック、オラクル マークに対する価格サニティ バンド — すべてそのまま持ち越し。
+**検証 + サニティ バンド**: \`PlaceOrderChecked\` と同一。両ハンドラは渡された market に対して (book, oracle, mint) チェインをクロス検証し、オラクル staleness のガントレットを走らせ、価格サニティ バンドを適用する。
 
-**手数料計算 + builder credit**（2726–2775 行）:
+**手数料計算 + builder credit**:
 
 \`\`\`rust
 let notional_val = (price as u128) * (size as u128);
 let protocol_fee = (notional_val * (PROTOCOL_FEE_BPS as u128) / 10_000) as u64;
 
 // ... builder profile を読み、share_bps をキャップでクランプ ...
+if profile.fee_mint != *mint_ai.key.as_ref() {
+    return Err(ProgramError::InvalidAccountData); // profile earns fees in another mint
+}
 
 let builder_share = ((protocol_fee as u128) * (share_bps as u128) / 10_000) as u64;
 profile.accumulated_fees = profile.accumulated_fees.checked_add(builder_share)?;
@@ -2466,9 +2863,11 @@ profile.total_volume = new_volume;
 
 \`builder_share\` は \`checked_add\` で \`profile.accumulated_fees\` に追加（オーバーフローは静かにキャップする代わりに取引を拒否 — builder は走行合計を u64::MAX 以下に保つため定期的に claim できる）。\`total_volume\` は観測性のため取引サイズ分進む。
 
-残りの \`protocol_fee - builder_share\` はプロトコルが留保する。スコープ繰り延べ版ではこれは暗黙のまま（どこにも追跡しない）。本番では SPL Token CPI でプロトコル手数料 vault アカウントに転送される。本章の教育的論点はどちらにせよ着地する: 分割は取引とアトミックに起きる。
+**注文配置**: §9.4 の \`PlaceOrderChecked\` と同一。空スロットを線形走査、注文を書く、カウンタをインクリメント。
 
-**注文配置**（2780–2811 行）: §9.4 の \`PlaceOrderChecked\` と同一。空スロットを線形走査、注文を書く、カウンタをインクリメント。\`PlaceOrderWithBuilder\` の CU コストは \`PlaceOrderChecked + 約 600 CU\`、手数料計算と builder profile 借用のため。
+**手数料エスクロー**: ハンドラは SPL Token Transfer の CPI（\`spl_token_transfer_user_signed\`）で終わり、ユーザの quote-token アカウントから per-(quote_mint) fee vault に**全額**の \`protocol_fee\` を移動する。\`(protocol_fee - builder_share)\` 残余は fee vault にプロトコルの取り分として残る。\`ClaimBuilderFees\` が後で各 builder への \`accumulated_fees\` を同じ vault から release する。最後に置くのは、Transfer 失敗（InsufficientFunds、凍結アカウント）が注文書き込みと builder credit の両方をアトミックに revert するようにするため — 第 11 章の担保エスクローと同じ順序重要性の論である。
+
+\`PlaceOrderWithBuilder\` の CU コストは \`PlaceOrderChecked + 約 600 CU\`、builder profile 借用のため。手数料計算と手数料エスクロー Transfer は既に \`PlaceOrderChecked\` にある。builder なしパスに対する限界コストは builder credit だけだ。
 
 > **演習 §13.3.** \`price × size\` が大きすぎて \`notional × PROTOCOL_FEE_BPS\` が \`u128\` をオーバーフローする \`PlaceOrderWithBuilder\` が呼ばれたら何が起きるか。失敗パスを辿れ。なぜこの計算に \`u64\` ではなく \`u128\` 精度が正しいか?
 
@@ -2492,9 +2891,9 @@ profile.total_volume = new_volume;
 
 ---
 
-## §13.5  \`RegisterBuilder\` と \`ClaimBuilderFees\`
+## §13.5  \`RegisterBuilder\`、\`ClaimBuilderFees\`、\`CreateFeeVault\`
 
-両方とも短い。\`RegisterBuilder\`（2604–2670 行）は第 3 章の標準 PDA 作成パターン、1 つのひねり付き: 要求された \`max_fee_share_bps\` は登録時にクランプされる:
+\`RegisterBuilder\` は第 3 章の標準 PDA 作成パターン、1 つのひねり付き: 要求された \`max_fee_share_bps\` は登録時にクランプされる:
 
 \`\`\`rust
 if max_share > PROTOCOL_BUILDER_SHARE_CAP_BPS {
@@ -2509,44 +2908,53 @@ if max_share > PROTOCOL_BUILDER_SHARE_CAP_BPS {
 
 クランプは静か — 登録は成功する、シェアが下げられただけだ。クランプをログすると、builder はプログラム ログから実効キャップを検証できる。
 
-\`ClaimBuilderFees\`（2819–2860 行）はさらに単純:
+\`ClaimBuilderFees\` は 2 ステップ — 借用スコープ内でアキュムレータをゼロ化、その後 fee vault からの PDA 署名 Transfer:
 
 \`\`\`rust
 if profile.builder != *builder_ai.key.as_ref() {
     return Err(ProgramError::IllegalOwner);
 }
-
+if profile.fee_mint != *mint_ai.key.as_ref() {
+    return Err(ProgramError::InvalidAccountData); // fees were earned in another mint
+}
 let claimed = profile.accumulated_fees;
 profile.accumulated_fees = 0;
+// ... 借用スコープ終了 ...
 
-msg!(
-    "claim_builder_fees: builder {} claimed {} units ...",
-    builder_ai.key,
-    claimed
-);
+spl_token_transfer_fee_vault_signed(
+    fee_vault_ai,
+    builder_token_ai,
+    fee_vault_auth_ai,
+    mint_ai.key,
+    fee_vault_auth_bump,
+    token_ai,
+    claimed,
+)?;
 \`\`\`
 
-認可（builder だけが自分の手数料を claim できる）、アキュムレータをゼロ化、ログ。本番ではここで SPL Token Transfer CPI が、プロトコル手数料 vault トークン アカウントから builder のトークン アカウントへ、\`claimed\` quote トークンを PDA 署名で動かす。
+認可（builder だけが自分の手数料を、\`fee_mint\` の vault からだけ claim できる）、アキュムレータをゼロ化、借用を解放、PDA 署名 Transfer。Transfer ヘルパは、第 11 章のポジションの払い出し(close と liquidate)に使う \`spl_token_transfer_vault_signed\` と構造的に同一 — 同じ \`invoke_signed\` パターン、同じ \`InvalidSeeds\` 保護 — 違いは seeds が per-(market) \`[VAULT_AUTH_SEED, market]\` ではなく per-(quote_mint) \`[FEE_VAULT_AUTH_SEED, quote_mint]\` という点だけ。順序が重要: Transfer **の前に** アキュムレータをゼロ化することで、(a) Transfer 失敗時の tx revert がアキュムレータを復元（アトミック）、(b) Transfer 成功時はまだ funded なアキュムレータに対するリプレイ攻撃を防ぐ。
 
 本物の本番 claim は通常、部分引き出し（\`claim --amount N\`、常に全部ではなく）、蓄積子タイムアウト（>N 日アイドルな手数料はプロトコルに没収）、プロトコルが複数 quote 通貨をサポートするときの per-token claim もサポートする。どれも根本的な形を変えない。上に乗るポリシー判断だ。
 
+\`CreateFeeVault\` は 1 回限りのブートストラップ。第 6 章の \`process_create_vault\` をそのままミラーする、2 つの違い: seeds が \`[b"vault", market, mint]\` / \`[b"vault_auth", market]\` ではなく \`[b"fee_vault", quote_mint]\` / \`[b"fee_vault_auth", quote_mint]\`、そして market ごとではなく quote 通貨ごとに 1 つだけ必要。ハンドラは標準的な 2-CPI ダンス — PDA 署名付き System \`create_account\`、その後 authority PDA を所有者に設定する SPL Token \`InitializeAccount3\` — を行い、place-order バリアント実行前に一度走らせる。
+
 > **演習 §13.5.** \`process_claim_builder_fees\` を編集して、ペイロードに \`partial_amount: Option<u64>\` を受け入れるようにせよ。\`Some(n)\` なら \`min(n, accumulated_fees)\` を claim。\`None\` ならすべて claim。引き出せる総額が同じでも、部分引き出しパターンが builder に有用な理由は?
 
-### 本番エスクロー設計ノート — なぜこれは宿題として残すか
+### §13.5b  本番エスクロー設計ノート — 実装の背後にある 4 つの選択
 
-第 11 章と第 12 章はポジション担保と vault deposit に実際の SPL Token エスクローを追加した。本章は追加しない。理由は、builder 手数料エスクローは、それらの章が必要とした二者間トークン移動とは**構造的に違う**エスクロー問題だからだ。具体的な単一実装を示すことは教えるより誤解させる方が大きい。配線を書き始める前に 4 つの設計判断が必要になる。
+第 11 章と第 12 章はポジション担保と vault deposit に実際の SPL Token エスクローを 1 つずつのマッチング ヘルパで追加した。本章のエスクローは代わりに 4 つの設計選択を必要とした。なぜなら builder 手数料は、それらの章が必要とした二者間トークン移動とは**構造的に違う**エスクロー問題だからだ。\`process_place_order_checked\`、\`process_place_order_with_builder\`、\`process_claim_builder_fees\` の実装は 4 つすべてに形作られる。これらを理解することが、コードを恣意的な選択ではなく強制的な手筋の系列として読ませる鍵だ。
 
-**1. 二者 vs 三者。** ポジション担保と vault deposit は二者間移動だ: ユーザ ↔ vault、片方が署名し、経済判断（いくら、誰の署名で）はすべて命令にエンコードされている。Builder 手数料は**三者分割**だ: ユーザは単一のプロトコル手数料を払い、そのうち一部がプロトコルへ、別の一部が builder へ行く。1 つのユーザ支払いを 2 つの受取人にアトミックに分割し、各々に正しい比率を credit するには、\`spl_token_transfer_user_signed\` や \`spl_token_transfer_vault_signed\` が提供する形とは別の形が必要だ。自然な実装は、quote mint ごとに 1 つの**手数料 vault** トークン アカウント、\`[b"fee_vault", quote_mint]\` のような PDA 所有。各 \`PlaceOrderWithBuilder\` は (a) ユーザのトークン アカウントから手数料 vault へ**全額**の \`protocol_fee\` を Transfer し、(b) builder のアキュムレータに \`builder_share\` を credit する。\`(protocol_fee - builder_share)\` の残余は手数料 vault に残り、プロトコルの取り分になる。
+**1. 二者 vs 三者。** ポジション担保と vault deposit は二者間移動だ: ユーザ ↔ vault、片方が署名し、経済判断（いくら、誰の署名で）はすべて命令にエンコードされている。Builder 手数料は**三者分割**だ: ユーザは単一のプロトコル手数料を払い、そのうち一部がプロトコルへ、別の一部が builder へ行く。1 つのユーザ支払いを 2 つの受取人にアトミックに分割し、各々に正しい比率を credit するのは \`spl_token_transfer_user_signed\` と \`spl_token_transfer_vault_signed\` だけでは収まらない。実装は **fee-vault** トークン アカウント（quote mint ごとに 1 つ）を導入し、\`[b"fee_vault_auth", quote_mint]\` の PDA が所有する。すべての place-order バリアントが (a) ユーザのトークン アカウントから fee vault へ**全額**の \`protocol_fee\` を Transfer し、(b) （builder バリアントでは）builder のアキュムレータに \`builder_share\` を credit する。\`(protocol_fee - builder_share)\` 残余は fee vault にプロトコルの取り分として残る。
 
-**2. \`PlaceOrderChecked\` 非対称性。** 手数料エスクローを \`PlaceOrderWithBuilder\` だけに追加すると、ねじれたインセンティブが生まれる: builder なしの経路（\`PlaceOrderChecked\`）はトークン建ての手数料をまったく取らないので、builder 経由の取引は同じ取引より実質コストが高くなる。自然な解は、*すべての* place-order バリアントにプロトコル手数料エスクローを入れること — だがそれは §13.3 を破綻させずに本章で着地できるより大きな取引パスへの外科手術だ。本番デプロイは初日からプロトコル手数料を両バリアント共通として扱うことでこれを解く。
+**2. \`PlaceOrderChecked\` 非対称性。** 手数料エスクローを \`PlaceOrderWithBuilder\` だけに追加するとねじれたインセンティブが生まれる: builder なしパスはトークン建て手数料を取らないので、builder 経由の取引は同じ取引より実質コストが高くなる。本章は *すべての* place-order バリアントにプロトコル手数料エスクローを入れて解決する — だから \`process_place_order_checked\` も \`PlaceOrderWithBuilder\` と同じ \`(market, mint, user_token, fee_vault_token, token_program)\` プレフィックスに育った。両バリアントが同じ手数料をエスクローし、builder バリアントは追加で builder share を credit する。本番デプロイがこの選択を初日にやるのは、非対称設計が一方向の移行罠だからだ — ユーザが特定のアカウント形に依存するトランザクションに署名し始めた後で、静かにスロットを追加することはできない。
 
-**3. 複数 quote 対応。** 単一 quote 通貨（本章のケース）なら手数料 vault は単一アカウント。複数 quote 通貨では、(quote_mint) ごとの手数料 vault *かつ* (builder, quote_mint) ごとのアキュムレータが必要 — \`BuilderProfile\` はマップ フィールドを持つ（Pod 適合しない）か、quote ごとに別 profile PDA に分かれる。§13.1 で単一 quote 制約を意図的だと述べた。本番エスクロー設計こそが、それが実際にアカウントを要求し始める場所だ。
+**3. 複数 quote 対応。** 単一 quote 通貨（本章のケース）なら fee vault はクラスタごとに 1 アカウント、builder ごとのアキュムレータは単一 u64。複数 quote 通貨では、(quote_mint) ごとの fee vault *かつ* (builder, quote_mint) ごとのアキュムレータが必要 — \`BuilderProfile\` はマップ フィールドを持つ（Pod 適合しない）か、quote ごとに別 profile PDA に分かれる。§13.1 で単一 quote 制約を意図的だと述べた。ここがアーキテクチャ的に報酬を払う場所だ。注意: 選んだ PDA seeds（\`[b"fee_vault"]\` ではなく \`[b"fee_vault", quote_mint]\`）は既に per-mint vault をサポートしている。複数 quote 化で再構造化が必要なのは (builder, quote_mint) アキュムレータ側だけだ。
 
-**4. Claim 側の authority。** 手数料 vault が存在すれば、\`ClaimBuilderFees\` は手数料 vault authority PDA で署名された \`fee_vault\` → \`builder_token\` の PDA 署名 Transfer になる。§12.4 の \`VaultWithdraw\` と構造的に同一 — 同じ \`invoke_signed\` パターン、同じ \`InvalidSeeds\` 保護、違う seeds。これだけが、本章がすでにやった作業の「機械的拡張」と呼べる部分だ。
+**4. Claim 側の authority。** Fee vault が揃えば、\`ClaimBuilderFees\` は fee vault authority PDA で署名された \`fee_vault\` → \`builder_token\` の PDA 署名 Transfer になる — §12.4 の \`VaultWithdraw\` と構造的に同一、同じ \`invoke_signed\` パターン、同じ \`InvalidSeeds\` 保護、違う seeds。これは常に、先行章がすでにやった作業の「機械的拡張」と呼べる部分だった。新しい \`spl_token_transfer_fee_vault_signed\` ヘルパとして per-(market) のいとこと隣接して着地する。
 
-本章が実際に教える仕組み — 取引とアトミックな accrual、別バッチ操作としての claim、二段キャップ安全性 — は 4 つの設計判断すべてを通じて変わらない。差分は SPL Token 配線だけだ。
+本章が教える仕組み — 取引とアトミックな accrual、別バッチ操作としての claim、二段キャップ安全性 — は 4 つの設計判断すべてを通じて変わらない。選択 1 と 2 が Transfer がどこに落ちるかを決め、選択 4 が claim がどう署名するかを決める。選択 3 は seeds を mint-scoped に保ったことで無料で得られる。
 
-> **演習 §13.5b（設計）.** 本番 \`ClaimBuilderFees\` のアカウント レイアウトをスケッチせよ: どのアカウントが（順に）渡され、どれが signer で、どれが PDA で、どの seeds で派生するか。コードを書く必要はない — \`scripts/builder/src/main.rs\` に現れる \`accounts: vec![...]\` 宣言だけでよい。§12.4 の \`VaultWithdraw\` 宣言と比較せよ: 構造的に同一なのは何か、構造的に違うのは何か、各々の違いは上の 4 つの設計判断のどれに起因するか?
+> **演習 §13.5b（設計）.** \`scripts/builder/src/main.rs\` の \`--place-with-builder\`、\`--claim\`、および第 12 章の元の \`--withdraw\`（\`scripts/vault/src/main.rs\`）の \`accounts: vec![...]\` 宣言を比較せよ。3 つの構造的類似と 3 つの構造的相違を識別せよ。各相違を上の 4 つの設計判断のどれかに紐付けよ。ヒント: seed-derivation パターンは同一、authority 側は同一、非対称性はアカウント数、signer の役割、PDA-derivation seeds にある。
 
 ---
 
@@ -2557,14 +2965,25 @@ msg!(
 \`\`\`
 Builder ライフサイクル:
 
+  0) クラスタ ブートストラップ（quote mint ごとに 1 回）
+     CreateFeeVault(quote_mint)
+     ──► [b"fee_vault", quote_mint] の fee_vault トークン アカウント
+         [b"fee_vault_auth", quote_mint] PDA が所有
+
+
   1) Builder 登録
      RegisterBuilder(max_fee_share_bps=2000)
-     ──► BuilderProfile{ builder, max_share=2000, fees=0, vol=0 }
+     accounts: [payer/builder(S,W), builder_profile(W), system_program(R),
+                mint(R)]
+     ──► BuilderProfile{ builder, max_share=2000, fees=0, vol=0,
+                         fee_mint=mint }
 
 
   2) ユーザが builder 経由で取引
      PlaceOrderWithBuilder(side, price, size)
-     accounts: [user(S), book(W), oracle(R), builder_profile(W)]
+     accounts: [user(S,W), book(W), oracle(R), market(R), mint(R),
+                user_token(W), fee_vault(W), token_program(R),
+                builder_profile(W)]
 
        notional       = price × size
        protocol_fee   = notional × 10 / 10000    (PROTOCOL_FEE_BPS)
@@ -2574,13 +2993,19 @@ Builder ライフサイクル:
      アトミック:
        book に注文配置                            ─┐
        profile.accumulated_fees += builder_share   ├─ 同じ tx、同じ slot
-       profile.total_volume     += size            ─┘
+       profile.total_volume     += size            │
+       SPL Token Transfer:                         │
+         user_token → fee_vault   protocol_fee     ─┘
 
 
   3) Builder が定期的に claim
      ClaimBuilderFees(empty)
+     accounts: [builder(S), profile(W), mint(R), fee_vault(W),
+                fee_vault_auth(R), builder_token(W), token_program(R)]
      ──► profile.accumulated_fees = 0
-     ──► (本番: SPL Token CPI が claim された額を動かす)
+     ──► invoke_signed SPL Token Transfer:
+           fee_vault → builder_token  (claim 額)
+           signer seeds: [b"fee_vault_auth", quote_mint, &[bump]]
 
 
 2 キャップ安全性:
@@ -2598,9 +3023,55 @@ Builder ライフサイクル:
 
 ### 自分で検証する 3 項目
 
-1. **キャップが正しく積み重なる。** \`--max-share-bps 9999\` で builder を登録する。ハンドラはクランプをログし、ダンプは \`max_fee_share_bps = 5000\`（本書の \`PROTOCOL_BUILDER_SHARE_CAP_BPS\`）を示すはずだ。次に取引をその builder 経由でルートする — builder のシェアはちょうどプロトコル手数料の 50% のはずだ。
-2. **失敗下でアトミシティが保たれる。** シミュレートされた失敗を使う: stale なオラクルで \`PlaceOrderWithBuilder\` を試す（注文配置が失敗する）。シミュレーションは \`oracle stale\` で失敗し、**かつ**失敗 sim 後 builder profile の \`accumulated_fees\` は不変のはずだ（トランザクション全体が revert するので）。取引が起きない限り分割は起きない。
-3. **取引ごとに volume が蓄積する。** 同じ builder 経由で 5 つの注文をサイズ 10、20、30、40、50 で配置する。\`total_volume\` はちょうど 150 （10+20+30+40+50）のはずだ。\`accumulated_fees\` が \`(notional_total × PROTOCOL_FEE_BPS × share_bps / 10000 / 10000)\` に加算されないなら、数学に off-by-one がある — それを追いかけよ。
+前提: quote mint の fee vault をブートストラップ（\`builder --create-fee-vault --mint <quote_mint>\`）し、トレーダが funded な quote-token アカウントを持つことを確認すること。さもなくば手数料 Transfer が revert する。
+
+1. **キャップが正しく積み重なる。** \`--max-share-bps 9999 --mint <quote_mint>\` で builder を登録する。ハンドラはクランプをログし、ダンプは \`max_fee_share_bps = 5000\`（本書の \`PROTOCOL_BUILDER_SHARE_CAP_BPS\`）を示すはずだ。次に取引をその builder 経由でルートする — builder のシェアはちょうどプロトコル手数料の 50% のはずだ。
+2. **失敗下でアトミシティが保たれる。** シミュレートされた失敗を使う: stale なオラクルで \`PlaceOrderWithBuilder\` を試す（注文配置が失敗する）。シミュレーションは \`oracle stale\` で失敗し、**かつ**失敗 sim 後、builder profile の \`accumulated_fees\` は不変、fee vault の残高は不変、トレーダの quote-token アカウントも不変のはずだ（トランザクション全体が revert するので）。取引が起きない限り分割は起きない。
+3. **取引ごとに volume が蓄積する。** 同じ builder 経由で 5 つの注文をサイズ 10、20、30、40、50 で配置する。\`total_volume\` はちょうど 150 （10+20+30+40+50）のはずだ。\`accumulated_fees\` が \`(notional_total × PROTOCOL_FEE_BPS × share_bps / 10000 / 10000)\` に加算されないなら、数学に off-by-one がある — それを追いかけよ。その後 \`--claim --mint <fee_mint> --builder-token-account <pubkey>\` を走らせる(ダンプが \`fee_mint\` を表示する)。Builder の quote-token アカウント残高は \`accumulated_fees\` ぶんちょうど増え、ダンプは \`accumulated_fees = 0\` を示すはずだ。
+
+
+### アカウントだけでなく、お金を道具に確かめさせる
+
+第 3・6・12 章は、[solinv](https://github.com/psyto/solinv) にアカウントを差し替えさせて終わった。ここでの問いは違う。手数料の vault は、builder に払うべき額をいつも持っているか。第 6 章 §6.6 はこれを持ち越した。手数料の vault は全市場が共有する唯一のアカウントで、組には PDA ではない 2 つ目の市場がありうるからだ。
+
+[\`fuzz/fees/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/fees) がそのハーネスである。builder B と B2 は quote の mint Q で登録し、利用者 U はどちらかを通して取引する。市場は 3 つあり、それぞれに板と新しいオラクルがある。PDA にある \`(base, Q)\`、第 2 章の \`Initialize\` で PDA ではないアドレスに作った 2 つ目の \`(base, Q)\`、誰でも作れる mint J の \`(base, J)\` だ。いつもの signer-skip と account-swap に加えて、仕様は 2 つの規則を宣言する:
+
+- **関係**(solinv の \`Relation\`。\`unchecked_math\` が確かめる): \`PlaceOrderWithBuilder\` と \`ClaimBuilderFees\` の両方で、B と B2 の profile の \`accumulated_fees\` の合計が Q の手数料の vault の残高以下。(関係が読めるよう、B2 の profile を各命令のアカウントの末尾に足してある。ハンドラはその余分なアカウントを読まない。)命令の前に成り立っていて、後で崩れたときだけ報告する。
+- **ガード**(\`precondition_skip\` が確かめる): \`PlaceOrderWithBuilder\` が成功してよいのは \`profile.fee_mint == market.quote_mint\` のときだけ。solinv が比べるフィールドは 16 バイトまでなので、32 バイトの mint にはガードが 2 つ要る。
+
+第 3 章 §3.7 のとおり準備してから:
+
+\`\`\`bash
+cargo build-sbf --manifest-path programs/openhl-core/Cargo.toml
+cd fuzz/fees
+cargo build --release --features invariant_ch13
+cargo test --release --features invariant_ch13
+timeout -s INT 60 crucible run openhl_fees_fuzz invariant_ch13 \\
+    --binary-in target/release/invariant_test --timeout 45
+\`\`\`
+
+今のプログラムでは、3 つの市場のどれでも \`[FUZZ_FINDING]\` の行は出ない。これが、この章についての §6.6 の答えになる。\`accumulated_fees\` への加算はどれも、同じトランザクションが同じ mint で手数料の vault に移す \`protocol_fee\` の半分以下なので、2 つ目の市場でも(どの市場でも)、利用者が払った以上を builder に借りることはできない。テスト \`credit_never_exceeds_payment\` が両方の Q の市場でこれを確かめる。
+
+> **演習 §13.6.** 下の検査を 1 つずつ消し(最後の 2 行はその変更を加え)、作り直して走らせよ。先に予想すること。私たちが各 45 秒で測った結果を示す。「いいえ」の行の最後の列は、差し替えた呼び出しを代わりに拒否したもので、ログから読んだ(\`probe\` テストが出力する):
+>
+> | 変更 | 捕まったか | どう捕まったか、または代わりに拒否したもの |
+> |---|---|---|
+> | Place: \`profile.fee_mint == mint\` | **はい** | precondition-skip: J の市場でガードが偽のまま注文が通った。\`junk_mint_order_does_not_credit_a_q_builder\` が落ちる |
+> | Place: \`market.quote_mint == mint\` | いいえ | \`fee_mint\` の検査: Q の市場で J で払っても、指定する builder は Q で払われる B のまま |
+> | Place: \`verify_fee_vault_token_account\` | いいえ | SPL Token: \`Account not associated with this Mint\` |
+> | Place: \`user_ai.is_signer\` | いいえ | ランタイム: 権限のない署名者 |
+> | Place: 板の PDA | **はい** | account-swap: 注文が別の市場の板に入った |
+> | Place: オラクルの PDA | **はい** | account-swap: 価格の帯が別の市場のオラクルから来た |
+> | Claim: \`profile.builder == builder\` | **はい** | account-swap: B が B2 の手数料を受け取った |
+> | Claim: \`builder_ai.is_signer\` | **はい** | signer-skip: 誰でも B の手数料を、自分の指定する口座に受け取れた |
+> | Claim: \`profile.fee_mint == mint\` | **はい**(組で) | account-swap \`check_sets\`: B の Q の手数料が J の vault から B の J の口座へ払われた(4 つの slot を一緒に) |
+> | Claim: \`verify_fee_vault_token_account\` | いいえ | SPL Token: \`owner does not match\`(Q の vault の authority は J の vault に署名できない) |
+> | Claim: \`accumulated_fees = 0\` を消す | **はい** | 関係、最初の claim で: 前は vault の 12,266 に対して借り 12,262、後は 6 に対して 12,262。\`claim_pays_once\` が落ちる |
+> | Place: builder の取り分を \`protocol_fee\` でなく \`notional\` から計算 | **はい** | 関係: 最初の注文の前は借り 0 対 vault 0、後は 10 に対して 5,000 |
+>
+> 3 つのことを見直す価値がある。最後の 2 行は、検査の抜けではまったくない。どのアカウントも正しく、どの検査も通るのに、プログラムは持っている以上を約束する。それが見えるのは数についての規則だけで、それはこの章の原子性の議論(§13.4)が扱っている規則でもある。もう 1 つ、これは私たちのハーネスの罠だ。最初の版では B2 が \`setup()\` の中で手数料を得ていた。取り分を \`notional\` から計算すると、その準備の注文の時点で関係がもう崩れており、solinv は命令の前から偽の関係を検出ではなく宣言の問題として報告するので、この行は「いいえ」になっていた。今は fuzzer 自身の注文だけが builder に加算する。最後に、claim 側の \`fee_mint\` の行には、4 つのアカウントを一緒に差し替える必要があった。私たちの最初の組は 3 つを差し替え、送り先を B の Q の口座のままにしていたので、SPL Token が mint の不一致で拒否した。それは消した検査について何も語っていなかった。攻撃者は J の送り先を指定する。第 12 章と同じく、拒否は、どの検査が拒否したかが分かって初めて証拠になる。
+>
+> 1 つの差し替えはわざと外してある。\`PlaceOrderWithBuilder\` の slot 8 を別の builder の profile にすると通る。U が B ではなく B2 に加算する。それが設計だ。どのフロントエンドに加算するかは利用者が選び、どちらでも手数料は払う。
 
 ---
 
@@ -2641,7 +3112,7 @@ Keeper 6 つ、indexer 1 つ:
 6. **メンテナンス keeper** — 細々と: 休眠アカウントの close、約定済み注文のアーカイブ、空板スロットのガベージ コレクト。
 7. **Indexer** — keeper ではないが必須の読み手側サービス: チェーン状態を購読し、フロントエンド、分析、アラートに供給する。
 
-本章は Phase B とトラックを閉じる。§14.7 の振り返り後はチャプターは存在しない。第 0 章でカリキュラムがコミットした意味でプログラムを feature-complete にする前に追加するオンチェーン機能はない。その後どこに行くかはあなた自身の選択だ — 本番デプロイ、監査準備、スケーリング実験、独自 perp DEX。ピースはあなたの手にある。
+本章は Phase B の主アークを閉じる。§14.7 の振り返りが 14 章で組み立てたものを総括する。第 15 章は別の付録スタイル章として続き、§8.4 が設計した slab 板を出荷する — Phase B プログラムはそれの有無に関わらず feature-complete だが、slab は本番グレード板で、直接比較のため第 7 章のフラット配列板の隣に住む。その後どこに行くかはあなた自身の選択だ — 本番デプロイ、監査準備、スケーリング実験、独自 perp DEX。ピースはあなたの手にある。
 
 ---
 
@@ -2906,14 +3377,11 @@ Indexer はオフチェーン スタックの肝心なピースだ — 上記の
 
 **Phase A (基礎、ch.1–5):** アカウント モデル、ネイティブ プログラム、PDA、コンピュート バジェット、Sealevel 並列性。それ自体で立つ完全な「Solana from scratch、Anchor なし」カリキュラム — Phase A を終えた学習者は、フレームワークに一度も触れずに本物の Solana プログラムを書き、本物の Solana プログラムをデバッグできる。
 
-**Phase B (HL プリミティブ、ch.6–14):** CPI 経由の SPL Token vault、オンチェーン板、マッチング エンジン、オラクル統合、ファンディング レート蓄積子、清算付きポジション ライフサイクル、プール取引 vault、builder code、結果を走らせるオフチェーン インフラ。動く — スコープが繰り延べられているが — perp DEX、すべての設計選択が注釈付きで、何が繰り延べされたかについての正直なメモが章に書き込まれている。
+**Phase B (HL プリミティブ、ch.6–14、加えて ch.15 付録):** CPI 経由の SPL Token vault、オンチェーン板（ch.7 のフラット配列 + ch.15 の slab）、マッチング エンジン、オラクル統合、ファンディング レート蓄積子、清算付きポジション ライフサイクル、プール取引 vault、builder code、保険基金、結果を走らせるオフチェーン インフラ。動く — スコープが繰り延べられているが — perp DEX、すべての設計選択が注釈付きで、何が繰り延べされたかについての正直なメモが章に書き込まれている。
 
 明示的に繰り延べたもの（だから後で見つけやすい）:
 
-- 担保（ch.11）、vault 資産（ch.12）、builder 手数料（ch.13）の **SPL Token エスクロー**。数学は本番として正しい。トークン配管だけが欠けている。
-- **Slab ベース板。** Ch.8 はページング付きフラット配列マッチャを出荷し §8.4 で slab を擬似コード化する。実装はよく scoped された宿題。
-- **保険基金。** Ch.11 が議論する（§11.6）。コードにはない。水没クローズを正しく社会化する前に必要。
-- **本物の Pyth 統合。** Ch.9 はモックを使う。§9.5 の移行表が本物の Pyth に切り替える 1 ページ diff。
+- **自前ホスト型 Wormhole スタイル オラクル receiver。** Ch.9 §9.5 は Pyth v1（\`PlaceOrderCheckedPyth\`）と Pyth v2（\`PlaceOrderCheckedPythV2\`、Pyth の receiver プログラムが生成する \`PriceUpdateV2\` アカウントを読む）両方のコンシューマ リーダーを出荷する。真に未解決なのは receiver*である*こと — 保存された guardian set に対する Wormhole VAA 署名検証、bundled updates の Merkle proof 検証、自前の price-cache PDA への書き込み。Pyth receiver がデプロイされていないチェーンから updates を消費したい場合、または追加メッセージ型を検証したい場合にのみ必要。独自章。
 
 本物の本番デプロイのために追加するもの:
 
@@ -2942,6 +3410,475 @@ Indexer はオフチェーン スタックの肝心なピースだ — 上記の
 - 「次に読むもの」リーディング リスト。Phase A と Phase B の章は関連する場所で Solana ドキュメント、Pyth ドキュメント、ソース コードを引用する。それが正典的な追加リーディングだ。
 - 特定の Solana エコシステム方向への売り込み。チェーンがここからどこに行くかは、そこに組み立てている人々が決めること。本トラックは strategy ではなく substrate を教える。
 - 「ありがとう」や「また次回」。カリキュラムの終わりは読み手のもので、書き手のものではない。この 14 章から何かを得たなら、次にあなたがやる価値あることは何かを出荷することだ。行け。
+`,
+                },
+                {
+                  title: "第15章 — Slab 板",
+                  slug: "solana-internals-ch15-slab-ja",
+                  type: 'CONTENT',
+                  sortOrder: 9,
+                  duration: 45,
+                  xpReward: 100,
+                  content: `# 第15章 — Slab 板
+
+> 状態: ドラフト (v0.1)。
+> 教材コード: [\`crates/state/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs)（\`Slab\`、\`OrderNode\`、\`CritbitTree\`、\`TreeNode\`）、[\`programs/openhl-core/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/programs/openhl-core/src/lib.rs)（slab ヘルパ + \`process_create_slab\`、\`process_slab_place_order\`、\`process_slab_match\`）、[\`scripts/slab/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/scripts/slab/src/main.rs)、[\`fuzz/slab/src/main.rs\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/slab/src/main.rs)（§15.6〜15.7 の solinv ハーネス）。
+>
+> 部品化に伴い、この章で読むロジックは [\`crates/slab/src/lib.rs\`](https://github.com/psyto/openhl-solana/blob/main/crates/slab/src/lib.rs)(\`openhl-slab\`)に移り、プログラムはそれを呼び出す。以下に引用するコードは分割前の \`programs/openhl-core/src/lib.rs\` の版で、行番号は追従していない。
+
+---
+
+## §15.0  はじめに — slab が何を買い、なぜ独立章に値するか
+
+第 7 章はフラット配列の \`OrderBook\` を出荷した — 32 スロット、insert で空きスロットを線形スキャン、\`Match\` で価格マッチを線形スキャン。第 8 章はコストを測った: \`K = 10\` の fill ループで \`N = 32\` の板に対して概ね \`O(K × N)\` を走り、settlement の前に板の簿記だけで約 22 KCU を費やす(測り直した値。§8.2)。これは**教育用のベースラインとして**機能する。本番の板としては機能しない — どんな現実的な深さでもスキャンが支配する。
+
+Hyperliquid と Serum / Phoenix の答えは **slab** だ: 価格水準の上の木で(ここでは critbit。自己平衡はしない。深さは価格のビットに従い、価格がばらけていれば約 log₂ N、maker が敵対的に選べば 64 まで。§15.7)、各葉がその価格水準のオーダの FIFO を持つ。Insert は価格水準ごとに O(log N)。Best-price は O(log N) — 求める側に向かって root から歩く。Best を pop するのは最悪 O(log N)（水準が空になり葉を木から削除する必要がある場合。葉の上の inner が冗長になり、葉と一緒に折りたたまれる）。§8.4 の擬似コードがこの章を約束した。これがそれだ。
+
+本章は第 7 章の \`CreateOrderBook\` / \`PlaceOrder\` / \`Match\` に並列な、3 つの新しい命令を出荷する:
+
+1. **\`CreateSlab\`**（タグ 29）— クライアントが同じトランザクションで作った \`Slab\` アカウントを初期化し、OrderNode プールの free list と両 critbit 木の free list を初期化する。
+2. **\`SlabPlaceOrder\`**（タグ 30）— \`PlaceOrder\` と同じペイロード。critbit insert を走らせ、プールから OrderNode をアロケートし、その価格水準の FIFO につなげる。
+3. **\`SlabMatch\`**（タグ 31）— \`Match\` と同じペイロード（taker side + limit price + size + max_fills cap）。maker 側の best 葉を歩き、その FIFO 先頭に当てて埋め、空になった水準を取り除き、§8.3 のページング cap を適用する。
+
+フラット配列の \`OrderBook\` と slab の \`Slab\` はプログラム内で共存する。異なる market が異なる板を選べる; 既存の market は乱されない。本章は**新しい**パスについての章だ。
+
+本章が**ない**もの 3 つ:
+
+- **Match エンジン外科手術の章ではない。** slab の \`SlabMatch\` は第 8 章と同じ fill-loop の形を走る — 変わったのは maker 側にどう到達するか（O(N) でなく O(log N)）だけで、fill がどう会計されるかは変わらない。Settlement、手数料、builder split — どれもここには住まない。
+- **すべての critbit バリアントのガイドではない。** Serum の slab は葉と inner を識別子ビット付きで同じノードプールにパックする; Phoenix はわずかに違うレイアウトを per-level FIFO 会計構造で使う。本章は §8.4 の分割 — OrderNode プール 1 つ、TreeNode プール side ごとに 1 つ — に従う。それが教育的議論を最もクリーンに保つからだ。他のレイアウトはヘッダの数百バイトとアクセスのわずかな高速化を取引する。
+- **完全なベンチマークではない。** §15.6 に、このプログラムで許される大きさでの両方の板の実測値を載せた。本番の深さや settlement の CPI を含めた調査はフォローアップに属する。
+
+---
+
+## §15.1  4 つのアカウント型
+
+\`crates/state/src/lib.rs\` から:
+
+\`\`\`rust
+pub struct OrderNode {                          // 64 バイト
+    pub order_id: u64,
+    pub owner: [u8; 32],
+    pub size: u64,
+    pub next: u16,        // FIFO 内次（または free list 内次）
+    pub prev: u16,
+    pub _pad: [u8; 12],
+}
+
+pub struct TreeNode {                           // 32 バイト — タグ付き union
+    pub tag: u8,          // 0 FREE、1 INNER、2 LEAF
+    pub split_bit: u8,    // INNER のみ
+    pub next_free: u16,   // FREE のみ
+    pub left_child: u16,  // INNER のみ
+    pub right_child: u16, // INNER のみ
+    pub head_node: u16,   // LEAF のみ（FIFO 先頭 order_node idx）
+    pub tail_node: u16,   // LEAF のみ
+    pub order_count: u32, // LEAF のみ（観測性）
+    pub price: u64,       // LEAF のみ
+    pub _pad: [u8; 8],
+}
+
+pub struct CritbitTree {                        // 8 + 256 × 32 = 8208 バイト
+    pub root: u16,                              // 空なら SLAB_NONE_INDEX
+    pub free_head: u16,
+    pub _pad: [u8; 4],
+    pub nodes: [TreeNode; SLAB_TREE_CAPACITY],  // SLAB_TREE_CAPACITY = 256
+}
+
+pub struct Slab {                               // 計 ~82 KiB
+    pub discriminator: [u8; 8],                 // SLAB\\0\\0\\0\\0
+    pub bump: u8,
+    pub _pad0: [u8; 7],
+    pub market: [u8; 32],
+    pub next_order_id: u64,
+    pub active_count: u32,
+    pub pool_free_head: u16,
+    pub _pad1: [u8; 2],
+    pub bid_tree: CritbitTree,
+    pub ask_tree: CritbitTree,
+    pub nodes: [OrderNode; SLAB_POOL_CAPACITY], // SLAB_POOL_CAPACITY = 1024
+}
+\`\`\`
+
+吸収すべき設計選択 5 つ:
+
+**1. すべて \`u16\`、\`Option<u16>\` は使わない。** Pod 安全性のため。Sentinel \`SLAB_NONE_INDEX = u16::MAX\` が「インデックスなし」の代わりに立つ。Free-list 終端、空木の root、宙ぶらりんの FIFO 端、すべてこれを使う。\`u16\` で 65,535 エントリまでアドレス可能 — \`SLAB_POOL_CAPACITY = 1024\` は十分その範囲内。
+
+**2. \`tag\` バイトでタグ付き union、enum は使わない。** \`TreeNode\` は原理的には Rust の enum（\`Free\`、\`Inner { ... }\`、\`Leaf { ... }\`）にできる。できない理由は enum が \`Pod\` でないからだ。だからどのバリアントが必要としうるすべてのフィールドを並べ、\`tag\` バイトがどのフィールドを読むかを消費者に告げる。使われないフィールドはゼロまたは \`SLAB_NONE_INDEX\` を保持する。規律のトレードは本物だ — 新たに free された node に古い \`head_node\` が残っているのは潜在バグ — だが zero-copy bytemuck アクセスでレイアウトは報われる。
+
+**3. slab ごとに 2 つの木、1 つではなく。** Bid と ask の木は構造的に同一; 違いは「best price」歩行方向（max vs min）だけ。分けて保つことで、bid 側 insert が ask 状態を辿ることはなく、逆もない。これは Sealevel スタイルの並列性で効く: bid だけ動く market が共通 root を持つなら ask 木も書き、独立でありえたものを直列化してしまう。
+
+**4. 共有 OrderNode プール 1 つ。** \`Slab.nodes\` は単一配列。両方の木が同じプールから FIFO を引く。代替（side ごとプール）なら同じトータルフットプリントで side ごと OrderNode 容量が倍だが、片側だけの板（片方向の動きで bids ほぼ全部のとき）が片方のプールを枯渇させ他方が空のまま、ということになる。共有することで非対称フローでも slab を使えるように保つ。
+
+**5. アカウントサイズ = ~82 KiB。** 計算: \`64 (ヘッダ) + 2 × 8208 (木) + 1024 × 64 (プール) = 82_064\` バイト。これはプログラムの中からアカウントに与えられる 10 KiB(\`MAX_PERMITTED_DATA_INCREASE\`)を大きく超える。CPI で出した \`create_account\` はこの上限に縛られ、\`MAX_PERMITTED_DATA_LENGTH = 10 MiB\` まで確保できるのはトップレベルの命令だけ。だからプログラムは slab を自分で確保できない。クライアントがトランザクションの 1 つ目の命令で \`SystemProgram::CreateAccount\`(space \`Slab::LEN\`、owner は openhl-core)を送り、2 つ目の \`CreateSlab\` は初期化だけを行う。OpenBook や Phoenix と同じ分け方。このため slab は PDA ではなく keypair のアカウントになる。その結果、1 つの market に slab をいくつでも作れ、\`SlabPlaceOrder\` と \`SlabMatch\` は market を受け取らず \`slab.market\` も確かめない。slab には決済の経路がないので、今は「クライアントがどの板を読むか」だけの問題だが、本番では market の状態に公式の slab のアドレスを記録して照合する。Rent は作る人がブートストラップで払う 1 回限りのコスト。
+
+> **演習 §15.1.** 構造体レイアウトから正確な \`Slab::LEN\` を計算せよ（コメントを信用するな）。\`bytemuck::bytes_of(&Slab::zeroed()).len()\` で検証せよ。次に、\`lamports_per_byte_year = 3_480\` と \`years = 2\`（Solana の 2 年 rent 免除）で rent をランポートで計算せよ。それが概ね \`CreateSlab\` が請求するもの。
+
+---
+
+## §15.2  プールと free list
+
+\`Slab.nodes\` は 1024 OrderNode のフラット配列。任意の瞬間、ある node は「ライブ」（ある価格水準の FIFO の一部）、ある node は「free」（アロケーション待ち）。Free node は \`next\` フィールド経由で片方向リンクのスタックを成し、\`Slab.pool_free_head\` がスタックの先頭。アロケーションは \`pool_free_head\` を pop、デアロケーションは push する。
+
+\`programs/openhl-core/src/lib.rs\` から:
+
+\`\`\`rust
+fn slab_init_pool(slab: &mut Slab) {
+    for i in 0..SLAB_POOL_CAPACITY {
+        slab.nodes[i].next = if i + 1 < SLAB_POOL_CAPACITY {
+            (i as u16) + 1
+        } else {
+            SLAB_NONE_INDEX
+        };
+        // ... 他のフィールドをゼロに ...
+    }
+    slab.pool_free_head = 0;
+}
+
+fn pool_alloc_node(slab: &mut Slab) -> Result<u16, ProgramError> {
+    let head = slab.pool_free_head;
+    if head == SLAB_NONE_INDEX {
+        return Err(ProgramError::AccountDataTooSmall);
+    }
+    slab.pool_free_head = slab.nodes[head as usize].next;
+    Ok(head)
+}
+
+fn pool_free_node(slab: &mut Slab, idx: u16) {
+    let head = slab.pool_free_head;
+    slab.nodes[idx as usize].next = head;
+    // ... 他のフィールドをゼロに ...
+    slab.pool_free_head = idx;
+}
+\`\`\`
+
+3 つフラグすべき細部。
+
+**Init は配列を 1 度歩く。** ブートストラップで \`O(N)\`（~1k イテレーション）。そのコストは slab ごとに 1 回走る \`CreateSlab\` で払う。以後すべての op は O(log N) か O(1)。
+
+**Free 時にフィールドをゼロに保つ。** Node を free する際、リストに push するだけでなく \`size\`、\`order_id\`、\`owner\` をクリアする。コストは小さい（数個のストア）が、古い \`owner\` フィールドが将来のアロケーションに誤って漏れることを防げる。同じメモリを多くのオーダ寿命で再利用するから重要。
+
+**失敗は \`AccountDataTooSmall\`。** プール枯渇時はエラーを返し、既存 node を上書きしない。\`1024 nodes\` は単一 market に大きい数だ。当たったら答えは (a) 古いオーダを batch cancel してノードを free するか、(b) より大きな \`Slab\` バリアントを出荷するかだ。本章は保守的な答えを出荷する。
+
+2 つの per-tree プール（\`bid_tree.nodes\` と \`ask_tree.nodes\`、両方とも \`[TreeNode; 256]\`）は同じく動く。\`tree_init\` は各々を 1 度歩く; \`tree_alloc\` と \`tree_free\` は同じ pop/push パターンを \`next_free\` フィールド経由で従う。
+
+> **演習 §15.2.** Free list を歩いてカウントする \`available_count(slab) -> u32\` ヘルパを実装せよ。Insert + cancel のシーケンスの前後でそれを走らせる; 不変条件 \`live + free == SLAB_POOL_CAPACITY\` が成立すべし。Free-list 破損（同じ node が 2 度リストに現れる、あるいはサイクル）は slab バグの最も難しい 1 クラス — \`available_count\` の instrumentation はそれを捕捉する最も安い方法だ。
+
+---
+
+## §15.3  Critbit insert
+
+Critbit アルゴリズムは、各 inner node がキーの 1 つの特定のビットをテストする木を歩く。深い inner node でテストされるビットはより**下位**のもの — より上位のビットは root に近いところで決められる。
+
+**\`price\` のための葉を見つけるか作る。** \`critbit_find_or_create_leaf\` から:
+
+\`\`\`rust
+// (1) 空木 → root 葉を作る。
+if tree.root == SLAB_NONE_INDEX {
+    let leaf_idx = tree_alloc(tree)?;
+    tree.nodes[leaf_idx] = TreeNode { tag: LEAF, price, ... };
+    tree.root = leaf_idx;
+    return Ok((leaf_idx, true));
+}
+
+// (2) 価格を比較するためどれか葉まで歩く。
+let found_leaf = critbit_walk_to_leaf(tree, price);  // (price >> split_bit) & 1 で降りる
+let found_price = tree.nodes[found_leaf].price;
+if found_price == price {
+    return Ok((found_leaf, false));  // 既存水準
+}
+
+// (3) 新価格 — 新 inner + 新葉を継ぎ込む。
+let diff = price ^ found_price;
+let shared_bit = 63 - diff.leading_zeros() as u8;  // 価格が違う最上位ビット
+
+// Root から再び歩き、継ぎ込みポイントを探す。
+let mut parent = SLAB_NONE_INDEX;
+let mut parent_side = 0u8;
+let mut cur = tree.root;
+loop {
+    let node = &tree.nodes[cur];
+    if node.tag == LEAF || node.split_bit < shared_bit { break; }
+    let bit = ((price >> node.split_bit) & 1) as u8;
+    parent = cur;
+    parent_side = bit;
+    cur = if bit == 1 { node.right_child } else { node.left_child };
+}
+
+// (4) 新葉 + 新 inner をアロケート; 新 inner は \`shared_bit\` で分割。
+let new_leaf_idx = tree_alloc(tree)?;
+tree.nodes[new_leaf_idx] = TreeNode { tag: LEAF, price, ... };
+let new_inner_idx = tree_alloc(tree)?;
+let price_bit = ((price >> shared_bit) & 1) as u8;
+let (left, right) = if price_bit == 1 { (cur, new_leaf_idx) } else { (new_leaf_idx, cur) };
+tree.nodes[new_inner_idx] = TreeNode { tag: INNER, split_bit: shared_bit, left_child: left, right_child: right, ... };
+
+// (5) 親に配線する。
+if parent == SLAB_NONE_INDEX {
+    tree.root = new_inner_idx;
+} else if parent_side == 1 {
+    tree.nodes[parent].right_child = new_inner_idx;
+} else {
+    tree.nodes[parent].left_child = new_inner_idx;
+}
+\`\`\`
+
+吸収すべきもの 5 つ。
+
+**ステップ 2 は「*どれか*葉まで歩く」。正しい葉ではない。** Critbit の優雅さは、root から \`(price >> split_bit) & 1\` で歩くと**ある**葉 — \`price\` と最長の critical-bit prefix を共有する葉 — で終わることだ。それが \`shared_bit\` を見つけるために比較すべき唯一の葉。列挙不要、複数葉と比較する必要なし。
+
+**\`shared_bit = 63 - diff.leading_zeros()\`。** 標準トリック: \`diff\` の最上位セットビットは \`63 - leading_zeros\` の位置（\`u64\` で）。\`diff != 0\`（等価価格ケースを除外済み）なので、\`leading_zeros\` は \`0..=63\` の範囲。
+
+**ステップ 3 の歩きは正しい不変条件で止まる。** (a) 葉に当たるか、(b) \`split_bit < shared_bit\` の inner node に当たるとき継ぎ込む。両方とも意味は: 既存木はこのパス上に \`shared_bit\` で識別する inner を持たない、だから新 inner はここに来るべき。不変条件は維持される: \`split_bit >= shared_bit\` の inner では \`price\` と \`found_price\` がそのビットで一致するので、降下を続けられる。
+
+**ステップ 4 の \`price_bit\` が新葉のどちら側を決める。** \`price\` がビット \`shared_bit\` をセットしているなら右へ、そうでなければ左へ。既存サブツリー（\`cur\`）は逆側を取る。なぜか? \`shared_bit\` で \`price\` と \`found_price\` が違うから — だから新 inner の反対側に属する。
+
+**ステップ 5 は唯一の「配線」ステップ。** その前のすべてはノードをアロケートして埋めただけ。実際の木接続は親の \`left_child\` か \`right_child\` ポインタ 1 つ（または \`tree.root\`）。間違えやすい; テストもしやすい。
+
+ハンドラ \`process_slab_place_order\` はその後、（既にアロケート & 初期化済みの）新 OrderNode を葉の FIFO に追加する。葉が新品なら（\`head_node == SLAB_NONE_INDEX\`）、新オーダが先頭と末尾の両方になる。既存なら、新オーダが新末尾になり、旧末尾の \`next\` と新ノードの \`prev\` がリンクされる。
+
+> **演習 §15.3.** 価格を 3 つの異なる順序で insert せよ: \`[100, 200, 150]\`、\`[200, 100, 150]\`、\`[150, 100, 200]\`。出来上がる木を手で歩け（または debug print で）。3 つすべてが昇順で iterate すると \`[100, 150, 200]\` を生む木を作るはずだ — だが内部構造（どの inner が root か、葉がどちら側にあるか）は異なる。それでよい: critbit はその葉について順序非依存だが、内部形状については違う。
+
+---
+
+## §15.4  Best-price + match-and-pop
+
+\`critbit_find_best\`:
+
+\`\`\`rust
+fn critbit_find_best(tree: &CritbitTree, want_max: bool) -> Option<u16> {
+    if tree.root == SLAB_NONE_INDEX { return None; }
+    let mut cur = tree.root;
+    loop {
+        let node = &tree.nodes[cur];
+        if node.tag == LEAF { return Some(cur); }
+        cur = if want_max { node.right_child } else { node.left_child };
+    }
+}
+\`\`\`
+
+アルゴリズム全体は「自分の側に向かって root から歩く」。Bid は最高価格を望むので常に右へ。Ask は最低を望むので常に左へ。木の不変条件 — 右側葉は \`split_bit\` で 1、左側葉は 0 — と、最高 split_bit から最低へ降下することの組み合わせが、これを単調に極値に到達することを保証する。
+
+\`SlabMatch\` はその後走る:
+
+\`\`\`rust
+while fills < max_fills && remaining > 0 {
+    let (leaf_idx, head_idx, level_price) = slab_peek_best(slab, want_max)?;
+    if !crosses(level_price, limit_price) { break; }
+
+    let maker_size = slab.nodes[head_idx].size;
+    let fill = remaining.min(maker_size);
+
+    if fill == maker_size {
+        slab_pop_head_of_leaf(slab, maker_side, leaf_idx)?;  // 葉を落とすかも
+    } else {
+        slab.nodes[head_idx].size = maker_size - fill;
+    }
+
+    remaining -= fill;
+    fills += 1;
+}
+\`\`\`
+
+これは構造的に第 8 章のフラット板 \`Match\` と同じ fill-loop 形状 — taker は \`remaining\` を持ち、maker 側を best から歩き、\`remaining == 0\`、次の maker が limit を超えない、\`max_fills\` ページング cap が効くのいずれかまで埋める。違うのは、maker を見つけるのが O(N) でなく O(log N) で、maker を pop するのが O(1) でなく O(log N)（水準が枯れたときのトレードオフが \`slab_pop_head_of_leaf\` に住む）。
+
+\`crosses\` 述語（上にインライン）は limit-price gate:
+
+- **BID taker:** 高々 \`limit_price\` で買いたい → \`level_price <= limit_price\` の asks を cross。
+- **ASK taker:** 少なくとも \`limit_price\` で売りたい → \`level_price >= limit_price\` の bids を cross。
+
+Gate が cross をやめると（maker 価格が taker に有利でなくなった）、match は \`remaining > 0\` で戻る。Taker は望めば未充足部分を maker として post できる — それは同じ caller からの別の \`SlabPlaceOrder\` 呼び出し。
+
+> **演習 §15.4.** 10 個の asks を価格 100, 101, 102, ..., 109 で insert せよ。\`limit_price = 105\`、\`size = 25\`、\`max_fills = 10\` で BID taker を送れ。Fills を追え: どの価格にどの順序で当たるか、taker は何回 fill した後 limit gate に当たるか、match が戻った後 \`remaining\` に何が残るか?
+
+---
+
+## §15.5  Critbit remove — 難しいやつ
+
+水準の FIFO が空になると（\`slab_pop_head_of_leaf\` が最後のオーダを歩き出した）、葉は木から取り除かれねばならない。それは単に葉を free するだけではない — 直上の inner node は今や有効な子が 1 つしかなく、冗長になる。冗長な inner を超えて兄弟サブツリーを継ぎ上げる。
+
+\`\`\`rust
+fn critbit_remove_leaf(tree: &mut CritbitTree, leaf_idx: u16) -> ProgramResult {
+    // (1) エッジケース: 葉が root。
+    if tree.root == leaf_idx {
+        tree_free(tree, leaf_idx);
+        tree.root = SLAB_NONE_INDEX;
+        return Ok(());
+    }
+
+    // (2) 価格で歩き、親 + 祖父母を追跡する。
+    let target_price = tree.nodes[leaf_idx].price;
+    let mut grandparent = SLAB_NONE_INDEX;
+    let mut parent = SLAB_NONE_INDEX;
+    let mut gp_to_p_side = 0u8;
+    let mut parent_side = 0u8;
+    let mut cur = tree.root;
+    loop {
+        if cur == leaf_idx { break; }
+        let node = &tree.nodes[cur];
+        let bit = ((target_price >> node.split_bit) & 1) as u8;
+        grandparent = parent;
+        gp_to_p_side = parent_side;
+        parent = cur;
+        parent_side = bit;
+        cur = if bit == 1 { node.right_child } else { node.left_child };
+    }
+
+    // (3) \`parent\` での兄弟は \`parent_side\` が取らなかった方。
+    let parent_node = tree.nodes[parent];
+    let sibling = if parent_side == 1 { parent_node.left_child } else { parent_node.right_child };
+
+    // (4) \`sibling\` を \`parent\` がいた場所（祖父母の下、または root として）に配線。
+    if grandparent == SLAB_NONE_INDEX {
+        tree.root = sibling;
+    } else if gp_to_p_side == 1 {
+        tree.nodes[grandparent].right_child = sibling;
+    } else {
+        tree.nodes[grandparent].left_child = sibling;
+    }
+
+    tree_free(tree, parent);
+    tree_free(tree, leaf_idx);
+    Ok(())
+}
+\`\`\`
+
+これが機能する 4 つの不変条件。
+
+**歩きは価格で、インデックスではない。** 取り除く葉は \`tree.nodes\` で安定したインデックスを持つが、root からそこへの**パス**はビットテストルーチンで降る。インデックスで歩くなら insert 時に親を覚える必要があり、状態が倍になる。価格で歩けば毎回 O(log N)、追加簿記なし。
+
+**祖先 2 つが重要。** \`parent\` は葉の直上の inner; これが葉と一緒に削除される。\`grandparent\` は親の上の inner; **これ**の子ポインタが削除された親をバイパスするよう更新される必要がある。親が ROOT なら（祖父母なし）、\`tree.root\` を直接更新する。
+
+**兄弟のサブツリーは保たれる。** そこに再帰せず、そのノードに触れず — 親の祖父母でのスロットを兄弟へ指すよう 1 つのポインタを書き換えるだけ。それが何だったか — 葉、inner、サブツリー全体 — そのまま 1 階層上がる。
+
+**\`tree_free\` 呼び出し 2 つ。** 葉 AND 親。両方が木の free list に戻る。Remove の後の最初のアロケーションはどちらかを再利用する（おそらく親、free-list pop が LIFO だから）。
+
+ステップ 1 の単葉 root ケースは唯一の「形が違う」分岐。それ以外は常に親がある（葉が root でないのは、最小限、この葉と少なくとも他の 1 つを識別する inner があるから）。
+
+> **演習 §15.5.** Slab を作り、10 水準を価格 \`[100, 200, 50, 150, 250, 75, 125, 175, 225, 275]\` で insert せよ。木がどうなるか歩け（root、splits、葉）。次に 150 の水準をキャンセルせよ — どの inner が free され、どのサブツリーが上がるか追え。次に 250 を、次に 100 をキャンセル。3 つの remove の後、「無駄な」inner ノードはあるか?（ヒント: ないはず — remove は構築上常に親を畳む。）
+
+---
+
+## §15.6  3 つのハンドラ
+
+\`process_create_slab\`（タグ 29）はブートストラップ。アカウントは \`slab (WRITE, SIGNER)\`、\`market\`。Market を検証したうえで、slab が署名していない(keypair の持ち主だけが market を決められる)、書き込み可でない、owner が openhl-core でない、ちょうど \`Slab::LEN\` バイトでない、rent 免除でない、すでに識別子がある(稼働中の板を初期化し直させない)、のどれかなら拒否する。そのあと識別子 + market を書き(PDA ではないので \`bump\` は 0 のまま)、両方の木で \`tree_init\` と OrderNode プールで \`slab_init_pool\` を走らせる。Init 歩きは命令の最重部分（~1k プールエントリ + 256 木エントリ × 2 side = ~1.5k イテレーション）; 以後の op は sub-log-N。
+
+\`process_slab_place_order\`（タグ 30）は \`[side u8][price u64 LE][size u64 LE]\` を読む — \`PlaceOrder\` のペイロードと同一。Slab 識別子を検証し、ユーザの pubkey をコピーし、\`slab_insert_order\` を呼ぶ。アカウント 2 つ: \`user (SIGNER)、slab (WRITE)\`。第 7 章のフラット板 \`process_place_order\` と比較する価値がある: 同じペイロード、+0 アカウント。Slab の追加複雑性は完全にプログラム内にある; on-the-wire 命令形状は不変。これはクライアント側マイグレーションに効く: 既存のトレーディングクライアントはタグバイトと渡すアカウントを変えるだけで \`PlaceOrder\` を \`SlabPlaceOrder\` に swap できる。
+
+\`process_slab_match\`（タグ 31）は \`[taker_side u8][price u64 LE][size u64 LE][max_fills u8]\` を読む — 第 8 章の \`Match\` と同一。検証、上の fill ループ実行、\`fills\` + \`remaining\` をログしてページング cap を可視にする。第 8 章が導入した同じ \`max_fills\` セマンティクスがここでもそのまま適用される: slab は依然として CU で境界される、はるかに高い実効 N で。
+
+CU 形状(実測):
+
+| op | フラット (ch.7/8) | slab (ch.15) |
+|---|---|---|
+| place、空の板 | 2,357 | 1,788 |
+| place、ほぼ満杯の板 | 2,446(31 注文) | 1,954(1,023 注文、128 水準)。2,008(126 水準のあとに新しい水準を足す) |
+| match、10 fill | 22,250(32 注文) | 14,553(10 注文)〜15,818(128 注文、1 水準に 1 つ)。14,284(128 水準に 1,024 注文)、13,921(8 水準に 1,024 注文) |
+| match、4 fill | 8,147(4 注文)、8,500(8)、9,276(16) | 6,597(4)、6,784(8)、6,793(16) |
+| cancel | 1,994(最初のスロット)〜2,174(32 個中の最後) | 未実装(演習 §15.6) |
+
+(\`fuzz/slab\` の \`grid\` テストで、LiteSVM 上で測った。注文はサイズ 1 の買い。LiteSVM が \`solana-test-validator\` と同じに数えることは第 4 章 §4.5 で確かめた。)
+
+この表の以前の版は測る前に書かれていて、slab は place あたり高い(1 KCU に対して約 3〜4 KCU)、\`Match\` は約 8 注文未満ならフラット板が勝つ、と書いていた。どちらも成り立たなかった。slab は place あたり安かった。差の内訳は分けていないが、フラット板の insert は空きスロットを探してスロットを走査する。\`Match\` でも、試したどの大きさでも、4 注文まで下げても slab が安かった。成り立つのは形のほうだ。10 fill は 10 注文でも 1,024 注文でもほぼ同じ値段で、各 fill がたどるのは全注文ではなく、価格水準の木の 1 本の道だからだ。こういう価格(連続した整数)ではその道は短い。どこまで長くできるかは §15.7 で示す。
+
+ただし深さからは見えないことが 2 つ値段を左右する。1 つは価格のビット(§15.7)。もう 1 つは、1 つの水準にいくつの注文があるかだ。fill のたびに水準が空になると、葉の削除(§15.5)が毎回走る。64 fill は、128 価格に 128 注文で 92,122 CU、128 価格に 1,024 注文(1 水準に 8 つ)で 83,871 だった。
+
+> **演習 §15.6.** \`SlabCancelOrder\` 命令を追加せよ。\`(order_id, side, price)\` を取り、特定の価格水準から特定のオーダを取り除く。ヒント: 構築したままの slab は \`order_id\` でオーダをインデックスしないので、正しいものを見つけるには水準の FIFO を歩く必要がある。\`price\` 引数が重要な理由は何か — それは木全体を歩くことに対して何を節約するか?
+
+---
+
+## §15.7  まとめと自己検証
+
+### まとめ図
+
+\`\`\`
+Slab 一瞥:
+
+  Slab {
+    discriminator: "SLAB\\0\\0\\0\\0"
+    market: <market pubkey>
+    next_order_id: u64
+    active_count: u32
+    pool_free_head: u16 ──┐
+                          │
+    bid_tree: CritbitTree {
+      root: u16 ──────────┼─── nodes[] へのポインタ（または NONE_INDEX）
+      free_head: u16 ─────┼─── free TreeNode スロットのスタック
+      nodes: [TreeNode; 256]
+              ┌──────────────────────────────┐
+              │ INNER: split_bit, l_idx, r_idx
+              │ LEAF:  price, head_node, tail_node, order_count
+              │ FREE:  next_free
+              └──────────────────────────────┘
+    }
+    ask_tree: CritbitTree { … 同じ形状 … }
+
+    nodes: [OrderNode; 1024]  ◄── 共有 OrderNode プール
+            ┌─────────────────────────┐
+            │ order_id, owner, size,  │
+            │ next, prev              │  (FIFO リンクまたは free-list リンク)
+            └─────────────────────────┘
+  }
+
+
+価格 117、サイズ 5、BID を Insert:
+  pool_alloc_node() → idx_O
+  nodes[idx_O] = OrderNode{order_id, owner, size=5, next=NONE, prev=NONE}
+  critbit_find_or_create_leaf(bid_tree, 117) → (idx_L, was_new)
+  if was_new:
+    bid_tree.nodes[idx_L].{head_node, tail_node} = idx_O
+    bid_tree.nodes[idx_L].order_count = 1
+  else:
+    old_tail = bid_tree.nodes[idx_L].tail_node
+    bid_tree.nodes[idx_L].tail_node = idx_O
+    nodes[old_tail].next = idx_O
+    nodes[idx_O].prev   = old_tail
+
+
+BID-taker、limit=110、size=25、max_fills=3 を Match:
+  critbit_find_best(ask_tree, want_max=false) 経由で best ask 葉
+  FIFO 先頭を pop:
+    head.size <= remaining なら: pop_head_of_leaf()（葉を取り除くかも）
+    そうでないなら:               head.size を in-place で縮める
+  !crosses または remaining=0 または fills==3 まで繰り返す
+\`\`\`
+
+### 自分で検証する 3 項目
+
+1. **プールが優雅に枯渇する。** 1024 オーダを insert せよ(片側の木が持てる異なる価格は最大 128 なので、128 以下の水準に分ける)。1025 番目を試せ — \`pool_alloc_node\` が \`AccountDataTooSmall\`（プールスロットなし）で失敗し、place が失敗し、\`active_count\` が 1024 に留まるはず。
+2. **枯れた水準がその葉を綺麗に取り除く。** 価格 100 で 2 オーダを insert（同じ水準）。\`SlabMatch\` で両方 cross-match。Slab dump はアクティブオーダ 0 を、bid 100 の葉はなくなったことを示すはず（\`describe_best\` は \`(empty)\` を返す）。木の \`free_head\` は進んでいるはず（葉とその親 inner が free list に戻った — 100 が唯一の水準だった場合を除く。その場合は葉だけが戻り親は存在しなかった）。
+3. **\`active_count\` 不変条件。** Place + match + cancel の任意のシーケンス後、\`active_count\` は \`nodes[i].size > 0\` の実際の count（ライブオーダ）に等しいはず。Slab dump が \`active_count\` を直接 print する; プール歩きでカウントするのは追加スクリプトパス 1 つ。ここで乖離を見つけることはどこかでカウンタが更新されなかったことを意味する — 潜在バグ。
+
+
+### 高くつくマッチを道具に探させる
+
+第 8 章 §8.6 では、満杯の板が CU の上限に収まるようフラットなマッチャの \`max_fills\` を制限し、その上限は板が大きくなるほど下げなければならない理由を示した。[\`fuzz/slab/\`](https://github.com/psyto/openhl-solana/blob/main/fuzz/slab) は \`SlabMatch\` に同じ問いを投げる。上限は 100,000 CU(\`SLAB_MATCH_CU_CAP\`)で、私たちが作れた最も高くつく形を使う。128 価格に 128 の買い注文(片側の木が持てる水準は最大 128)、1 水準に 1 注文なので fill のたびに水準も消える。そして最良の買いが critbit の深いところに来るよう価格を選ぶ。価格は \`u64::MAX\` と、k < 63 について \`u64::MAX - 2^k\`、その下に普通の 64 個だ。critbit の分岐は 64 ビットのキーのそれぞれ異なるビットで起きるので、道の長さは最大 64 ノード。これらの価格はそういう道を 1 本作り、最良の買い(\`u64::MAX\` と \`u64::MAX - 1\`)をその底に置き、以後の買いはその道から少しずつ上にぶら下がる。だから最初の fill ほど、キーが許す最も長い道をたどる。第 3 章 §3.7 のとおり準備してから:
+
+\`\`\`bash
+cargo build-sbf --manifest-path programs/openhl-core/Cargo.toml
+cd fuzz/slab
+cargo build --release --features invariant_ch15
+cargo test --release --features invariant_ch15      # 10 fill は 32 注文でも 1,024 注文でも同じ値段
+timeout -s INT 60 crucible run openhl_slab_fuzz invariant_ch15 \\
+    --binary-in target/release/invariant_test --timeout 45
+\`\`\`
+
+> **演習 §15.7.** 走らせよ。\`[FUZZ_FINDING] [cu-dos:…] ix slab_match consumed … CU (cap 100000)\` の行が出るはずだ。第 8 章と同じく、上限を決めるのはプログラムだ。\`grid\` の数値から、思いつくどの形でも 100,000 に収まる \`max_fills\` の最大はいくつか。その検査を \`process_slab_match\` に足し、作り直してもう一度走らせよ。(出荷したプログラムには上限がないので、上の実行で報告が出る。以下の上限は、検査を足した複製で測った。)
+>
+> 私たちの最初の答えは間違っていて、その間違い方が教訓だ。連続した価格(100、101、…)に 1 水準 1 注文で測ると 69 fill で 99,037 CU だったので、69 を上限にした。レビュアーが、critbit は自己平衡しないと指摘した。深さは水準の数ではなく価格のビットに従う。上の深い価格では、10 fill が 35,819 CU(連続した価格では約 14,500)、32 fill が 100,222 で、上限 69 のまま走らせると fuzzer は 157,245 を報告した。その価格を選ぶのは maker なので、taker のマッチの値段を決めるのも maker だ。深い形に収まる最大の上限は 31(97,678 CU)で、\`if max_fills > 31\` を入れると fuzzer は 45 秒で何も見つけなかった。
+>
+> 31 は、私たちが見つけた最も深い形の上での測定値で、証明ではない。その下にある上限は本物だ(道の長さはキーのビット数を超えない)。そして上限は、プールが何注文を持つかには依存しない。第 8 章の上限が言えなかったのはこの点だ。依存するのは最悪の道の長さと、水準を消す値段である。上限がなければ、既定のバジェットを超えるマッチは今もありうる。深い形で 128 fill は 200,000 に収まらなかった。
+
+---
+
+## ここにない（意図的に）
+
+これは実装章であり比較章ではない。書かなかったもの:
+
+- \`fuzz/slab\` の \`grid\` テスト(§15.6)を超えるベンチマーク: 本番の深さ、settlement の CPI、slab での cancel。
+- Serum の slab vs Phoenix の slab vs 本書のサイドバイサイド。両方の本番 slab は本書が持たない機能を持つ（Serum のオーダブックは cancel-on-disconnect タグを保存する; Phoenix は独自の market-maker reservation スロットを持つ）、公平な比較はそれ自体の章になる。
+- フラット板から slab 板への移行ガイド。2 つのアカウント型は独立 — オンチェーン変換はない。\`OrderBook\`（第 7 章）の上に建てた market と \`Slab\`（本章）の上に建てた market は同じプログラムで共存できる。
+
+ここまで来てもっと欲しいなら、§8.4 の擬似コードの「3-4 日の練習」フレーミングは正確だった: 日々を使い、バリアントを書き、結果を測れ。
 `,
                 },
               ],

@@ -47,6 +47,7 @@ const CHAPTERS: ChapterSpec[] = [
   { num: 12, slug: 'vault',             course: 'hl-primitives', sortOrder: 6 },
   { num: 13, slug: 'builder-codes',     course: 'hl-primitives', sortOrder: 7 },
   { num: 14, slug: 'cranks-keepers',    course: 'hl-primitives', sortOrder: 8 },
+  { num: 15, slug: 'slab',              course: 'hl-primitives', sortOrder: 9 },
 ];
 
 const DURATION_MINUTES = 45;
@@ -102,8 +103,11 @@ function extractH1(markdown: string): string {
  *   - `[\`text\`](../../path#Lnn)`        → `\`text\``
  *   - `[plain text](../../path)`          → `plain text`
  */
+/** Repo-relative links (`../../crates/...`) point at openhl-solana on GitHub
+ *  once the chapter lives here; keep them as links rather than dropping
+ *  them, so a reader can still open the harness or file a chapter names. */
 function stripRelativeRepoLinks(markdown: string): string {
-  return markdown.replace(/\[([^\]]+)\]\(\.\.\/\.\.\/[^)]*\)/g, '$1');
+  return markdown.replace(/\]\(\.\.\/\.\.\//g, '](https://github.com/psyto/openhl-solana/blob/main/');
 }
 
 function renderDraft(args: {

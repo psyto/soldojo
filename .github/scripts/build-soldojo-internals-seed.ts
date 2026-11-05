@@ -23,7 +23,7 @@ type Locale = 'en' | 'ja';
 type CourseKey = 'foundations' | 'hl-primitives';
 
 interface LessonSpec {
-  /** Chapter number — 1..14. */
+  /** Chapter number — 1..15. */
   chapterNum: number;
   /** Slug fragment used in the import-script naming convention. */
   chapterSlug: string;
@@ -104,6 +104,7 @@ const COURSES: CourseSpec[] = [
       { chapterNum: 12, chapterSlug: 'vault',             sortOrder: 6 },
       { chapterNum: 13, chapterSlug: 'builder-codes',     sortOrder: 7 },
       { chapterNum: 14, chapterSlug: 'cranks-keepers',    sortOrder: 8 },
+      { chapterNum: 15, chapterSlug: 'slab',              sortOrder: 9 },
     ],
   },
 ];

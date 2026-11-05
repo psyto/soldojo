@@ -19,7 +19,7 @@
 # Chapter 1 — The Account Model from the Bytes Up
 
 > Status: draft (v0.1).
-> Companion code: `crates/state/src/lib.rs`, `scripts/allocate-market/src/main.rs`.
+> Companion code: [`crates/state/src/lib.rs`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs), [`scripts/allocate-market/src/main.rs`](https://github.com/psyto/openhl-solana/blob/main/scripts/allocate-market/src/main.rs).
 > Tested against: solana-sdk 2.3.1, solana-rent 2.2.1, solana-account 2.2.1, solana-system-interface 1.0.0.
 
 ---
@@ -417,9 +417,9 @@ Account creation (System program):
 
 ### Three things to verify yourself
 
-1. **Owner check.** After running the script, run `solana account <market_pubkey>`. Confirm the `Owner` line is `11111111111111111111111111111111` (System). Our script asks for this at `main.rs:69` and the runtime obeys.
+1. **Owner check.** After running the script, run `solana account <market_pubkey>`. Confirm the `Owner` line is `11111111111111111111111111111111` (System). Our script asks for this at [`main.rs:69`](https://github.com/psyto/openhl-solana/blob/main/scripts/allocate-market/src/main.rs#L69) and the runtime obeys.
 2. **Rent exemption math.** Run `solana rent 256`. The output should match what the script printed for `rent lamports`. Both come from the same formula at [`solana-rent-2.2.1/src/lib.rs:93`](#) — one via local computation, one via RPC.
-3. **Layout offsets.** Open `crates/state/src/lib.rs:43–56` and add up the field sizes by hand. Confirm `quote_mint` starts at byte 80 and `_reserved` ends at byte 256. Run `cargo test -p openhl-state` to have the compiler confirm it too — the `market_size_is_256_bytes` test at `lib.rs:67–70` would fail if any field changed size.
+3. **Layout offsets.** Open [`crates/state/src/lib.rs:43–56`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs#L43) and add up the field sizes by hand. Confirm `quote_mint` starts at byte 80 and `_reserved` ends at byte 256. Run `cargo test -p openhl-state` to have the compiler confirm it too — the `market_size_is_256_bytes` test at [`lib.rs:67–70`](https://github.com/psyto/openhl-solana/blob/main/crates/state/src/lib.rs#L67) would fail if any field changed size.
 
 ---
 
